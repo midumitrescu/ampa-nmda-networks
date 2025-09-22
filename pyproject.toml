@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+#requires = ["poetry-core"]
+#build-backend = "poetry.core.masonry.api"
+
+[project]
+name = "ampa-nmda-networks"
+version = "0.0.1"
+dependencies = [
+    "numpy",
+    "matplotlib",
+    "brian2",
+    "jupyter"
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-cov"
+]
