@@ -11,8 +11,13 @@ dependencies = [
     "numpy",
     "matplotlib",
     "brian2",
-    "jupyter"
+    "jupyter",
+    "loguru",
+    "scipy"
 ]
+
+[tool.setuptools]
+packages = ["source"]
 
 [project.optional-dependencies]
 test = [
