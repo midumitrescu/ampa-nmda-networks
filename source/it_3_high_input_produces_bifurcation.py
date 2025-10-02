@@ -32,7 +32,7 @@ We tehrefore need to compute the nu_threshold starting from C_ext, i.e. # of con
 def make_experiment_work_with_N_E_and_C_E_zero(experiment_config: dict):
     experiment = Experiment(experiment_config)
     delta_v_to_threshold = experiment.neuron_params.theta - experiment.neuron_params.E_leak
-    denominator = experiment.neuron_params.J * experiment.network_params.C_ext * experiment.neuron_params.tau
+    denominator = experiment.synaptic_params.J * experiment.network_params.C_ext * experiment.neuron_params.tau
     experiment.neuron_params.nu_thr = delta_v_to_threshold / denominator
     experiment.nu_thr = experiment.neuron_params.nu_thr
     experiment.nu_ext = experiment.nu_ext_over_nu_thr * experiment.nu_thr
@@ -60,7 +60,7 @@ def sim(experiment: Experiment, in_testing=True):
     g_L = 0.04 * msiemens *  cm**-2
     E_leak = experiment.neuron_params.E_leak
     V_r = experiment.neuron_params.V_r
-    J = experiment.neuron_params.J
+    J = experiment.synaptic_params.J
 
     neurons = NeuronGroup(experiment.network_params.N,
                           """
@@ -73,7 +73,7 @@ def sim(experiment: Experiment, in_testing=True):
 
     external_poisson_input = PoissonInput(
         target=neurons, target_var="v", N=experiment.network_params.C_ext, rate=experiment.nu_ext,
-        weight=experiment.neuron_params.J
+        weight=experiment.synaptic_params.J
     )
 
     rate_monitor = PopulationRateMonitor(neurons)

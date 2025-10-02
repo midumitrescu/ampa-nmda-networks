@@ -1,6 +1,17 @@
 from loguru import logger
 from brian2 import ufarad, cm, siemens, mV, ms
 
+class SynapticParams:
+    KEY_SYNAPTIC_STRENGTH = "J"
+    KEY_SYNAPTIC_DELAY = "D"
+
+    def __init__(self, params: dict):
+
+        self.J = params.get(SynapticParams.KEY_SYNAPTIC_STRENGTH, 0.5 * mV)
+        self.D = params.get(SynapticParams.KEY_SYNAPTIC_DELAY, 1.5 * ms)
+
+    def __str__(self):
+        return f"{self.__class__}(J={self.J}, D={self.D})"
 
 class NetworkParams:
     KEY_G = "g"
@@ -16,7 +27,10 @@ class NetworkParams:
     KEY_GAMMA = "GAMMA"
     KEY_EPSILON = "epsilon"
 
-    def __init__(self, params):
+    def __init__(self, params: dict):
+
+        self.synaptic_params = SynapticParams(params)
+
         self.g = params.get(NetworkParams.KEY_G, 0)
         self.N_E = params.get(NetworkParams.KEY_N_E, 10_000)
         self.gamma = params.get(NetworkParams.KEY_GAMMA, 0.25)
@@ -29,20 +43,23 @@ class NetworkParams:
 
         self.C_ext = params.get(NetworkParams.KEY_C_EXT, self.C_E)
 
+    def __str__(self):
+        return f"{self.__class__}({self.KEY_G}={self.g}, {self.KEY_GAMMA}={self.gamma}, {self.KEY_EPSILON}={self.epsilon}, {self.KEY_N_E}={self.N_E}, {self.KEY_N_I}={self.N_I}, \
+                {self.KEY_N}={self.N}, C_E={self.C_E}, {self.KEY_C_EXT}={self.C_ext})"
+
 
 class NeuronModelParams:
     KEY_NEURON_C = "C"
     KEY_NEURON_G_L = "g_L"
     KEY_NEURON_THRESHOLD = "theta"
     KEY_NEURON_V_R = "v_reset"
-    KEY_NEURON_V_L = "v_leak"
+    KEY_NEURON_E_L = "E_leak"
     KEY_TAU_REF = "tau_ref"
 
-    # synapse parameters
-    J = 0.5 * mV
-    D = 1.5 * ms
-
     def __init__(self, params: dict, network_params: NetworkParams = NetworkParams):
+
+        self.synaptic_params = SynapticParams(params)
+
         self.C = params.get(NeuronModelParams.KEY_NEURON_C, 1 * ufarad * (cm ** -2))
         self.g_L = params.get(NeuronModelParams.KEY_NEURON_G_L, 0.004 * siemens * (cm ** -2))
         self.theta = params.get(NeuronModelParams.KEY_NEURON_THRESHOLD, -40 * mV)
@@ -50,13 +67,16 @@ class NeuronModelParams:
         self.E_leak = params.get(NeuronModelParams.KEY_NEURON_G_L, -65 * mV)
         self.tau_rp = params.get(NeuronModelParams.KEY_TAU_REF, 2 * ms)
 
-
-        self.nu_thr = (self.theta - self.E_leak) / (self.J * network_params.C_E * self.tau)
         self.tau = self.C / self.g_L
+        self.nu_thr = (self.theta - self.E_leak) / (self.synaptic_params.J * network_params.C_E * self.tau)
 
+        logger.info("Computed tau membrane = {}, nu threshold = {}", self.tau, self.nu_thr)
 
-
-        logger.info("Computed nu threshold = {}", self.nu_thr)
+    def __str__(self):
+        return (f"{self.__class__}({NeuronModelParams.KEY_NEURON_C}={self.C}, {NeuronModelParams.KEY_NEURON_G_L}={self.g_L}, \
+                {NeuronModelParams.KEY_NEURON_THRESHOLD}={self.theta}, {NeuronModelParams.KEY_NEURON_V_R}={self.V_r}, \
+                {NeuronModelParams.KEY_NEURON_E_L}={self.E_leak}, {NeuronModelParams.KEY_TAU_REF}={self.tau_rp}, nu_thr(computed)={self.nu_thr},\
+                tau membrane(computed)={self.tau})")
 
 
 class PlotParams:
@@ -85,17 +105,18 @@ class Experiment:
     KEY_SIM_TIME = "sim_time"
     KEY_SIMULATION_CLOCK = "simulation_clock"
 
-    def __init__(self, params):
+    def __init__(self, params: dict):
         self.sim_time = params.get(Experiment.KEY_SIM_TIME, params.get(PlotParams.KEY_T_RANGE, (0, 200))[1]) * ms
         self.network_params = NetworkParams(params)
-        self.neuron_params = NeuronModelParams(self.network_params)
+        self.synaptic_params = SynapticParams(params)
+        self.neuron_params = NeuronModelParams(params=params, network_params=self.network_params)
         self.plot_params = PlotParams(params)
 
         self.nu_ext_over_nu_thr = params.get(NetworkParams.KEY_NU_E_OVER_NU_THR, 1)
         self.nu_thr = self.neuron_params.nu_thr
         self.nu_ext = self.nu_ext_over_nu_thr * self.nu_thr
 
-        self.mean_excitatory_input = self.neuron_params.J * self.neuron_params.tau * self.network_params.C_E * self.nu_ext
-        self.mean_inhibitory_input = - self.network_params.g * self.neuron_params.J * self.neuron_params.tau * self.network_params.C_E * self.nu_ext
+        self.mean_excitatory_input = self.synaptic_params.J * self.neuron_params.tau * self.network_params.C_E * self.nu_ext
+        self.mean_inhibitory_input = - self.network_params.g * self.synaptic_params.J * self.neuron_params.tau * self.network_params.C_E * self.nu_ext
 
         self.sim_clock = params.get(Experiment.KEY_SIMULATION_CLOCK, 0.05 * ms)
