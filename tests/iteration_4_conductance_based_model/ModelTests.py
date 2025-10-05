@@ -1,3 +1,4 @@
+import itertools
 import unittest
 
 import matplotlib.pyplot as plt
@@ -142,29 +143,28 @@ class MyTestCase(unittest.TestCase):
         plt.show()
 
     def test_default_model_works(self):
-
-        for mult in np.linspace(start=0.1, stop=2, num=20):
+        for current_nu_ext_over_nu_thr, current_g in itertools.product(np.linspace(start=0.01, stop=0.2, num=20), np.linspace(start=10, stop=20, num=10)):
             conductance_based_simulation = {
 
-                "sim_time": 1500,
-                "sim_clock": 0.05 * ms,
-
-                "g": 1,
-                "g_ampa": 0,
-                "nu_ext_over_nu_thr": 1 * mult,
+                "sim_time": 5000,
+                "sim_clock": 0.1 * ms,
+                "g": current_g,
+                "g_ampa": 2.518667367869784e-06,
+                "g_gaba": 2.518667367869784e-06,
+                "nu_ext_over_nu_thr": current_nu_ext_over_nu_thr,
                 "epsilon": 0.1,
                 "C_ext": 1000,
 
+                "g_L": 0.0004,
+
                 "panel": f"Testing conductance based model",
-                "t_range": [100, 120],
+                "t_range": [[100, 120], [100, 300], [0, 1500], [2500, 3000], [4500, 5000]],
                 "voltage_range": [-70, -30],
-                "smoothened_rate_width": 0.5 * ms
+                "smoothened_rate_width": 3 * ms
             }
 
 
             experiment = Experiment(conductance_based_simulation)
-
-            self.assertEqual(1, experiment.network_params.g)
 
             sim(experiment)
             plt.show()

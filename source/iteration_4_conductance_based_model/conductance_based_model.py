@@ -83,8 +83,8 @@ def sim(experiment: Experiment, in_testing=True, eq = default_model):
     inhib_synapses.connect(p=experiment.network_params.epsilon)
 
     external_poisson_input = PoissonInput(
-        target=neurons, target_var="v", N=experiment.network_params.C_ext, rate=experiment.nu_ext,
-        weight=experiment.synaptic_params.J
+        target=neurons, target_var="g_e", N=experiment.network_params.C_ext, rate=experiment.nu_ext,
+        weight=experiment.synaptic_params.g_ampa
     )
 
     rate_monitor = PopulationRateMonitor(neurons)
@@ -98,10 +98,6 @@ def sim(experiment: Experiment, in_testing=True, eq = default_model):
 
     plot_simulation(experiment, rate_monitor,
                     spike_monitor, v_monitor)
-
-    if experiment.sim_time > 1000 * ms:
-        experiment.plot_params.t_range = [1000, min(experiment.sim_time / ms, 2000)]
-        plot_simulation(experiment, rate_monitor, spike_monitor, v_monitor)
 
     return rate_monitor, spike_monitor, v_monitor
 
@@ -118,14 +114,28 @@ def plot_v_line(experiment: Experiment, ax_voltages: Axes, v_monitor: StateMonit
     ax_voltages.vlines(x=spike_times_current_neuron, ymin=v_min_plot, ymax=v_max_plot, color=color, linestyle="-.",
                        label=f"Neuron {i} Spike Time", lw=0.8)
 
-
 def plot_simulation(experiment: Experiment, rate_monitor,
                     spike_monitor, v_monitor):
+
+    params_t_range = experiment.plot_params.t_range
+
+    if isinstance(params_t_range[0], list):
+        for time_slot in params_t_range:
+            plot_simulation_in_one_time_range(experiment, rate_monitor, spike_monitor, v_monitor, time_slot)
+    else:
+        plot_simulation_in_one_time_range(experiment, rate_monitor, spike_monitor, v_monitor, params_t_range)
+
+    if experiment.sim_time > 1000 * ms:
+        plot_simulation_in_one_time_range(experiment, rate_monitor, spike_monitor, v_monitor, time_range=[1000, min(experiment.sim_time / ms, 2000)])
+
+def plot_simulation_in_one_time_range(experiment: Experiment, rate_monitor,
+                    spike_monitor, v_monitor, time_range=[100, 200]):
+
     rate_tick_step = experiment.plot_params.rate_tick_step
     fig = plt.figure(figsize=(10, 12))
     fig.suptitle(
         f''' {experiment.plot_params.panel}, N = {experiment.network_params.N}, $N_E = {experiment.network_params.N_E}$, $N_I = {experiment.network_params.N_I}$, $\gamma={experiment.network_params.gamma}$
-    $\\nu_T = {experiment.nu_thr}$, $\\frac{{\\nu_E}}{{\\nu_T}} = {experiment.nu_ext_over_nu_thr: .2f}$ ''')
+    $\\nu_T = {experiment.nu_thr}$, $\\frac{{\\nu_E}}{{\\nu_T}} = {experiment.nu_ext_over_nu_thr: .2f}$ , g={experiment.network_params.g}''')
 
     outer = gridspec.GridSpec(2, 1, figure=fig, height_ratios=[5, 2])
     raster_and_population = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=outer[0], height_ratios=[4, 1],
@@ -151,7 +161,7 @@ def plot_simulation(experiment: Experiment, rate_monitor,
         plot_v_line(experiment, ax_voltages, v_monitor, spike_monitor, i)
 
     for ax in [ax_spikes, ax_rates, ax_voltages]:
-        ax.set_xlim(*experiment.plot_params.t_range)
+        ax.set_xlim(*time_range)
 
     ax_voltages.legend(loc="best")
     ax_voltages.set_xlabel("t [ms]")

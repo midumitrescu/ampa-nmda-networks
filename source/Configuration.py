@@ -15,13 +15,16 @@ class SynapticParams:
     KEY_E_AMPA = "E_ampa"
     KEY_E_GABA = "E_gaba"
 
-    def __init__(self, params: dict):
+    def __init__(self, params: dict, g: float):
+
+        self.g = None
 
         self.J = params.get(SynapticParams.KEY_SYNAPTIC_STRENGTH, 0.5 * mV)
         self.D = params.get(SynapticParams.KEY_SYNAPTIC_DELAY, 1.5 * ms)
 
         self.g_ampa = params.get(SynapticParams.KEY_G_AMPA, 0) * siemens / cm ** 2
-        self.g_gaba = params.get(SynapticParams.KEY_G_AMPA, 0) * siemens / cm ** 2
+        #self.g_gaba = params.get(SynapticParams.KEY_G_AMPA, 0) * siemens / cm ** 2
+        self.g_gaba = g * self.g_ampa
 
         self.tau_ampa = params.get(SynapticParams.KEY_TAU_AMPA, 2) * ms
         self.tau_gaba = params.get(SynapticParams.KEY_TAU_AMPA, 2) * ms
@@ -48,9 +51,9 @@ class NetworkParams:
 
     def __init__(self, params: dict):
 
-        self.synaptic_params = SynapticParams(params)
-
         self.g = params.get(NetworkParams.KEY_G, 0)
+        self.synaptic_params = SynapticParams(params, g=self.g)
+
         self.N_E = params.get(NetworkParams.KEY_N_E, 10_000)
         self.gamma = params.get(NetworkParams.KEY_GAMMA, 0.25)
         self.epsilon = params.get(NetworkParams.KEY_EPSILON, 0.1)
@@ -77,10 +80,10 @@ class NeuronModelParams:
 
     def __init__(self, params: dict, network_params: NetworkParams = NetworkParams):
 
-        self.synaptic_params = SynapticParams(params)
+        self.synaptic_params = SynapticParams(params, g=network_params.g)
 
         self.C = params.get(NeuronModelParams.KEY_NEURON_C, 1 * ufarad * (cm ** -2))
-        self.g_L = params.get(NeuronModelParams.KEY_NEURON_G_L, 0.00004 * siemens * (cm ** -2))
+        self.g_L = params.get(NeuronModelParams.KEY_NEURON_G_L, 0.00004) * siemens * (cm ** -2)
         self.theta = params.get(NeuronModelParams.KEY_NEURON_THRESHOLD, -40 * mV)
         self.V_r = params.get(NeuronModelParams.KEY_NEURON_V_R, -65 * mV)
         self.E_leak = params.get(NeuronModelParams.KEY_NEURON_E_L, -65 * mV)
@@ -127,7 +130,7 @@ class Experiment:
     def __init__(self, params: dict):
         self.sim_time = params.get(Experiment.KEY_SIM_TIME, params.get(PlotParams.KEY_T_RANGE, (0, 200))[1]) * ms
         self.network_params = NetworkParams(params)
-        self.synaptic_params = SynapticParams(params)
+        self.synaptic_params = SynapticParams(params, g=self.network_params.g)
         self.neuron_params = NeuronModelParams(params=params, network_params=self.network_params)
         self.plot_params = PlotParams(params)
 
@@ -139,6 +142,11 @@ class Experiment:
         self.mean_inhibitory_input = - self.network_params.g * self.synaptic_params.J * self.neuron_params.tau * self.network_params.C_E * self.nu_ext
 
         self.sim_clock = params.get(Experiment.KEY_SIMULATION_CLOCK, 0.05 * ms)
+
+        logger.info("Effective Reversal {}",
+                   (self.neuron_params.g_L * self.neuron_params.E_leak +
+                   self.synaptic_params.g_ampa * self.synaptic_params.e_ampa +
+                   self.synaptic_params.g_gaba * self.synaptic_params.e_gaba) / (self.neuron_params.g_L + self.synaptic_params.g_ampa + self.synaptic_params.g_gaba))
 
     def gen_plot_title(self):
         return f''' {self.plot_params.panel}
