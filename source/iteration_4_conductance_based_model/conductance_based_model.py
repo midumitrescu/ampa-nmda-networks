@@ -24,6 +24,13 @@ default_model = """
     dg_i/dt = -g_i / tau_gaba  : siemens / meter**2
 """
 
+def sim_and_plot(experiment: Experiment, in_testing=True, eq = default_model):
+    rate_monitor, spike_monitor, v_monitor, g_monitor = sim(experiment, in_testing, eq)
+    plot_simulation(experiment, rate_monitor,
+                    spike_monitor, v_monitor, g_monitor)
+
+    return rate_monitor, spike_monitor, v_monitor, g_monitor
+
 
 def sim(experiment: Experiment, in_testing=True, eq = default_model):
     """
@@ -94,12 +101,11 @@ def sim(experiment: Experiment, in_testing=True, eq = default_model):
     v_monitor = StateMonitor(source=neurons[experiment.network_params.N_E - 25: experiment.network_params.N_E + 25],
                              variables="v", record=True)
 
+    g_monitor = StateMonitor(source=neurons[experiment.network_params.N_E - 25: experiment.network_params.N_E + 25], variables=["g_e", "g_i"], record=True)
+
     run(experiment.sim_time, report='text')
 
-    plot_simulation(experiment, rate_monitor,
-                    spike_monitor, v_monitor)
-
-    return rate_monitor, spike_monitor, v_monitor
+    return rate_monitor, spike_monitor, v_monitor, g_monitor
 
 
 def plot_v_line(experiment: Experiment, ax_voltages: Axes, v_monitor: StateMonitor, spike_monitor: SpikeMonitor,
@@ -115,32 +121,29 @@ def plot_v_line(experiment: Experiment, ax_voltages: Axes, v_monitor: StateMonit
                        label=f"Neuron {i} Spike Time", lw=0.8)
 
 def plot_simulation(experiment: Experiment, rate_monitor,
-                    spike_monitor, v_monitor):
+                    spike_monitor, v_monitor, g_monitor):
 
     params_t_range = experiment.plot_params.t_range
 
     if isinstance(params_t_range[0], list):
         for time_slot in params_t_range:
-            plot_simulation_in_one_time_range(experiment, rate_monitor, spike_monitor, v_monitor, time_slot)
+            plot_simulation_in_one_time_range(experiment, rate_monitor, spike_monitor, v_monitor, g_monitor, time_range = time_slot)
     else:
-        plot_simulation_in_one_time_range(experiment, rate_monitor, spike_monitor, v_monitor, params_t_range)
-
-    if experiment.sim_time > 1000 * ms:
-        plot_simulation_in_one_time_range(experiment, rate_monitor, spike_monitor, v_monitor, time_range=[1000, min(experiment.sim_time / ms, 2000)])
+        plot_simulation_in_one_time_range(experiment, rate_monitor, spike_monitor, v_monitor, g_monitor, time_range=params_t_range)
 
 def plot_simulation_in_one_time_range(experiment: Experiment, rate_monitor,
-                    spike_monitor, v_monitor, time_range=[100, 200]):
+                    spike_monitor, v_monitor, g_monitor, time_range=[100, 200]):
 
     rate_tick_step = experiment.plot_params.rate_tick_step
     fig = plt.figure(figsize=(10, 12))
     fig.suptitle(
         f''' {experiment.plot_params.panel}, N = {experiment.network_params.N}, $N_E = {experiment.network_params.N_E}$, $N_I = {experiment.network_params.N_I}$, $\gamma={experiment.network_params.gamma}$
-    $\\nu_T = {experiment.nu_thr}$, $\\frac{{\\nu_E}}{{\\nu_T}} = {experiment.nu_ext_over_nu_thr: .2f}$ , g={experiment.network_params.g}''')
+    $\\nu_T = {experiment.nu_thr}$, $\\frac{{\\nu_E}}{{\\nu_T}} = {experiment.nu_ext_over_nu_thr: .3f}$ , g={experiment.network_params.g}''')
 
     outer = gridspec.GridSpec(2, 1, figure=fig, height_ratios=[5, 2])
     raster_and_population = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=outer[0], height_ratios=[4, 1],
                                                              hspace=0)
-    voltage_examples = gridspec.GridSpecFromSubplotSpec(1, 1, subplot_spec=outer[1], hspace=.05)
+    voltage_and_g_s_examples = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=outer[1], hspace=0.8)
 
     ax_spikes, ax_rates = raster_and_population.subplots(sharex="col")
     ax_spikes.plot(spike_monitor.t / ms, spike_monitor.i, "|")
@@ -149,7 +152,7 @@ def plot_simulation_in_one_time_range(experiment: Experiment, rate_monitor,
     # ax_rates.set_ylim(*experiment.plot_params.rate_range)
     ax_rates.set_ylim([0, np.max(rate_monitor.rate / Hz)])
 
-    ax_voltages = voltage_examples.subplots()
+    ax_voltages, ax_g_s = voltage_and_g_s_examples.subplots(sharex="col")
 
     ax_voltages.axhline(y=experiment.neuron_params.theta / ms, linestyle="dotted", linewidth="0.3", color="k",
                         label="$\\theta$")
@@ -160,17 +163,21 @@ def plot_simulation_in_one_time_range(experiment: Experiment, rate_monitor,
     for i in [0, 2, 26, 28]:
         plot_v_line(experiment, ax_voltages, v_monitor, spike_monitor, i)
 
-    for ax in [ax_spikes, ax_rates, ax_voltages]:
+    for ax in [ax_spikes, ax_rates, ax_voltages, ax_g_s]:
         ax.set_xlim(*time_range)
 
     ax_voltages.legend(loc="best")
     ax_voltages.set_xlabel("t [ms]")
     ax_voltages.set_ylabel("v [mV]")
-    ax_rates.set_yticks(
-        np.arange(
-            experiment.plot_params.rate_range[0], experiment.plot_params.rate_range[1] + rate_tick_step, rate_tick_step
-        )
-    )
+    # ax_rates.set_yticks(
+    #     np.arange(
+    #         experiment.plot_params.rate_range[0], experiment.plot_params.rate_range[1] + rate_tick_step, rate_tick_step
+    #     )
+    # )
+
+    ax_g_s.plot(g_monitor.t / ms, g_monitor[0].g_i, label="$g_i$[0]")
+    ax_g_s.plot(g_monitor.t / ms, g_monitor[0].g_e, label="$g_e$[0]")
+    ax_g_s.legend(loc="best")
 
 
 def find_v_min_and_v_max_for_plotting(experiment, v_monitor):
