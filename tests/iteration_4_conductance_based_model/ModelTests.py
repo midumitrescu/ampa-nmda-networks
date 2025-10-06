@@ -41,6 +41,8 @@ def compute_rate_for_nu_ext_over_nu_thr(nu_ext_over_nu_thr, wait_for=4_000):
     print(f"For {nu_ext_over_nu_thr : .5f}, we get without units {mean_smothened / Hz}, {mean_unsmoothened / Hz}")
     return mean_unsmoothened / Hz, mean_smothened / Hz
 
+def moving_average(data, window_size):
+    return np.convolve(data, np.ones(window_size)/window_size, mode='same')
 
 class MyTestCase(unittest.TestCase):
 
@@ -203,7 +205,7 @@ class MyTestCase(unittest.TestCase):
             plt.show()
 
     def test_understand_why_most_firing_is_external(self):
-        for current_g in np.linspace(start=5, stop=20, num=21):
+        for current_g in np.linspace(start=5, stop=50, num=5):
             conductance_based_simulation = {
 
                 "sim_time": 2000,
@@ -218,15 +220,73 @@ class MyTestCase(unittest.TestCase):
                 "g_L": 0.00004,
 
                 "panel": f"Testing conductance based model",
-                "t_range": [[0, 100], [100, 300], [300, 500], [500, 1000], [1000, 2000]],
+                "t_range": [[0, 100], [100, 300], [300, 500], [500, 1000], [1000, 2000], [1900, 1950]],
                 "voltage_range": [-70, -30],
-                "smoothened_rate_width": 5 * ms
+                "smoothened_rate_width": 10 * ms
             }
 
             experiment = Experiment(conductance_based_simulation)
 
-            sim_and_plot(experiment)
+            rate_monitor, spike_monitor, _, _, = sim_and_plot(experiment)
             plt.show()
+
+            sampling_rate = 1000  # Adjust this based on your data's time step
+
+            # Perform the Fast Fourier Transform
+            n = len(rate_monitor.t)
+            fft_result = np.fft.fft(rate_monitor.rate)
+            fft_freq = np.fft.fftfreq(n, d=1 / sampling_rate)
+            fft_magnitude = np.abs(fft_result)
+
+            # Only keep the positive half of the spectrum
+            positive_frequencies = fft_freq[:n // 2]
+            positive_magnitude = fft_magnitude[:n // 2]
+
+            smoothened_magnitude = moving_average(positive_magnitude, window_size=250)
+
+
+            # Plot the frequency spectrum
+            fig, (ax_fft, ax_cvs) = plt.subplots(1, 2, figsize=(14, 6))
+
+            ax_fft.plot(positive_frequencies[2_000:], smoothened_magnitude[2_000:])
+            ax_fft.set_title("Frequency Spectrum")
+            ax_fft.set_xlabel("Frequency (Hz)")
+            ax_fft.set_ylabel("Magnitude")
+
+            # To identify dominant frequencies
+            dominant_frequencies = positive_frequencies[np.argsort(positive_magnitude)[-5:]]  # top 5 frequencies
+            print("Dominant frequencies:", dominant_frequencies)
+
+            cvs = self.compute_cvs(spike_monitor)
+
+            ax_cvs.set_title("CVs")
+            ax_cvs.set_xlabel("CV")
+            ax_cvs.set_ylabel("Density")
+            ax_cvs.hist(cvs, bins=50, density=True)
+
+            fig.show()
+
+
+            print(f"Information regarding CVs: min={np.min(cvs)}, max={np.max(cvs)}, averaage={np.average(cvs)}")
+            counts, bins = np.histogram(cvs, bins=50, density=True)
+            bin_widths = np.diff(bins)
+            area = np.sum(counts * bin_widths)
+
+            print(f"Estimated area under the histogram: {area}")
+
+    def compute_cvs(self, spike_monitor):
+
+        result = np.zeros(len(spike_monitor.spike_trains()))
+
+        for index, spike_train in spike_monitor.spike_trains().items():
+            isis_s = np.diff(spike_train)
+            result[index] = np.std(isis_s) / np.mean(isis_s)
+
+            if np.mean(isis_s) == 0 or np.std(isis_s) / ms > 1000:
+                print(f"Detected mean == 0 at {index}, std={np.std(isis_s)}")
+
+        args_with_nan = np.argwhere(np.isnan(result))
+        return result[~np.isnan(result)]
 
     def test_find_nu_ext_over_nu_thr_binary_search(self):
 

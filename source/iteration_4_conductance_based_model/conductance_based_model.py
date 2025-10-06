@@ -79,8 +79,6 @@ def sim(experiment: Experiment, in_testing=True, eq = default_model):
     excitatory_neurons = neurons[:experiment.network_params.N_E]
     inhibitory_neurons = neurons[experiment.network_params.N_E:]
 
-    print(g_ampa)
-
     exc_synapses = Synapses(excitatory_neurons, target=neurons, on_pre="g_e += g_ampa",
                             delay=experiment.synaptic_params.D)
     exc_synapses.connect(p=experiment.network_params.epsilon)
@@ -95,9 +93,7 @@ def sim(experiment: Experiment, in_testing=True, eq = default_model):
     )
 
     rate_monitor = PopulationRateMonitor(neurons)
-
-    # record from the first 50 excitatory neurons
-    spike_monitor = SpikeMonitor(neurons[experiment.network_params.N_E - 25: experiment.network_params.N_E + 25])
+    spike_monitor = SpikeMonitor(neurons)
     v_monitor = StateMonitor(source=neurons[experiment.network_params.N_E - 25: experiment.network_params.N_E + 25],
                              variables="v", record=True)
 
