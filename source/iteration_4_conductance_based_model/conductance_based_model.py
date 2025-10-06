@@ -19,7 +19,7 @@ plt.rcParams.update(mpl.rcParamsDefault)
 plt.rcParams['text.usetex'] = True
 
 default_model = """        
-    dv/dt = - 1/C * g_e * (v-E_ampa) : volt
+    dv/dt = 1/C * (-g_L * (v-E_leak) - g_e * (v-E_ampa) - g_i * (v-E_gaba)) : volt
     dg_e/dt = -g_e / tau_ampa : siemens / meter**2
     dg_i/dt = -g_i / tau_gaba  : siemens / meter**2
 """
@@ -150,7 +150,14 @@ def plot_simulation_in_one_time_range(experiment: Experiment, rate_monitor,
     ax_rates.plot(rate_monitor.t / ms, rate_monitor.rate / Hz)
     ax_spikes.set_yticks([])
     # ax_rates.set_ylim(*experiment.plot_params.rate_range)
-    ax_rates.set_ylim([0, np.max(rate_monitor.rate / Hz)])
+    #ax_rates.set_ylim([0, np.max(rate_monitor.rate[int(len(rate_monitor.t) / 2)] / Hz)])
+    #ax_rates.set_ylim([0, np.max(rate_monitor.rate[int(len(rate_monitor.t) / 2)] / Hz)])
+
+    time_start = int(time_range[0] * ms / experiment.sim_clock)
+    time_end = int(time_range[1] * ms / experiment.sim_clock)
+    ax_rates.set_ylim([np.min(rate_monitor.rate[time_start:time_end]) / Hz, np.max(rate_monitor.rate[time_start:time_end]) / Hz])
+
+
 
     ax_voltages, ax_g_s = voltage_and_g_s_examples.subplots(sharex="col")
 

@@ -1,5 +1,6 @@
 from loguru import logger
 from brian2 import ufarad, cm, siemens, mV, ms, msiemens
+import numpy as np
 
 
 class SynapticParams:
@@ -128,7 +129,8 @@ class Experiment:
     KEY_SIMULATION_CLOCK = "simulation_clock"
 
     def __init__(self, params: dict):
-        self.sim_time = params.get(Experiment.KEY_SIM_TIME, params.get(PlotParams.KEY_T_RANGE, (0, 200))[1]) * ms
+        self.sim_time = self.__extract_simulation_time__(params) * ms
+
         self.network_params = NetworkParams(params)
         self.synaptic_params = SynapticParams(params, g=self.network_params.g)
         self.neuron_params = NeuronModelParams(params=params, network_params=self.network_params)
@@ -147,6 +149,15 @@ class Experiment:
                    (self.neuron_params.g_L * self.neuron_params.E_leak +
                    self.synaptic_params.g_ampa * self.synaptic_params.e_ampa +
                    self.synaptic_params.g_gaba * self.synaptic_params.e_gaba) / (self.neuron_params.g_L + self.synaptic_params.g_ampa + self.synaptic_params.g_gaba))
+
+    def __extract_simulation_time__(self, params):
+        if Experiment.KEY_SIM_TIME not in params and PlotParams.KEY_T_RANGE not in params:
+            raise ValueError("Either simulation time or time range must be provided")
+
+        if Experiment.KEY_SIM_TIME in params:
+            return params[Experiment.KEY_SIM_TIME]
+
+        return np.max(params[PlotParams.KEY_T_RANGE])
 
     def gen_plot_title(self):
         return f''' {self.plot_params.panel}

@@ -184,11 +184,11 @@ class MyTestCase(unittest.TestCase):
                 "g": current_g,
                 "g_ampa": 2.518667367869784e-06,
                 "g_gaba": 2.518667367869784e-06,
-                "nu_ext_over_nu_thr": current_nu_ext_over_nu_thr,
+                "nu_ext_over_nu_thr": 10,
                 "epsilon": 0.1,
                 "C_ext": 1000,
 
-                "g_L": 0.0004,
+                "g_L": 0.00004,
 
                 "panel": f"Testing conductance based model",
                 "t_range": [[100, 120], [100, 300], [0, 1500], [2500, 3000], [4500, 5000]],
@@ -203,25 +203,24 @@ class MyTestCase(unittest.TestCase):
             plt.show()
 
     def test_understand_why_most_firing_is_external(self):
-        for current_g in np.linspace(start=0, stop=20, num=5):
+        for current_g in np.linspace(start=5, stop=20, num=21):
             conductance_based_simulation = {
 
-                "sim_time": 7000,
+                "sim_time": 2000,
                 "sim_clock": 0.1 * ms,
                 "g": current_g,
                 "g_ampa": 1.518667367869784e-06,
                 "g_gaba": 1.518667367869784e-06,
-                "nu_ext_over_nu_thr": 0.007029794622212648,
+                "nu_ext_over_nu_thr": 10,
                 "epsilon": 0.1,
                 "C_ext": 1000,
 
                 "g_L": 0.00004,
 
                 "panel": f"Testing conductance based model",
-                #"t_range": [[2000, 4000], [4500, 5000], [4500, 4600], [4500, 4520], [6000, 7000]],
-                "t_range": [[6000, 7000]],
+                "t_range": [[0, 100], [100, 300], [300, 500], [500, 1000], [1000, 2000]],
                 "voltage_range": [-70, -30],
-                "smoothened_rate_width": 3 * ms
+                "smoothened_rate_width": 5 * ms
             }
 
             experiment = Experiment(conductance_based_simulation)
@@ -234,7 +233,8 @@ class MyTestCase(unittest.TestCase):
         def look_for_rate_of_input_value(value):
             return compute_rate_for_nu_ext_over_nu_thr(value)[1]
         #(0.007029794622212648, 0.007029795087873936)
-        print(binary_search_for_target_value(lower_value=0, upper_value=1, func=look_for_rate_of_input_value, target_result=1))
+        # (2.3248291021445766, 2.324829102435615)+
+        print(binary_search_for_target_value(lower_value=0, upper_value=10, func=look_for_rate_of_input_value, target_result=1))
 
 
 
