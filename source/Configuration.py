@@ -1,6 +1,7 @@
 from loguru import logger
-from brian2 import ufarad, cm, siemens, mV, ms, msiemens
+from brian2 import ufarad, cm, siemens, mV, ms, msiemens, uS
 import numpy as np
+import copy
 
 
 class SynapticParams:
@@ -24,8 +25,12 @@ class SynapticParams:
         self.D = params.get(SynapticParams.KEY_SYNAPTIC_DELAY, 1.5 * ms)
 
         self.g_ampa = params.get(SynapticParams.KEY_G_AMPA, 0) * siemens / cm ** 2
-        #self.g_gaba = params.get(SynapticParams.KEY_G_AMPA, 0) * siemens / cm ** 2
-        self.g_gaba = g * self.g_ampa
+        if SynapticParams.KEY_G_GABA in params:
+            self.g_gaba = params.get(SynapticParams.KEY_G_GABA, 0) * siemens / cm ** 2
+            logger.debug("g gaba was a direct parameter. Value was {}", self.g_gaba)
+        else:
+            self.g_gaba = g * self.g_ampa
+            logger.debug("g was  Value was {}", self.g_gaba)
 
         self.tau_ampa = params.get(SynapticParams.KEY_TAU_AMPA, 2) * ms
         self.tau_gaba = params.get(SynapticParams.KEY_TAU_AMPA, 2) * ms
@@ -129,6 +134,8 @@ class Experiment:
     KEY_SIMULATION_CLOCK = "simulation_clock"
 
     def __init__(self, params: dict):
+        self.params = copy.deepcopy(params)
+
         self.sim_time = self.__extract_simulation_time__(params) * ms
 
         self.network_params = NetworkParams(params)
@@ -150,6 +157,17 @@ class Experiment:
                    self.synaptic_params.g_ampa * self.synaptic_params.e_ampa +
                    self.synaptic_params.g_gaba * self.synaptic_params.e_gaba) / (self.neuron_params.g_L + self.synaptic_params.g_ampa + self.synaptic_params.g_gaba))
 
+        logger.info("Effective Reversal with included Poisson Rate {}",
+                    (self.neuron_params.g_L * self.neuron_params.E_leak + self.synaptic_params.tau_ampa * self.nu_ext * self.synaptic_params.g_ampa * self.synaptic_params.e_ampa +
+                     self.synaptic_params.g_ampa * self.synaptic_params.e_ampa +
+                     self.synaptic_params.g_gaba * self.synaptic_params.e_gaba) / (
+                                self.neuron_params.g_L + self.synaptic_params.g_ampa + self.synaptic_params.g_gaba + self.synaptic_params.tau_ampa * self.nu_ext * self.synaptic_params.g_ampa))
+
+    def with_property(self, key: str, value: object):
+        new_params = copy.deepcopy(self.params)
+        new_params[key] = value
+        return Experiment(new_params)
+
     def __extract_simulation_time__(self, params):
         if Experiment.KEY_SIM_TIME not in params and PlotParams.KEY_T_RANGE not in params:
             raise ValueError("Either simulation time or time range must be provided")
@@ -160,9 +178,8 @@ class Experiment:
         return np.max(params[PlotParams.KEY_T_RANGE])
 
     def gen_plot_title(self):
-        return f''' {self.plot_params.panel}
-        Network: [N={self.network_params.N}, $N_E={self.network_params.N_E}$, $N_I={self.network_params.N_I}$, $\gamma={self.network_params.gamma}$, $\\epsilon={self.network_params.epsilon}$]
-    Input Params: [$\\nu_T={self.nu_thr}$, $\\frac{{\\nu_E}}{{\\nu_T}}={self.nu_ext_over_nu_thr: .2f}$, $\\nu_E={self.nu_ext: .2f}$ Hz]
-    Neuron Params: [$C={self.neuron_params.C * cm**2}, g_L= {self.neuron_params.g_L * cm**2}, \\theta={self.neuron_params.theta}, V_R={self.neuron_params.V_r}, E_L={self.neuron_params.E_leak}, \\tau_M={self.neuron_params.tau}, \\tau_\u007b ref \u007d={self.neuron_params.tau_rp}$]
-'''
-    #\\frac\u007b\\mu\\text\u007b F \u007d\u007d\u007b \\text\u007b cm \u007d\u007d \u007d\u007d
+        return fr"""{self.plot_params.panel}
+    Network: [N={self.network_params.N}, $N_E={self.network_params.N_E}$, $N_I={self.network_params.N_I}$, $\gamma={self.network_params.gamma}$, $\epsilon={self.network_params.epsilon}$]
+    Input: [$\nu_T={self.nu_thr}$, $\frac{{\nu_E}}{{\nu_T}}={self.nu_ext_over_nu_thr:.2f}$, $\nu_E={self.nu_ext:.2f}$ Hz]
+    Neuron: [$C={self.neuron_params.C * cm**2}$, $g_L={self.neuron_params.g_L * cm**2}$, $\theta={self.neuron_params.theta}$, $V_R={self.neuron_params.V_r}$, $E_L={self.neuron_params.E_leak}$, $\tau_M={self.neuron_params.tau}$, $\tau_{{\mathrm{{ref}}}}={self.neuron_params.tau_rp}$]
+    Synapse: [$g_{{\mathrm{{AMPA}}}}={self.synaptic_params.g_ampa * (cm**2) / uS:.2f}\,\mu\mathrm{{S}}$, $g_{{\mathrm{{GABA}}}}={self.synaptic_params.g_gaba * (cm**2) / uS:.2f}\,\mu\mathrm{{S}}$, $g={self.network_params.g}$]"""

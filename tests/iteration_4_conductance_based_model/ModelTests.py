@@ -10,14 +10,14 @@ from Configuration import Experiment
 from iteration_4_conductance_based_model.conductance_based_model import sim_and_plot, sim
 
 
-def compute_rate_for_nu_ext_over_nu_thr(nu_ext_over_nu_thr, wait_for=4_000):
+def compute_rate_for_nu_ext_over_nu_thr(nu_ext_over_nu_thr, g = 1, wait_for=4_000):
     conductance_based_simulation = {
 
         "sim_time": 5_000,
         "sim_clock": 0.1 * ms,
-        "g": 15,
+        "g": g,
         "g_ampa": 2.518667367869784e-06,
-        "g_gaba": 2.518667367869784e-06,
+        #g_gaba": 2.518667367869784e-06,
         "nu_ext_over_nu_thr": nu_ext_over_nu_thr,
         "epsilon": 0.1,
         "C_ext": 1000,
@@ -41,8 +41,6 @@ def compute_rate_for_nu_ext_over_nu_thr(nu_ext_over_nu_thr, wait_for=4_000):
     print(f"For {nu_ext_over_nu_thr : .5f}, we get without units {mean_smothened / Hz}, {mean_unsmoothened / Hz}")
     return mean_unsmoothened / Hz, mean_smothened / Hz
 
-def moving_average(data, window_size):
-    return np.convolve(data, np.ones(window_size)/window_size, mode='same')
 
 class MyTestCase(unittest.TestCase):
 
@@ -204,16 +202,77 @@ class MyTestCase(unittest.TestCase):
             sim_and_plot(experiment)
             plt.show()
 
+
+    def test_show_model_from_binary_search_value(self):
+        conductance_based_simulation = {
+
+            "sim_time": 5000,
+            "sim_clock": 0.1 * ms,
+            "g": 1,
+            "g_ampa": 2.518667367869784e-06,
+            "nu_ext_over_nu_thr": 1.85,
+            "epsilon": 0.1,
+            "C_ext": 1000,
+
+            "g_L": 0.00004,
+
+            "panel": f"Scan for increasing values of g (ratio inh nu excitation)",
+            "t_range": [[3000, 3200], [4000, 5000]],
+            "voltage_range": [-70, -30],
+            "smoothened_rate_width": 3 * ms
+        }
+
+
+        experiment = Experiment(conductance_based_simulation)
+
+        sim_and_plot(experiment)
+        plt.show()
+
+    def test_understand_why_more_g_produces_more_firing(self):
+
+        three_g_s = [0, 1, 3, 5, 10]
+        nu_ext_over_nu_thrs = [1.8, 1.85, 1.9, 1.95, 2]
+
+        # i.e. 1 Hz
+        for current_g, nu_ext_over_nu_thr in itertools.product(three_g_s, nu_ext_over_nu_thrs):
+            conductance_based_simulation = {
+
+                "sim_time": 5000,
+                "sim_clock": 0.1 * ms,
+                "g": current_g,
+                "g_ampa": 2.518667367869784e-06,
+                # binary search result 2.0100483413989423 binary_search_for_target_value(lower_value=0, upper_value=10, func=look_for_rate_of_input_value, target_result=1))
+                # i.e. 1 Hz
+                #"nu_ext_over_nu_thr": 1.75,
+                "nu_ext_over_nu_thr": nu_ext_over_nu_thr,
+                "epsilon": 0.1,
+                "C_ext": 1000,
+
+                "g_L": 0.00004,
+
+                "panel": f"Scan $\\frac{{\\nu_E}}{{\\nu_T}}$ and g",
+                "t_range": [[0, 3000], [4000, 5000], [4500, 4800]],
+                "voltage_range": [-70, -30],
+                "smoothened_rate_width": 5 * ms
+            }
+
+            experiment = Experiment(conductance_based_simulation)
+
+            sim_and_plot(experiment)
+            plt.show()
+
     def test_understand_why_most_firing_is_external(self):
-        for current_g in np.linspace(start=5, stop=50, num=5):
+        for current_g in np.linspace(start=0, stop=50, num=6):
             conductance_based_simulation = {
 
                 "sim_time": 2000,
                 "sim_clock": 0.1 * ms,
                 "g": current_g,
-                "g_ampa": 1.518667367869784e-06,
-                "g_gaba": 1.518667367869784e-06,
-                "nu_ext_over_nu_thr": 10,
+                #"g_ampa": 1.518667367869784e-06,
+                #"g_ampa": 1.518667367869784e-06,
+                "g_ampa": 1e-05,
+                #"g_gaba": 1.518667367869784e-06,
+                "nu_ext_over_nu_thr": 1,
                 "epsilon": 0.1,
                 "C_ext": 1000,
 
@@ -230,74 +289,17 @@ class MyTestCase(unittest.TestCase):
             rate_monitor, spike_monitor, _, _, = sim_and_plot(experiment)
             plt.show()
 
-            sampling_rate = 1000  # Adjust this based on your data's time step
-
-            # Perform the Fast Fourier Transform
-            n = len(rate_monitor.t)
-            fft_result = np.fft.fft(rate_monitor.rate)
-            fft_freq = np.fft.fftfreq(n, d=1 / sampling_rate)
-            fft_magnitude = np.abs(fft_result)
-
-            # Only keep the positive half of the spectrum
-            positive_frequencies = fft_freq[:n // 2]
-            positive_magnitude = fft_magnitude[:n // 2]
-
-            smoothened_magnitude = moving_average(positive_magnitude, window_size=250)
-
-
-            # Plot the frequency spectrum
-            fig, (ax_fft, ax_cvs) = plt.subplots(1, 2, figsize=(14, 6))
-
-            ax_fft.plot(positive_frequencies[2_000:], smoothened_magnitude[2_000:])
-            ax_fft.set_title("Frequency Spectrum")
-            ax_fft.set_xlabel("Frequency (Hz)")
-            ax_fft.set_ylabel("Magnitude")
-
-            # To identify dominant frequencies
-            dominant_frequencies = positive_frequencies[np.argsort(positive_magnitude)[-5:]]  # top 5 frequencies
-            print("Dominant frequencies:", dominant_frequencies)
-
-            cvs = self.compute_cvs(spike_monitor)
-
-            ax_cvs.set_title("CVs")
-            ax_cvs.set_xlabel("CV")
-            ax_cvs.set_ylabel("Density")
-            ax_cvs.hist(cvs, bins=50, density=True)
-
-            fig.show()
-
-
-            print(f"Information regarding CVs: min={np.min(cvs)}, max={np.max(cvs)}, averaage={np.average(cvs)}")
-            counts, bins = np.histogram(cvs, bins=50, density=True)
-            bin_widths = np.diff(bins)
-            area = np.sum(counts * bin_widths)
-
-            print(f"Estimated area under the histogram: {area}")
-
-    def compute_cvs(self, spike_monitor):
-
-        result = np.zeros(len(spike_monitor.spike_trains()))
-
-        for index, spike_train in spike_monitor.spike_trains().items():
-            isis_s = np.diff(spike_train)
-            result[index] = np.std(isis_s) / np.mean(isis_s)
-
-            if np.mean(isis_s) == 0 or np.std(isis_s) / ms > 1000:
-                print(f"Detected mean == 0 at {index}, std={np.std(isis_s)}")
-
-        args_with_nan = np.argwhere(np.isnan(result))
-        return result[~np.isnan(result)]
-
+    #@unittest.skip("too long rn")
+    # Results:
+    # g = 7 => (2.3248291021445766, 2.324829102435615)
+    # g = 1 => (1.868896484375, 1.868896484384095)
     def test_find_nu_ext_over_nu_thr_binary_search(self):
 
         def look_for_rate_of_input_value(value):
-            return compute_rate_for_nu_ext_over_nu_thr(value)[1]
+            return compute_rate_for_nu_ext_over_nu_thr(value, g=4)[1]
         #(0.007029794622212648, 0.007029795087873936)
         # (2.3248291021445766, 2.324829102435615)+
         print(binary_search_for_target_value(lower_value=0, upper_value=10, func=look_for_rate_of_input_value, target_result=1))
-
-
-
 
 
 if __name__ == '__main__':

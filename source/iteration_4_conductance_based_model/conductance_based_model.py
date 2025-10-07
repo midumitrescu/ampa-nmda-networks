@@ -1,7 +1,15 @@
+import copy
+import itertools
+from copy import deepcopy
+
+import numpy as np
+from joblib import Parallel, delayed
 from brian2 import *
 from matplotlib import gridspec
 
-from Configuration import Experiment
+from loguru import logger
+
+from Configuration import Experiment, NetworkParams
 
 '''
 Simulation params
@@ -24,15 +32,38 @@ default_model = """
     dg_i/dt = -g_i / tau_gaba  : siemens / meter**2
 """
 
-def sim_and_plot(experiment: Experiment, in_testing=True, eq = default_model):
+
+def sim_and_plot(experiment: Experiment, in_testing=True, eq=default_model):
     rate_monitor, spike_monitor, v_monitor, g_monitor = sim(experiment, in_testing, eq)
     plot_simulation(experiment, rate_monitor,
                     spike_monitor, v_monitor, g_monitor)
+    plot_psd_and_CVs(experiment, rate_monitor, spike_monitor, v_monitor, g_monitor)
 
     return rate_monitor, spike_monitor, v_monitor, g_monitor
 
 
-def sim(experiment: Experiment, in_testing=True, eq = default_model):
+def smoothen_curve(data, window_size):
+    return np.convolve(data, np.ones(window_size) / window_size, mode='same')
+
+
+def compute_cvs(spike_monitor):
+    result = np.zeros(len(spike_monitor.spike_trains()))
+
+    for index, spike_train in spike_monitor.spike_trains().items():
+        if len(spike_train) > 1:
+            isis_s = np.diff(spike_train)
+            result[index] = np.std(isis_s) / np.mean(isis_s)
+
+            if np.mean(isis_s) == 0 or np.std(isis_s) / ms > 1000 or np.isnan(result[index]):
+                logger.debug(f"Detected mean == 0 at {index}, std={np.std(isis_s)}")
+        else:
+            result[index] = 0
+
+    # args_with_nan = np.argwhere(np.isnan(result))
+    return result[~np.isnan(result)]
+
+
+def sim(experiment: Experiment, in_testing=True, eq=default_model):
     """
     g --
     nu_ext_over_nu_thr -- ratio of external stimulus rate to threshold rate
@@ -41,6 +72,7 @@ def sim(experiment: Experiment, in_testing=True, eq = default_model):
     ax_rates -- matplotlib axes to plot rates on
     rate_tick_step -- step size for rate axis ticks
     """
+    start_scope()
     if in_testing:
         np.random.seed(0)
     defaultclock.dt = 0.05 * ms
@@ -52,7 +84,6 @@ def sim(experiment: Experiment, in_testing=True, eq = default_model):
     E_leak = experiment.neuron_params.E_leak
     V_r = experiment.neuron_params.V_r
     J = experiment.synaptic_params.J
-
 
     g = experiment.network_params.g
     g_ampa = experiment.synaptic_params.g_ampa
@@ -97,7 +128,8 @@ def sim(experiment: Experiment, in_testing=True, eq = default_model):
     v_monitor = StateMonitor(source=neurons[experiment.network_params.N_E - 25: experiment.network_params.N_E + 25],
                              variables="v", record=True)
 
-    g_monitor = StateMonitor(source=neurons[experiment.network_params.N_E - 25: experiment.network_params.N_E + 25], variables=["g_e", "g_i"], record=True)
+    g_monitor = StateMonitor(source=neurons[experiment.network_params.N_E - 25: experiment.network_params.N_E + 25],
+                             variables=["g_e", "g_i"], record=True)
 
     run(experiment.sim_time, report='text')
 
@@ -116,71 +148,70 @@ def plot_v_line(experiment: Experiment, ax_voltages: Axes, v_monitor: StateMonit
     ax_voltages.vlines(x=spike_times_current_neuron, ymin=v_min_plot, ymax=v_max_plot, color=color, linestyle="-.",
                        label=f"Neuron {i} Spike Time", lw=0.8)
 
+
 def plot_simulation(experiment: Experiment, rate_monitor,
                     spike_monitor, v_monitor, g_monitor):
-
     params_t_range = experiment.plot_params.t_range
 
     if isinstance(params_t_range[0], list):
         for time_slot in params_t_range:
-            plot_simulation_in_one_time_range(experiment, rate_monitor, spike_monitor, v_monitor, g_monitor, time_range = time_slot)
+            plot_simulation_in_one_time_range(experiment, rate_monitor, spike_monitor, v_monitor, g_monitor,
+                                              time_range=time_slot)
     else:
-        plot_simulation_in_one_time_range(experiment, rate_monitor, spike_monitor, v_monitor, g_monitor, time_range=params_t_range)
+        plot_simulation_in_one_time_range(experiment, rate_monitor, spike_monitor, v_monitor, g_monitor,
+                                          time_range=params_t_range)
 
-def plot_simulation_in_one_time_range(experiment: Experiment, rate_monitor,
-                    spike_monitor, v_monitor, g_monitor, time_range=[100, 200]):
 
+def plot_simulation_in_one_time_range(experiment: Experiment, rate_monitor: PopulationRateMonitor,
+                                      spike_monitor, v_monitor, g_monitor, time_range=[100, 200]):
     rate_tick_step = experiment.plot_params.rate_tick_step
     fig = plt.figure(figsize=(10, 12))
-    fig.suptitle(
-        f''' {experiment.plot_params.panel}, N = {experiment.network_params.N}, $N_E = {experiment.network_params.N_E}$, $N_I = {experiment.network_params.N_I}$, $\gamma={experiment.network_params.gamma}$
-    $\\nu_T = {experiment.nu_thr}$, $\\frac{{\\nu_E}}{{\\nu_T}} = {experiment.nu_ext_over_nu_thr: .3f}$ , g={experiment.network_params.g}''')
+    fig.suptitle(experiment.gen_plot_title())
 
     outer = gridspec.GridSpec(2, 1, figure=fig, height_ratios=[5, 2])
-    raster_and_population = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=outer[0], height_ratios=[4, 1],
-                                                             hspace=0)
-    voltage_and_g_s_examples = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=outer[1], hspace=0.8)
-
-    ax_spikes, ax_rates = raster_and_population.subplots(sharex="col")
-    ax_spikes.plot(spike_monitor.t / ms, spike_monitor.i, "|")
-    ax_rates.plot(rate_monitor.t / ms, rate_monitor.rate / Hz)
-    ax_spikes.set_yticks([])
-    # ax_rates.set_ylim(*experiment.plot_params.rate_range)
-    #ax_rates.set_ylim([0, np.max(rate_monitor.rate[int(len(rate_monitor.t) / 2)] / Hz)])
-    #ax_rates.set_ylim([0, np.max(rate_monitor.rate[int(len(rate_monitor.t) / 2)] / Hz)])
-
-    time_start = int(time_range[0] * ms / experiment.sim_clock)
-    time_end = int(time_range[1] * ms / experiment.sim_clock)
-    ax_rates.set_ylim([np.min(rate_monitor.rate[time_start:time_end]) / Hz, np.max(rate_monitor.rate[time_start:time_end]) / Hz])
+    plot_raster_and_rates(experiment, outer[0], rate_monitor, spike_monitor, time_range)
+    plot_voltages_and_g_s(experiment, outer[1], g_monitor, spike_monitor, time_range, v_monitor)
 
 
-
+def plot_voltages_and_g_s(experiment, grid_spec_mother, g_monitor, spike_monitor, time_range, v_monitor):
+    voltage_and_g_s_examples = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=grid_spec_mother, hspace=0.8)
     ax_voltages, ax_g_s = voltage_and_g_s_examples.subplots(sharex="col")
-
     ax_voltages.axhline(y=experiment.neuron_params.theta / ms, linestyle="dotted", linewidth="0.3", color="k",
                         label="$\\theta$")
     v_min_plot, v_max_plot = find_v_min_and_v_max_for_plotting(experiment, v_monitor)
-
     ax_voltages.set_ylim([v_min_plot, v_max_plot])
-
     for i in [0, 2, 26, 28]:
         plot_v_line(experiment, ax_voltages, v_monitor, spike_monitor, i)
-
-    for ax in [ax_spikes, ax_rates, ax_voltages, ax_g_s]:
+    for ax in [ax_voltages, ax_g_s]:
         ax.set_xlim(*time_range)
-
-    ax_voltages.legend(loc="best")
+    ax_voltages.legend(loc="right")
     ax_voltages.set_xlabel("t [ms]")
     ax_voltages.set_ylabel("v [mV]")
-    # ax_rates.set_yticks(
-    #     np.arange(
-    #         experiment.plot_params.rate_range[0], experiment.plot_params.rate_range[1] + rate_tick_step, rate_tick_step
-    #     )
-    # )
-
     ax_g_s.plot(g_monitor.t / ms, g_monitor[0].g_i, label="$g_i$[0]")
     ax_g_s.plot(g_monitor.t / ms, g_monitor[0].g_e, label="$g_e$[0]")
     ax_g_s.legend(loc="best")
+
+
+def plot_raster_and_rates(experiment, grid_spec_mother, rate_monitor, spike_monitor, time_range):
+    raster_and_population = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=grid_spec_mother, height_ratios=[4, 1],
+                                                             hspace=0)
+    ax_spikes, ax_rates = raster_and_population.subplots(sharex="col")
+    ax_spikes.plot(spike_monitor.t / ms, spike_monitor.i, "|")
+    if experiment.plot_params.plot_smoothened_rate:
+        ax_rates.plot(rate_monitor.t / ms,
+                      rate_monitor.smooth_rate(width=experiment.plot_params.smoothened_rate_width) / Hz)
+    else:
+        ax_rates.plot(rate_monitor.t / ms, rate_monitor.rate / Hz)
+    ax_spikes.set_yticks([])
+    # ax_rates.set_ylim(*experiment.plot_params.rate_range)
+    # ax_rates.set_ylim([0, np.max(rate_monitor.rate[int(len(rate_monitor.t) / 2)] / Hz)])
+    # ax_rates.set_ylim([0, np.max(rate_monitor.rate[int(len(rate_monitor.t) / 2)] / Hz)])
+    for ax in [ax_spikes, ax_rates]:
+        ax.set_xlim(*time_range)
+    time_start = int(time_range[0] * ms / experiment.sim_clock)
+    time_end = int(time_range[1] * ms / experiment.sim_clock)
+    ax_rates.set_ylim(
+        [np.min(rate_monitor.rate[time_start:time_end]) / Hz, np.max(rate_monitor.rate[time_start:time_end]) / Hz])
 
 
 def find_v_min_and_v_max_for_plotting(experiment, v_monitor):
@@ -191,40 +222,102 @@ def find_v_min_and_v_max_for_plotting(experiment, v_monitor):
     return lim_down, lim_up
 
 
-test_parameters = {
-    "D_1": {
-        "g": 1,
-        "nu_ext_over_nu_thr": 0.9,
-        "t_range": [2800, 3000],
-        "rate_range": [0, 250],
-        "rate_tick_step": 50,
-    },
-    "D_2": {
-        "g": 2,
-        "nu_ext_over_nu_thr": 0.9,
-        "t_range": [2800, 3000],
-        "rate_range": [0, 250],
-        "rate_tick_step": 50,
-    },
-    "D_3": {
-        "g": 3,
-        "nu_ext_over_nu_thr": 0.9,
-        "t_range": [2800, 3000],
-        "rate_range": [0, 250],
-        "rate_tick_step": 50,
-    },
-    "D_4": {
-        "g": 4,
-        "nu_ext_over_nu_thr": 0.9,
-        "t_range": [2800, 3000],
-        "rate_range": [0, 250],
-        "rate_tick_step": 50,
-    },
-    "D_5": {
-        "g": 5,
-        "nu_ext_over_nu_thr": 0.9,
-        "t_range": [2800, 3000],
-        "rate_range": [0, 250],
-        "rate_tick_step": 50,
-    }
-}
+def plot_psd_and_CVs(experiment: Experiment, rate_monitor,
+                     spike_monitor, v_monitor, g_monitor):
+    sampling_rate = int(second / experiment.sim_clock)
+
+    # Perform the Fast Fourier Transform
+    n = len(rate_monitor.t)
+    fft_result = np.fft.fft(rate_monitor.rate)
+    fft_freq = np.fft.fftfreq(n, d=1 / sampling_rate)
+    fft_magnitude = np.abs(fft_result)
+
+    positive_frequencies = fft_freq[:n // 2]
+    positive_magnitude = fft_magnitude[:n // 2]
+
+    smoothened_magnitude = smoothen_curve(positive_magnitude, window_size=250)
+
+    fig, (ax_fft, ax_cvs) = plt.subplots(1, 2, figsize=(14, 6))
+    fig.suptitle(experiment.gen_plot_title())
+
+    ax_fft.plot(positive_frequencies[2_000:], smoothened_magnitude[2_000:])
+    ax_fft.set_title("Frequency Spectrum")
+    ax_fft.set_xlabel("Frequency (Hz)")
+    ax_fft.set_ylabel("Magnitude")
+
+    dominant_frequencies = positive_frequencies[np.argsort(positive_magnitude)[-5:]]  # top 5 frequencies
+    logger.debug("Dominant frequencies: {}", dominant_frequencies)
+
+    cvs = compute_cvs(spike_monitor)
+
+    ax_cvs.set_title("CVs")
+    ax_cvs.set_xlabel("CV")
+    ax_cvs.set_ylabel("Density")
+    ax_cvs.hist(cvs, bins=50, density=True)
+
+    # fig.show()
+    if len(cvs) > 0:
+        logger.debug(f"Information regarding CVs: min={np.min(cvs)}, max={np.max(cvs)}, average={np.average(cvs)}")
+        counts, bins = np.histogram(cvs, bins=50, density=True)
+        bin_widths = np.diff(bins)
+        area = np.sum(counts * bin_widths)
+        logger.debug("Estimated area under the histogram: {}", area)
+
+    fig.tight_layout()
+
+
+def produce_comparrison_plot(config: Experiment, increasing_g_s, increasing_nu_ext_over_nu_thr):
+
+    def compute_spikes_and_rates(g, nu_ext_over_nu_thr, start_config):
+        print(f"Computing spikes and rates for g = {g} and nu_ext_over_nu_thr = {nu_ext_over_nu_thr}")
+
+        experiment = start_config.with_property(NetworkParams.KEY_G, g).with_property(NetworkParams.KEY_NU_E_OVER_NU_THR,
+                                                                                   nu_ext_over_nu_thr)
+        rate_monitor, spike_monitor, _, _ = sim(experiment)
+        spike_trains_to_numpy = {k: np.array(v) for k, v in spike_monitor.spike_trains().items()}
+
+        return experiment, spike_trains_to_numpy, np.array(rate_monitor.rate[:])
+
+    # Parallel computation of subplot data
+    results = Parallel(n_jobs=1)(
+        delayed(compute_spikes_and_rates)(g, nu, config)
+        for g, nu in itertools.product(increasing_g_s, increasing_nu_ext_over_nu_thr)
+    )
+
+    fig = plt.figure(figsize=(10, 12))
+    fig.suptitle("Create a bigger plot")
+
+    outer = gridspec.GridSpec(len(increasing_g_s), len(increasing_nu_ext_over_nu_thr), figure=fig, hspace=0.8,
+                              wspace=0.2)
+    # Create subplots and collect them into a list
+    #axes = [fig.add_subplot(outer[r, c]) for r in range(len(increasing_g_s)) for c in
+    #        range(len(increasing_nu_ext_over_nu_thr))]
+
+    for result, grid_spec in zip(results, outer):
+        experiment, rate_monitor, spike_monitor = result
+        plot_raster_and_rates_unpickled(experiment, grid_spec, rate_monitor, spike_monitor, time_range=[0, 100])
+
+    plt.tight_layout()
+    plt.show()
+
+def plot_raster_and_rates_unpickled(experiment, grid_spec_mother, rate_monitor, spike_monitor, time_range):
+    raster_and_population = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=grid_spec_mother, height_ratios=[4, 1],
+                                                             hspace=0)
+    ax_spikes, ax_rates = raster_and_population.subplots(sharex="col")
+    it_steps = int(experiment.sim_time / experiment.sim_clock)
+    t = np.arange(0, it_steps)
+    ax_spikes.plot(t, spike_monitor, "|")
+    if experiment.plot_params.plot_smoothened_rate:
+        ax_rates.plot(t, rate_monitor / Hz)
+    else:
+        ax_rates.plot(t, rate_monitor / Hz)
+    ax_spikes.set_yticks([])
+    # ax_rates.set_ylim(*experiment.plot_params.rate_range)
+    # ax_rates.set_ylim([0, np.max(rate_monitor.rate[int(len(rate_monitor.t) / 2)] / Hz)])
+    # ax_rates.set_ylim([0, np.max(rate_monitor.rate[int(len(rate_monitor.t) / 2)] / Hz)])
+    for ax in [ax_spikes, ax_rates]:
+        ax.set_xlim(*time_range)
+    time_start = int(time_range[0] * ms / experiment.sim_clock)
+    time_end = int(time_range[1] * ms / experiment.sim_clock)
+    ax_rates.set_ylim(
+        [np.min(rate_monitor.rate[time_start:time_end]) / Hz, np.max(rate_monitor.rate[time_start:time_end]) / Hz])
