@@ -3,17 +3,18 @@ import unittest
 from brian2 import ms
 
 from Configuration import Experiment
-from iteration_4_conductance_based_model.grid_computations import produce_comparrison_plot
+from iteration_4_conductance_based_model.grid_computations import produce_comparrison_plot, \
+    compare_g_s_vs_nu_ext_over_nu_thr
 
 
 class GridTestCases(unittest.TestCase):
 
     def test_grid_composition(self):
-        g_s = [3, 6, 9]
+        g_s = [3, 6]
         nu_ext_over_nu_thrs = [2, 10]
 
         conductance_based_simulation = {
-            "sim_time": 1000,
+            "sim_time": 100,
             "sim_clock": 0.1 * ms,
             "g": 0,
             "g_ampa": 2.518667367869784e-06,
@@ -28,7 +29,7 @@ class GridTestCases(unittest.TestCase):
             "smoothened_rate_width": 10 * ms
         }
         experiment = Experiment(conductance_based_simulation)
-        produce_comparrison_plot(experiment, g_s, nu_ext_over_nu_thrs)
+        compare_g_s_vs_nu_ext_over_nu_thr(experiment, g_s, nu_ext_over_nu_thrs)
 
     def test_grid_composition_4x2(self):
         g_s = [3, 6, 9, 12]
@@ -72,7 +73,7 @@ class GridTestCases(unittest.TestCase):
             "smoothened_rate_width": 5 * ms
         }
         experiment = Experiment(conductance_based_simulation)
-        produce_comparrison_plot(experiment, g_s, nu_ext_over_nu_thrs)
+        compare_g_s_vs_nu_ext_over_nu_thr(experiment, g_s, nu_ext_over_nu_thrs)
 
     def test_plot_relevant_example(self):
         g_s = [3, 6, 9, 12]
@@ -94,9 +95,7 @@ class GridTestCases(unittest.TestCase):
             "smoothened_rate_width": 5 * ms
         }
         experiment = Experiment(conductance_based_simulation)
-        produce_comparrison_plot(experiment, g_s, nu_ext_over_nu_thrs)
-
-
+        compare_g_s_vs_nu_ext_over_nu_thr(experiment, g_s, nu_ext_over_nu_thrs)
 
 
 
