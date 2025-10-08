@@ -43,6 +43,16 @@ class MyTestCase(unittest.TestCase):
         plt.subplots_adjust(top=0.7)
         plt.show()
 
+       #r"\frac{{\nu_{{\text{{Ext}}}}{{\nu_\text{{thr}}}}=" + f"{nu_ext_over_nu_thr: .3f}"
+    def test_matplotlib_text_generation_for_nu_ext_over_nu_thr(self):
+        # plt.plot()
+        plt.figure(figsize=(10, 10))
+        plt.title(r'$\frac{\nu_\mathrm{Ext}}{\nu_\mathrm{Thr}}=$'f"{1}")
+        plt.xlabel(r"$\nu_\mathrm{Ext}$")
+        # \\text\u007b cm \u007d^2
+        plt.subplots_adjust(top=0.7)
+        plt.show()
+
     def test_example(self):
         config = {
             "sim_time": 5000,

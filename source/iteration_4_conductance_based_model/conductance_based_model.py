@@ -1,15 +1,9 @@
-import copy
-import itertools
-from copy import deepcopy
-
-import numpy as np
-from joblib import Parallel, delayed
+import matplotlib.pyplot as plt
 from brian2 import *
+from loguru import logger
 from matplotlib import gridspec
 
-from loguru import logger
-
-from Configuration import Experiment, NetworkParams
+from Configuration import Experiment
 
 '''
 Simulation params
@@ -38,6 +32,7 @@ def sim_and_plot(experiment: Experiment, in_testing=True, eq=default_model):
     plot_simulation(experiment, rate_monitor,
                     spike_monitor, v_monitor, g_monitor)
     plot_psd_and_CVs(experiment, rate_monitor, spike_monitor, v_monitor, g_monitor)
+    plt.show()
 
     return rate_monitor, spike_monitor, v_monitor, g_monitor
 
@@ -264,60 +259,3 @@ def plot_psd_and_CVs(experiment: Experiment, rate_monitor,
         logger.debug("Estimated area under the histogram: {}", area)
 
     fig.tight_layout()
-
-
-def produce_comparrison_plot(config: Experiment, increasing_g_s, increasing_nu_ext_over_nu_thr):
-
-    def compute_spikes_and_rates(g, nu_ext_over_nu_thr, start_config):
-        print(f"Computing spikes and rates for g = {g} and nu_ext_over_nu_thr = {nu_ext_over_nu_thr}")
-
-        experiment = start_config.with_property(NetworkParams.KEY_G, g).with_property(NetworkParams.KEY_NU_E_OVER_NU_THR,
-                                                                                   nu_ext_over_nu_thr)
-        rate_monitor, spike_monitor, _, _ = sim(experiment)
-        spike_trains_to_numpy = {k: np.array(v) for k, v in spike_monitor.spike_trains().items()}
-
-        return experiment, spike_trains_to_numpy, np.array(rate_monitor.rate[:])
-
-    # Parallel computation of subplot data
-    results = Parallel(n_jobs=1)(
-        delayed(compute_spikes_and_rates)(g, nu, config)
-        for g, nu in itertools.product(increasing_g_s, increasing_nu_ext_over_nu_thr)
-    )
-
-    fig = plt.figure(figsize=(10, 12))
-    fig.suptitle("Create a bigger plot")
-
-    outer = gridspec.GridSpec(len(increasing_g_s), len(increasing_nu_ext_over_nu_thr), figure=fig, hspace=0.8,
-                              wspace=0.2)
-    # Create subplots and collect them into a list
-    #axes = [fig.add_subplot(outer[r, c]) for r in range(len(increasing_g_s)) for c in
-    #        range(len(increasing_nu_ext_over_nu_thr))]
-
-    for result, grid_spec in zip(results, outer):
-        experiment, rate_monitor, spike_monitor = result
-        plot_raster_and_rates_unpickled(experiment, grid_spec, rate_monitor, spike_monitor, time_range=[0, 100])
-
-    plt.tight_layout()
-    plt.show()
-
-def plot_raster_and_rates_unpickled(experiment, grid_spec_mother, rate_monitor, spike_monitor, time_range):
-    raster_and_population = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=grid_spec_mother, height_ratios=[4, 1],
-                                                             hspace=0)
-    ax_spikes, ax_rates = raster_and_population.subplots(sharex="col")
-    it_steps = int(experiment.sim_time / experiment.sim_clock)
-    t = np.arange(0, it_steps)
-    ax_spikes.plot(t, spike_monitor, "|")
-    if experiment.plot_params.plot_smoothened_rate:
-        ax_rates.plot(t, rate_monitor / Hz)
-    else:
-        ax_rates.plot(t, rate_monitor / Hz)
-    ax_spikes.set_yticks([])
-    # ax_rates.set_ylim(*experiment.plot_params.rate_range)
-    # ax_rates.set_ylim([0, np.max(rate_monitor.rate[int(len(rate_monitor.t) / 2)] / Hz)])
-    # ax_rates.set_ylim([0, np.max(rate_monitor.rate[int(len(rate_monitor.t) / 2)] / Hz)])
-    for ax in [ax_spikes, ax_rates]:
-        ax.set_xlim(*time_range)
-    time_start = int(time_range[0] * ms / experiment.sim_clock)
-    time_end = int(time_range[1] * ms / experiment.sim_clock)
-    ax_rates.set_ylim(
-        [np.min(rate_monitor.rate[time_start:time_end]) / Hz, np.max(rate_monitor.rate[time_start:time_end]) / Hz])
