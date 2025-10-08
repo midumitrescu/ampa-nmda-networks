@@ -51,7 +51,7 @@ class GridTestCases(unittest.TestCase):
             "smoothened_rate_width": 5 * ms
         }
         experiment = Experiment(conductance_based_simulation)
-        produce_comparrison_plot(experiment, g_s, nu_ext_over_nu_thrs)
+        compare_g_s_vs_nu_ext_over_nu_thr(experiment, g_s, nu_ext_over_nu_thrs)
 
     def test_grid__composition_4x3_with_multiple_time_slots(self):
         g_s = [3, 6, 9, 12]
