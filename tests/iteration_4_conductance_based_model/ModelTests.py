@@ -6,7 +6,7 @@ import numpy as np
 from brian2 import ms, siemens, cm, second, Hz
 
 from BinarySeach import binary_search_for_target_value
-from Configuration import Experiment
+from Configuration import Experiment, SynapticParams, NetworkParams, PlotParams
 from iteration_4_conductance_based_model.conductance_based_model import sim_and_plot, sim
 
 
@@ -289,10 +289,36 @@ class MyTestCase(unittest.TestCase):
             rate_monitor, spike_monitor, _, _, = sim_and_plot(experiment)
             plt.show()
 
+    def test_model_below_threshold_for_very_long_time(self):
+
+        conductance_based_simulation = {
+
+            "sim_time": 20_000,
+            "sim_clock": 0.1 * ms,
+            "g": 4,
+            "g_ampa": 2.518667367869784e-06,
+            "nu_ext_over_nu_thr": 1.8,
+            "epsilon": 0.1,
+            "C_ext": 1000,
+
+            "g_L": 0.00004,
+
+            "panel": f"Testing conductance based model",
+            "t_range": [10_000, 19_000],
+            "voltage_range": [-70, -30],
+            "smoothened_rate_width": 2 * ms
+        }
+
+        experiment = Experiment(conductance_based_simulation)
+
+        rate_monitor, spike_monitor, _, _, = sim_and_plot(experiment)
+        plt.show()
+
     #@unittest.skip("too long rn")
     # Results:
     # g = 7 => (2.3248291021445766, 2.324829102435615)
     # g = 1 => (1.868896484375, 1.868896484384095)
+    # g = 4 => (1.8871950361062773, 1.8871950363973156)
     def test_find_nu_ext_over_nu_thr_binary_search(self):
 
         def look_for_rate_of_input_value(value):
@@ -300,6 +326,29 @@ class MyTestCase(unittest.TestCase):
         #(0.007029794622212648, 0.007029795087873936)
         # (2.3248291021445766, 2.324829102435615)+
         print(binary_search_for_target_value(lower_value=0, upper_value=10, func=look_for_rate_of_input_value, target_result=1))
+
+    def test_model_from_q_0_is_stable_on_the_long_run(self):
+        simulation = {
+            "sim_time": 5_000,
+            "sim_clock": 0.1 * ms,
+            "g": 0,
+            "epsilon": 0.1,
+            "C_ext": 1000,
+
+            "g_L": 0.00004,
+            "t_range": [[0, 200], [200, 500], [500, 1000], [3000, 5000]],
+            "voltage_range": [-70, -30],
+            "smoothened_rate_width": 0.5 * ms
+        }
+        experiment = Experiment(simulation)
+
+        long_run_to_check_stability_and_cv = experiment.with_property(SynapticParams.KEY_G_AMPA, 3e-06) \
+            .with_property(NetworkParams.KEY_NU_E_OVER_NU_THR, 1.5) \
+            .with_property(Experiment.KEY_SIM_TIME, 30_000) \
+            .with_property(PlotParams.KEY_T_RANGE, [[10_000, 30_000]])\
+            .with_property(PlotParams.KEY_PANEL, "Model is stables")
+
+        sim_and_plot(long_run_to_check_stability_and_cv)
 
 
 if __name__ == '__main__':

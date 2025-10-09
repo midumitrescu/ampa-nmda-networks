@@ -5,8 +5,8 @@ from brian2 import *
 from joblib import Parallel, delayed
 from matplotlib import gridspec
 
-from Configuration import Experiment, NetworkParams
-from iteration_4_conductance_based_model.conductance_based_model import sim
+from Configuration import Experiment, NetworkParams, SynapticParams, PlotParams
+from iteration_4_conductance_based_model.conductance_based_model import sim, compute_cvs
 
 
 def produce_comparrison_plot(experiments: list[Experiment], increasing_g_s, increasing_nu_ext_over_nu_thr, label_for_x_axis: str, label_for_y_axis: str, grid_title: str):
@@ -17,6 +17,8 @@ def produce_comparrison_plot(experiments: list[Experiment], increasing_g_s, incr
 
         rate_monitor, spike_monitor, _, _ = sim(current_experiment)
         spike_monitor_results = np.vstack((spike_monitor.t / ms, spike_monitor.i))
+        cv_s = compute_cvs(spike_monitor = spike_monitor)
+        psd = None
 
         return current_experiment, spike_monitor_results, np.array(
             rate_monitor.smooth_rate(width=experiment.plot_params.smoothened_rate_width) / Hz)
@@ -36,7 +38,7 @@ def produce_comparrison_plot(experiments: list[Experiment], increasing_g_s, incr
                       time_range=time_slot, label_for_x_axis=label_for_x_axis, label_for_y_axis=label_for_y_axis, grid_title=grid_title)
         else:
             plot_(increasing_g_s, increasing_nu_ext_over_nu_thr, grid_simulation_results,
-                  time_range=params_t_range, grid_title=grid_title)
+                  time_range=params_t_range, label_for_x_axis=label_for_x_axis, label_for_y_axis=label_for_y_axis, grid_title=grid_title)
 
 
 def plot_(y_axis_values, x_axis_values, results, time_range, label_for_x_axis: str, label_for_y_axis: str, grid_title: str):
@@ -72,7 +74,7 @@ def plot_(y_axis_values, x_axis_values, results, time_range, label_for_x_axis: s
         xycoords='figure fraction'
     )
     fig.text(0.015, 0.46, f'increasing {label_for_y_axis}', va='center', ha='center',
-             rotation='vertical', fontsize=15)
+             rotation='vertical', fontsize=20)
 
     # Shorter + lower horizontal arrow (75% length, lower y)
     arrow_start = 0.2
@@ -89,7 +91,7 @@ def plot_(y_axis_values, x_axis_values, results, time_range, label_for_x_axis: s
     # Text slightly below it
     fig.text((arrow_start + arrow_end) / 2, arrow_y - 0.01,
              f'increasing {label_for_x_axis}',
-             ha='center', va='top', fontsize=12)
+             ha='center', va='top', fontsize=20)
 
     plt.tight_layout()
     plt.show()
@@ -100,8 +102,9 @@ def plot_raster_and_rates_unpickled(experiment, grid_spec_mother, rate_monitor, 
                                                              hspace=0)
     ax_spikes, ax_rates = raster_and_population.subplots(sharex="col")
     it_steps = int(experiment.sim_time / experiment.sim_clock)
-    t = np.arange(0, it_steps)
-    ax_spikes.plot(spike_monitor[0], spike_monitor[1], "|", lw=0.1, markersize=0.1)
+    t = np.arange(0, it_steps) * experiment.sim_clock / ms
+    #ax_spikes.plot(spike_monitor[0], spike_monitor[1], "|", lw=0.1, markersize=0.1)
+    ax_spikes.plot(spike_monitor[0], spike_monitor[1], "|")
     ax_spikes.set_yticks([])
 
     ax_rates.plot(t, rate_monitor)
@@ -109,8 +112,11 @@ def plot_raster_and_rates_unpickled(experiment, grid_spec_mother, rate_monitor, 
         ax.set_xlim(*time_range)
     time_start = int(time_range[0] * ms / experiment.sim_clock)
     time_end = int(time_range[1] * ms / experiment.sim_clock)
-    ax_rates.set_ylim(
-        [np.min(rate_monitor[time_start:time_end]) / Hz, np.max(rate_monitor[time_start:time_end]) / Hz])
+    lims = [0, np.max(rate_monitor[time_start:time_end]) * 1.1]
+    if lims[1] > 0:
+        ax_rates.set_ylim(lims)
+
+    ax_rates.set_xlabel("time (ms)")
 
 
 def compare_g_s_vs_nu_ext_over_nu_thr(experiment, g_s, nu_ext_over_nu_thrs):
@@ -129,3 +135,19 @@ def compare_g_s_vs_nu_ext_over_nu_thr(experiment, g_s, nu_ext_over_nu_thrs):
 
     produce_comparrison_plot(experiments, g_s, nu_ext_over_nu_thrs,
                              label_for_x_axis=r'$\frac{\nu_\mathrm{Ext}}{\nu_\mathrm{Thr}}$', label_for_y_axis="g", grid_title=title)
+
+def compare_g_ampa_vs_nu_ext_over_nu_thr(experiment, g_ampas, nu_ext_over_nu_thrs):
+    experiment.plot_params.panel = r"Compare g_\mathrm{AMPA} vs $\frac{\nu_\mathrm{Ext}}{\nu_\mathrm{Thr}}$"
+    g_ampas = np.flip(g_ampas)
+
+    experiments = [experiment.with_property(SynapticParams.KEY_G_AMPA, g_ampa).with_property(NetworkParams.KEY_NU_E_OVER_NU_THR, n)
+                   for g_ampa, n in itertools.product(g_ampas, nu_ext_over_nu_thrs)]
+    title = fr""" Search for strength of $g_\mathrm{{AMPA}}$ such that network is stable
+    Network: [N={experiment.network_params.N}, $N_E={experiment.network_params.N_E}$, $N_I={experiment.network_params.N_I}$, $\gamma={experiment.network_params.gamma}$, $\epsilon={experiment.network_params.epsilon}$]
+    Input: [$\nu_T={experiment.nu_thr}$]
+    Neuron: [$C={experiment.neuron_params.C * cm ** 2}$, $g_L={experiment.neuron_params.g_L * cm ** 2}$, $\theta={experiment.neuron_params.theta}$, $V_R={experiment.neuron_params.V_r}$, $E_L={experiment.neuron_params.E_leak}$, $\tau_M={experiment.neuron_params.tau}$, $\tau_{{\mathrm{{ref}}}}={experiment.neuron_params.tau_rp}$]
+    Synapse: [$g_{{\mathrm{{GABA}}}}=g \cdot g_{{\mathrm{{AMPA}}}}$ $g={experiment.network_params.g}$]"""
+
+    produce_comparrison_plot(experiments, g_ampas * 10**6, nu_ext_over_nu_thrs,
+                             label_for_x_axis=r'$\frac{\nu_\mathrm{Ext}}{\nu_\mathrm{Thr}}$', label_for_y_axis=r"$g_\mathrm{AMPA}$",
+                             grid_title=title)
