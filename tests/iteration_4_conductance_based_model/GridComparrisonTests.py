@@ -24,7 +24,7 @@ class GridTestCases(unittest.TestCase):
 
             "g_L": 0.00004,
 
-            "panel": f"Scan $\\frac{{\\nu_E}}{{\\nu_T}}$ and g",
+            "panel": f"Test g vs $\\frac{{\\nu_E}}{{\\nu_T}}$. Plot 1 item, 1 timestep",
             "t_range": [[0, 50]],
             "voltage_range": [-70, -30],
             "smoothened_rate_width": 1 * ms
@@ -46,7 +46,7 @@ class GridTestCases(unittest.TestCase):
 
             "g_L": 0.00004,
 
-            "panel": f"Scan $\\frac{{\\nu_E}}{{\\nu_T}}$ and g",
+            "panel": f"Test g vs $\\frac{{\\nu_E}}{{\\nu_T}}$. Plot 2x2 items, 1 timestep",
             "t_range": [[0, 50]],
             "voltage_range": [-70, -30],
             "smoothened_rate_width": 1 * ms
@@ -68,7 +68,7 @@ class GridTestCases(unittest.TestCase):
 
             "g_L": 0.00004,
 
-            "panel": f"Scan $\\frac{{\\nu_E}}{{\\nu_T}}$ and g",
+            "panel": f"Test g vs $\\frac{{\\nu_E}}{{\\nu_T}}$. Plot 4x3, 1 timestep",
             "t_range": [[500, 1000]],
             "voltage_range": [-70, -30],
             "smoothened_rate_width": 1 * ms
@@ -76,7 +76,7 @@ class GridTestCases(unittest.TestCase):
         experiment = Experiment(conductance_based_simulation)
         compare_g_s_vs_nu_ext_over_nu_thr(experiment, g_s, nu_ext_over_nu_thrs)
 
-    def test_grid__composition_4x3_with_multiple_time_slots(self):
+    def test_grid_composition_4x3_with_multiple_time_slots(self):
         g_s = [3, 6, 9, 12]
         nu_ext_over_nu_thrs = [1, 2, 3]
 
@@ -90,13 +90,41 @@ class GridTestCases(unittest.TestCase):
 
             "g_L": 0.00004,
 
-            "panel": f"Scan $\\frac{{\\nu_E}}{{\\nu_T}}$ and g",
+            "panel": f"Test g vs $\\frac{{\\nu_E}}{{\\nu_T}}$. Plot 4x3 item, 2 timesteps",
             "t_range": [[150, 300], [500, 1000]],
             "voltage_range": [-70, -30],
             "smoothened_rate_width": 1 * ms
         }
         experiment = Experiment(conductance_based_simulation)
         compare_g_s_vs_nu_ext_over_nu_thr(experiment, g_s, nu_ext_over_nu_thrs)
+
+    def test_understand_why_more_g_produces_more_firing(self):
+
+        three_g_s = [0, 1, 3, 5, 10]
+        nu_ext_over_nu_thrs = [1.8, 1.85, 1.9, 1.95, 2]
+
+        # i.e. 1 Hz
+        conductance_based_simulation = {
+
+            "sim_time": 5000,
+            "sim_clock": 0.1 * ms,
+            "g_ampa": 2.518667367869784e-06,
+            # i.e. 1 Hz
+            #"nu_ext_over_nu_thr": 1.75,
+            "epsilon": 0.1,
+            "C_ext": 1000,
+
+            "g_L": 0.00004,
+
+            "panel": f"Scan $\\frac{{\\nu_E}}{{\\nu_T}}$ and g to understand why increasing g produces more firing",
+            "t_range": [[0, 3000], [4000, 5000], [4500, 4800]],
+            "voltage_range": [-70, -30],
+            "smoothened_rate_width": 5 * ms
+        }
+
+        experiment = Experiment(conductance_based_simulation)
+
+        compare_g_s_vs_nu_ext_over_nu_thr(experiment, three_g_s, nu_ext_over_nu_thrs)
 
     def test_plot_relevant_example(self):
         g_s = [4, 6, 8, 16]
@@ -112,7 +140,7 @@ class GridTestCases(unittest.TestCase):
 
             "g_L": 0.00004,
 
-            "panel": f"g vs nu ext for nu ext producing close to 1 Hz",
+            "panel": f"Test g vs $\\frac{{\\nu_E}}{{\\nu_T}}$. Look at values from binary search",
             "t_range": [[500, 1000], [4000, 5000], [4500, 4600]],
             "voltage_range": [-70, -30],
             "smoothened_rate_width": 1 * ms
@@ -189,7 +217,21 @@ class GridTestCases(unittest.TestCase):
 
     # Look for question from script:
     def test_q_0_follow_up_explore_model_in_AI_state(self):
+        g_ampas = [3e-06]
+        nu_thresholds = [1.5]
+        simulation = {
+            "sim_time": 5_000,
+            "sim_clock": 0.1 * ms,
+            "g": 0,
+            "epsilon": 0.1,
+            "C_ext": 1000,
 
+            "g_L": 0.00004,
+            "t_range": [[500, 1000], [3000, 5000]],
+            "voltage_range": [-70, -30],
+            "smoothened_rate_width": 0.5 * ms
+        }
+        compare_g_ampa_vs_nu_ext_over_nu_thr(Experiment(simulation), g_ampas, nu_thresholds)
 
 
 if __name__ == '__main__':

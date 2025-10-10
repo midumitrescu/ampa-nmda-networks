@@ -23,7 +23,7 @@ plt.rcParams.update(mpl.rcParamsDefault)
 plt.rcParams['text.usetex'] = True
 
 default_model = """        
-    dv/dt = 1/C * (-g_L * (v-E_leak) - g_e * (v-E_ampa) - g_i * (v-E_gaba)) : volt
+    dv/dt = 1/C * (-g_L * (v-E_leak) - g_e * (v-E_ampa) - g_i * (v-E_gaba)) : volt (unless refractory)  
     dg_e/dt = -g_e / tau_ampa : siemens / meter**2
     dg_i/dt = -g_i / tau_gaba  : siemens / meter**2
 """

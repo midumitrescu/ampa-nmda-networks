@@ -30,3 +30,5 @@ def question_q_network_instability_for_g_0():
                 .with_property(PlotParams.KEY_PANEL, "Model is stables")
 
     sim_and_plot(long_run_to_check_stability_and_cv)
+
+    # I am missing the plotting of the follow up question i.e.

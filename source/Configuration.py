@@ -116,6 +116,7 @@ class PlotParams:
     KEY_RATE_TICK_STEP = "rate_tick_step"
 
     KEY_PLOT_SMOOTH_WIDTH = "smoothened_rate_width"
+    KEY_PLOT_TURN_OFF_SMOOTH_RATE = "smoothened_rate_width"
 
 
     def __init__(self, params):
@@ -125,8 +126,8 @@ class PlotParams:
         self.voltage_range = params.get(PlotParams.KEY_VOLTAGE_RANGE, None)
 
         self.rate_tick_step = params.get(PlotParams.KEY_RATE_TICK_STEP, 30)
-        self.smoothened_rate_width = 1 * ms
-        self.plot_smoothened_rate = True
+        self.smoothened_rate_width = 0.5 * ms
+        self.plot_smoothened_rate = PlotParams.KEY_PLOT_TURN_OFF_SMOOTH_RATE not in params
 
 
 class Experiment:
