@@ -23,7 +23,7 @@ jobs:
         python-version: ${{ matrix.python-version }}
 
     - name: Install LaTeX
-      run: sudo apt-get update && sudo apt-get install -y texlive-latex-base
+      run: sudo apt-get update && sudo apt-get install -y texlive-latex-base texlive-latex-extra dvipng cm-super texlive-fonts-recommended
 
     - name: Install dependencies
       run: |
@@ -33,4 +33,4 @@ jobs:
 
     - name: Run tests with pytest
       run: |
-        pytest -v
+        pytest -v tests/test_matplotlib_latex_text_generation.py
