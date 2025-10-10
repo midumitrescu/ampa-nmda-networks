@@ -1,5 +1,6 @@
 import unittest
 import numpy as np
+from matplotlib import pyplot as plt
 
 from brian2 import ms
 
@@ -31,6 +32,7 @@ class GridTestCases(unittest.TestCase):
         }
         experiment = Experiment(conductance_based_simulation)
         compare_g_s_vs_nu_ext_over_nu_thr(experiment, g_s, nu_ext_over_nu_thrs)
+        plt.close()
 
     def test_grid_composition(self):
         g_s = [3, 6]
@@ -53,6 +55,7 @@ class GridTestCases(unittest.TestCase):
         }
         experiment = Experiment(conductance_based_simulation)
         compare_g_s_vs_nu_ext_over_nu_thr(experiment, g_s, nu_ext_over_nu_thrs)
+        plt.close()
 
     def test_grid_composition_4x2(self):
         g_s = [3, 6, 9, 12]
@@ -75,6 +78,7 @@ class GridTestCases(unittest.TestCase):
         }
         experiment = Experiment(conductance_based_simulation)
         compare_g_s_vs_nu_ext_over_nu_thr(experiment, g_s, nu_ext_over_nu_thrs)
+        plt.close()
 
     def test_grid_composition_4x3_with_multiple_time_slots(self):
         g_s = [3, 6, 9, 12]
@@ -97,6 +101,7 @@ class GridTestCases(unittest.TestCase):
         }
         experiment = Experiment(conductance_based_simulation)
         compare_g_s_vs_nu_ext_over_nu_thr(experiment, g_s, nu_ext_over_nu_thrs)
+        plt.close()
 
     def test_understand_why_more_g_produces_more_firing(self):
 
@@ -125,6 +130,7 @@ class GridTestCases(unittest.TestCase):
         experiment = Experiment(conductance_based_simulation)
 
         compare_g_s_vs_nu_ext_over_nu_thr(experiment, three_g_s, nu_ext_over_nu_thrs)
+        plt.close()
 
     def test_plot_relevant_example(self):
         g_s = [4, 6, 8, 16]
@@ -147,6 +153,7 @@ class GridTestCases(unittest.TestCase):
         }
         experiment = Experiment(conductance_based_simulation)
         compare_g_s_vs_nu_ext_over_nu_thr(experiment, g_s, nu_ext_over_nu_thrs)
+        plt.close()
 
     def test_q_0(self):
         g_ampas = [2e-06, 2.5e-06, 3e-06]
@@ -167,6 +174,7 @@ class GridTestCases(unittest.TestCase):
         }
         experiment = Experiment(simulation)
         compare_g_ampa_vs_nu_ext_over_nu_thr(experiment, g_ampas, [1.6, 1.7, 1.8])
+        plt.close()
 
     def test_grid_and_plot_g_ampa_nu_thrs(self):
         g_ampas = [2e-06, 2.5e-06, 2.625e-6, 2.75e-06, 3e-06]
@@ -188,10 +196,8 @@ class GridTestCases(unittest.TestCase):
         }
         experiment = Experiment(simulation)
         compare_g_ampa_vs_nu_ext_over_nu_thr(experiment, g_ampas, nu_thresholds)
+        plt.close()
 
-
-    def compare_two_experiments(self):
-        g_ampas = [0, 1]
 
     def test_question_1_q_to_s_r_for_ampa_0(self):
         g_s = [3, 4, 5, 6]
@@ -214,6 +220,7 @@ class GridTestCases(unittest.TestCase):
         }
         experiment = Experiment(conductance_based_simulation)
         compare_g_s_vs_nu_ext_over_nu_thr(experiment, g_s, nu_ext_over_nu_thrs)
+        plt.close()
 
     # Look for question from script:
     def test_q_0_follow_up_explore_model_in_AI_state(self):
@@ -232,6 +239,7 @@ class GridTestCases(unittest.TestCase):
             "smoothened_rate_width": 0.5 * ms
         }
         compare_g_ampa_vs_nu_ext_over_nu_thr(Experiment(simulation), g_ampas, nu_thresholds)
+        plt.close()
 
 
 if __name__ == '__main__':

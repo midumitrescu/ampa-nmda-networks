@@ -25,12 +25,7 @@ class SynapticParams:
         self.D = params.get(SynapticParams.KEY_SYNAPTIC_DELAY, 1.5 * ms)
 
         self.g_ampa = params.get(SynapticParams.KEY_G_AMPA, 0) * siemens / cm ** 2
-        if SynapticParams.KEY_G_GABA in params:
-            self.g_gaba = params.get(SynapticParams.KEY_G_GABA, 0) * siemens / cm ** 2
-            logger.debug("g gaba was a direct parameter. Value was {}", self.g_gaba)
-        else:
-            self.g_gaba = g * self.g_ampa
-            logger.debug("g was  Value was {}", self.g_gaba)
+        self.g_gaba = g * self.g_ampa
 
         self.tau_ampa = params.get(SynapticParams.KEY_TAU_AMPA, 2) * ms
         self.tau_gaba = params.get(SynapticParams.KEY_TAU_AMPA, 2) * ms

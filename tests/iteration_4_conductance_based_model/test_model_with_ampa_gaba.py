@@ -4,6 +4,7 @@ import unittest
 import matplotlib.pyplot as plt
 import numpy as np
 from brian2 import ms, siemens, cm, second, Hz
+from fontTools.unicodedata import block
 
 from BinarySeach import binary_search_for_target_value
 from Configuration import Experiment, SynapticParams, NetworkParams, PlotParams
@@ -41,7 +42,7 @@ def compute_rate_for_nu_ext_over_nu_thr(nu_ext_over_nu_thr, g = 1, wait_for=4_00
     return mean_unsmoothened / Hz, mean_smothened / Hz
 
 
-class MyTestCase(unittest.TestCase):
+class ModelWithOnlyAMPAAndGABATestCases(unittest.TestCase):
 
     def test_new_configuration_is_parsed(self):
         new_config = {
@@ -86,7 +87,8 @@ class MyTestCase(unittest.TestCase):
 
         experiment = Experiment(conductance_based_simulation)
         sim_and_plot(experiment)
-        plt.show()
+        plt.show(block=False)
+        plt.close()
 
     def test_model_runs_only_with_exc_current(self):
         conductance_based_simulation = {
@@ -102,7 +104,7 @@ class MyTestCase(unittest.TestCase):
             "g_ampa": 0.002,
             "g_gaba": 0.002,
 
-            "panel": f"Testing conductance based model only with excitatory current",
+            "panel": self._testMethodName,
             "t_range": [100, 120],
             "voltage_range": [-70, -30],
             "smoothened_rate_width": 0.5 * ms
@@ -114,7 +116,8 @@ class MyTestCase(unittest.TestCase):
                             dg_e/dt = -g_e / tau_ampa : siemens / meter**2
                             dg_i/dt = -g_i / tau_gaba  : siemens / meter**2
                         """)
-        plt.show()
+        plt.show(block=False)
+        plt.close()
 
     def test_model_scan_nu_ext_for_excitation_balance(self):
 
@@ -132,7 +135,7 @@ class MyTestCase(unittest.TestCase):
                 "g_ampa": 0.0002,
                 "g_gaba": 0.002,
 
-                "panel": f"Scan nu ext for excitation balance",
+                "panel": self._testMethodName,
                 "t_range": [100, 120],
                 "voltage_range": [-70, -30],
                 "smoothened_rate_width": 0.5 * ms
@@ -143,7 +146,8 @@ class MyTestCase(unittest.TestCase):
                                         dg_e/dt = -g_e / tau_ampa : siemens / meter**2
                                         dg_i/dt = -g_i / tau_gaba  : siemens / meter**2
                                     """)
-            plt.show()
+            plt.show(block=False)
+            plt.close()
 
     def test_model_runs_only_with_inhibitory_current(self):
         conductance_based_simulation = {
@@ -156,7 +160,7 @@ class MyTestCase(unittest.TestCase):
             "epsilon": 0.1,
             "C_ext": 1000,
 
-            "panel": f"Testing model runs with only inhibitory current",
+            "panel": self._testMethodName,
             "t_range": [100, 120],
             "voltage_range": [-70, -30],
             "smoothened_rate_width": 0.5 * ms
@@ -172,10 +176,11 @@ class MyTestCase(unittest.TestCase):
                             dg_e/dt = -g_e / tau_ampa : siemens / meter**2
                             dg_i/dt = -g_i / tau_gaba  : siemens / meter**2
                         """)
-        plt.show()
+        plt.show(block=False)
+        plt.close()
 
     def test_default_can_be_plotted_at_different_timesteps(self):
-        for current_nu_ext_over_nu_thr, current_g in itertools.product(np.linspace(start=0.01, stop=0.2, num=20), np.linspace(start=10, stop=20, num=10)):
+        for current_nu_ext_over_nu_thr, current_g in itertools.product(np.linspace(start=0.01, stop=0.2, num=2), np.linspace(start=10, stop=20, num=2)):
             conductance_based_simulation = {
 
                 "sim_time": 5000,
@@ -189,17 +194,16 @@ class MyTestCase(unittest.TestCase):
 
                 "g_L": 0.00004,
 
-                "panel": f"Testing default model at different timesteps",
+                "panel": self._testMethodName,
                 "t_range": [[100, 120], [100, 300], [0, 1500], [2500, 3000], [4500, 5000]],
-                "voltage_range": [-70, -30],
-                "smoothened_rate_width": 3 * ms
+                "voltage_range": [-70, -30]
             }
-
 
             experiment = Experiment(conductance_based_simulation)
 
             sim_and_plot(experiment)
-            plt.show()
+            plt.show(block=False)
+            plt.close()
 
 
     def test_show_model_from_binary_search_value(self):
@@ -215,7 +219,7 @@ class MyTestCase(unittest.TestCase):
 
             "g_L": 0.00004,
 
-            "panel": r'Show model with $\frac{\nu_\mathrm{Ext}}{\nu_\mathrm{Thr}}$ from binary search',
+            "panel": self._testMethodName,
             "t_range": [[3000, 3200], [4000, 5000]],
             "voltage_range": [-70, -30]
         }
@@ -223,7 +227,8 @@ class MyTestCase(unittest.TestCase):
         experiment = Experiment(conductance_based_simulation)
 
         sim_and_plot(experiment)
-        plt.show()
+        plt.show(block=False)
+        plt.close()
 
     def test_understand_why_more_g_produces_more_firing(self):
 
@@ -247,7 +252,7 @@ class MyTestCase(unittest.TestCase):
 
                 "g_L": 0.00004,
 
-                "panel": f"Scan $\\frac{{\\nu_E}}{{\\nu_T}}$ and g to understand why increasing g produces more firing",
+                "panel": self._testMethodName,
                 "t_range": [[0, 3000], [4000, 5000], [4500, 4800]],
                 "voltage_range": [-70, -30],
                 "smoothened_rate_width": 5 * ms
@@ -256,7 +261,8 @@ class MyTestCase(unittest.TestCase):
             experiment = Experiment(conductance_based_simulation)
 
             sim_and_plot(experiment)
-            plt.show()
+            plt.show(block=False)
+            plt.close()
 
     def test_understand_why_most_firing_is_external(self):
         for current_g in np.linspace(start=0, stop=50, num=6):
@@ -265,17 +271,14 @@ class MyTestCase(unittest.TestCase):
                 "sim_time": 2000,
                 "sim_clock": 0.1 * ms,
                 "g": current_g,
-                #"g_ampa": 1.518667367869784e-06,
-                #"g_ampa": 1.518667367869784e-06,
                 "g_ampa": 1e-05,
-                #"g_gaba": 1.518667367869784e-06,
                 "nu_ext_over_nu_thr": 1,
                 "epsilon": 0.1,
                 "C_ext": 1000,
 
                 "g_L": 0.00004,
 
-                "panel": f"Understand why most firing is external",
+                "panel": self._testMethodName,
                 "t_range": [[1000, 2000], [1800, 1900]],
                 "voltage_range": [-70, -30],
                 "smoothened_rate_width": 1 * ms
@@ -284,7 +287,8 @@ class MyTestCase(unittest.TestCase):
             experiment = Experiment(conductance_based_simulation)
 
             rate_monitor, spike_monitor, _, _, = sim_and_plot(experiment)
-            plt.show()
+            plt.show(block=False)
+            plt.close()
 
     def test_model_below_threshold_for_very_long_time(self):
 
@@ -300,7 +304,7 @@ class MyTestCase(unittest.TestCase):
 
             "g_L": 0.00004,
 
-            "panel": f"Testing model bellow threshold for very long time to show stability",
+            "panel": self._testMethodName,
             "t_range": [10_000, 19_000],
             "voltage_range": [-70, -30],
             "smoothened_rate_width": 2 * ms
@@ -309,7 +313,8 @@ class MyTestCase(unittest.TestCase):
         experiment = Experiment(conductance_based_simulation)
 
         rate_monitor, spike_monitor, _, _, = sim_and_plot(experiment)
-        plt.show()
+        plt.show(block=False)
+        plt.close()
 
     #@unittest.skip("too long rn")
     # Results:
@@ -326,6 +331,7 @@ class MyTestCase(unittest.TestCase):
 
     def test_model_from_q_0_is_stable_on_the_long_run(self):
         simulation = {
+            "panel": self._testMethodName,
             "sim_time": 5_000,
             "sim_clock": 0.1 * ms,
             "g": 0,

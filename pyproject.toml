@@ -8,18 +8,22 @@ build-backend = "setuptools.build_meta"
 name = "ampa-nmda-networks"
 version = "0.0.1"
 dependencies = [
-    "numpy",
-    "matplotlib",
-    "brian2",
+    "joblib",
     "jupyter",
-    "loguru",
+
+    "numpy",
     "scipy",
+    "matplotlib",
+
+    "brian2",
+
+    "loguru",
     "pytest",
-    "pytest-cov"
+    "pytest-cov",
 ]
 
 [tool.setuptools]
-packages = ["source"]
+packages = ["src"]
 
 [project.optional-dependencies]
 test = [
@@ -27,5 +31,7 @@ test = [
     "pytest-cov"
 ]
 
-[pytest]
-pythonpath = source/
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+log_cli = true
+addopts = ["-s"]
