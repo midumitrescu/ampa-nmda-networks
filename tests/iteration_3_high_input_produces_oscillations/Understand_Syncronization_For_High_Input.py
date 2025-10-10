@@ -62,7 +62,7 @@ class Understand_Syncronization_For_High_Input(unittest.TestCase):
                 "nu_ext_over_nu_thr": 1 * multiplication,
                 "epsilon": 0,
                 "C_ext": 1000,
-                "g_L":0.004 * siemens * (cm ** -2),
+                "g_L":0.004,
 
                 "panel": f"Iteration {index}: Testing neurons under high input, plot smoothened, sim clock = 0.05 ms",
                 "t_range": [100, 120],
