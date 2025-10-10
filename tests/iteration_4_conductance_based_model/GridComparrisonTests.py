@@ -1,4 +1,5 @@
 import unittest
+import numpy as np
 
 from brian2 import ms
 
@@ -187,22 +188,8 @@ class GridTestCases(unittest.TestCase):
         compare_g_s_vs_nu_ext_over_nu_thr(experiment, g_s, nu_ext_over_nu_thrs)
 
     # Look for question from script:
-    def test_explore_model_in_AI_state(self):
-        g_ampas = [3e-06]
-        nu_thresholds = [1.5]
-        simulation = {
-            "sim_time": 5_000,
-            "sim_clock": 0.1 * ms,
-            "g": 0,
-            "epsilon": 0.1,
-            "C_ext": 1000,
+    def test_q_0_follow_up_explore_model_in_AI_state(self):
 
-            "g_L": 0.00004,
-            "t_range": [[500, 1000], [3000, 5000]],
-            "voltage_range": [-70, -30],
-            "smoothened_rate_width": 0.5 * ms
-        }
-        compare_g_ampa_vs_nu_ext_over_nu_thr(Experiment(simulation), g_ampas, nu_thresholds)
 
 
 if __name__ == '__main__':

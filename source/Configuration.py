@@ -125,8 +125,8 @@ class PlotParams:
         self.voltage_range = params.get(PlotParams.KEY_VOLTAGE_RANGE, None)
 
         self.rate_tick_step = params.get(PlotParams.KEY_RATE_TICK_STEP, 30)
-        self.smoothened_rate_width = params.get(self.KEY_PLOT_SMOOTH_WIDTH, None)
-        self.plot_smoothened_rate = self.smoothened_rate_width is not None
+        self.smoothened_rate_width = 1 * ms
+        self.plot_smoothened_rate = True
 
 
 class Experiment:

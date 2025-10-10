@@ -262,7 +262,7 @@ class MyTestCase(unittest.TestCase):
             plt.show()
 
     def test_understand_why_most_firing_is_external(self):
-        for current_g in np.linspace(start=0, stop=50, num=6):
+        for current_g in np.linspace(start=30, stop=50, num=1):
             conductance_based_simulation = {
 
                 "sim_time": 2000,
@@ -279,9 +279,9 @@ class MyTestCase(unittest.TestCase):
                 "g_L": 0.00004,
 
                 "panel": f"Testing conductance based model",
-                "t_range": [[0, 100], [100, 300], [300, 500], [500, 1000], [1000, 2000], [1900, 1950]],
+                "t_range": [[1000, 2000], [1800, 1900]],
                 "voltage_range": [-70, -30],
-                "smoothened_rate_width": 10 * ms
+                "smoothened_rate_width": 1 * ms
             }
 
             experiment = Experiment(conductance_based_simulation)

@@ -1,6 +1,6 @@
 import unittest
 
-from iteration_4_conductance_based_model.Scripts import question_q_network_instability_for_g_0
+from iteration_4_conductance_based_model.Questions import question_q_network_instability_for_g_0
 
 
 class TestsForMeeting(unittest.TestCase):

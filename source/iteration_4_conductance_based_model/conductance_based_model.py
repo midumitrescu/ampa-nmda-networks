@@ -47,7 +47,7 @@ def compute_cvs(spike_monitor: SpikeMonitor):
     result = np.zeros(len(spike_monitor.spike_trains()))
 
     for index, spike_train in spike_monitor.spike_trains().items():
-        if len(spike_train) > 1:
+        if len(spike_train) > 2:
             isis_s = np.diff(spike_train)
             result[index] = np.std(isis_s) / np.mean(isis_s)
 
@@ -246,7 +246,7 @@ def plot_psd_and_CVs(experiment: Experiment, rate_monitor,
 
     # Perform the Fast Fourier Transform
     n = len(rate_monitor.t)
-    fft_result = np.fft.fft(rate_monitor.rate)
+    fft_result = np.fft.fft(extract_rate(experiment, rate_monitor))
     fft_freq = np.fft.fftfreq(n, d=1 / sampling_rate)
     fft_magnitude = np.abs(fft_result)
 
@@ -254,20 +254,19 @@ def plot_psd_and_CVs(experiment: Experiment, rate_monitor,
     positive_magnitude = fft_magnitude[:n // 2]
 
     smoothened_magnitude = smoothen_curve(positive_magnitude, window_size=250)
-    #smoothened_magnitude = smoothen_curve(positive_magnitude, window_size=1000)
-    #smoothened_magnitude = positive_magnitude
 
     fig, (ax_fft, ax_cvs) = plt.subplots(1, 2, figsize=(14, 6))
     fig.suptitle(experiment.gen_plot_title())
 
-    ax_fft.plot(positive_frequencies[2_000:-5_000], smoothened_magnitude[2_000:-5_000])
-    ax_fft.set_title("Frequency Spectrum")
-    ax_fft.set_xlabel("Frequency (Hz)")
-    ax_fft.set_ylabel("Magnitude")
-
     dominant_frequencies = positive_frequencies[np.argsort(positive_magnitude)[-5:]]  # top 5 frequencies
     logger.debug("Dominant frequencies: {}", dominant_frequencies)
 
+    cut_off_freq = 1000
+    ax_fft.plot(positive_frequencies[positive_frequencies < cut_off_freq], smoothened_magnitude[positive_frequencies < cut_off_freq])
+    dominant_frequency = dominant_frequencies[-2]
+    ax_fft.set_title(f"Frequency Spectrum \n Dominant frequency {dominant_frequency :.2f} Hz ")
+    ax_fft.set_xlabel("Frequency (Hz)")
+    ax_fft.set_ylabel("Magnitude")
     cvs = compute_cvs(spike_monitor)
 
     ax_cvs.set_title("CVs")
