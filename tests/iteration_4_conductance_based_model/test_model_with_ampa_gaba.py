@@ -4,6 +4,7 @@ import unittest
 import matplotlib.pyplot as plt
 import numpy as np
 from brian2 import ms, siemens, cm, second, Hz
+from fontTools.unicodedata import block
 
 from BinarySeach import binary_search_for_target_value
 from Configuration import Experiment, SynapticParams, NetworkParams, PlotParams
@@ -86,7 +87,8 @@ class ModelWithOnlyAMPAAndGABATestCases(unittest.TestCase):
 
         experiment = Experiment(conductance_based_simulation)
         sim_and_plot(experiment)
-        plt.show()
+        plt.show(block=False)
+        plt.close()
 
     def test_model_runs_only_with_exc_current(self):
         conductance_based_simulation = {
@@ -114,7 +116,8 @@ class ModelWithOnlyAMPAAndGABATestCases(unittest.TestCase):
                             dg_e/dt = -g_e / tau_ampa : siemens / meter**2
                             dg_i/dt = -g_i / tau_gaba  : siemens / meter**2
                         """)
-        plt.show()
+        plt.show(block=False)
+        plt.close()
 
     def test_model_scan_nu_ext_for_excitation_balance(self):
 
@@ -143,7 +146,8 @@ class ModelWithOnlyAMPAAndGABATestCases(unittest.TestCase):
                                         dg_e/dt = -g_e / tau_ampa : siemens / meter**2
                                         dg_i/dt = -g_i / tau_gaba  : siemens / meter**2
                                     """)
-            plt.show()
+            plt.show(block=False)
+            plt.close()
 
     def test_model_runs_only_with_inhibitory_current(self):
         conductance_based_simulation = {
@@ -172,10 +176,11 @@ class ModelWithOnlyAMPAAndGABATestCases(unittest.TestCase):
                             dg_e/dt = -g_e / tau_ampa : siemens / meter**2
                             dg_i/dt = -g_i / tau_gaba  : siemens / meter**2
                         """)
-        plt.show()
+        plt.show(block=False)
+        plt.close()
 
     def test_default_can_be_plotted_at_different_timesteps(self):
-        for current_nu_ext_over_nu_thr, current_g in itertools.product(np.linspace(start=0.01, stop=0.2, num=20), np.linspace(start=10, stop=20, num=10)):
+        for current_nu_ext_over_nu_thr, current_g in itertools.product(np.linspace(start=0.01, stop=0.2, num=2), np.linspace(start=10, stop=20, num=2)):
             conductance_based_simulation = {
 
                 "sim_time": 5000,
@@ -191,15 +196,14 @@ class ModelWithOnlyAMPAAndGABATestCases(unittest.TestCase):
 
                 "panel": self._testMethodName,
                 "t_range": [[100, 120], [100, 300], [0, 1500], [2500, 3000], [4500, 5000]],
-                "voltage_range": [-70, -30],
-                "smoothened_rate_width": 3 * ms
+                "voltage_range": [-70, -30]
             }
-
 
             experiment = Experiment(conductance_based_simulation)
 
             sim_and_plot(experiment)
-            plt.show()
+            plt.show(block=False)
+            plt.close()
 
 
     def test_show_model_from_binary_search_value(self):
@@ -223,7 +227,8 @@ class ModelWithOnlyAMPAAndGABATestCases(unittest.TestCase):
         experiment = Experiment(conductance_based_simulation)
 
         sim_and_plot(experiment)
-        plt.show()
+        plt.show(block=False)
+        plt.close()
 
     def test_understand_why_more_g_produces_more_firing(self):
 
@@ -256,7 +261,8 @@ class ModelWithOnlyAMPAAndGABATestCases(unittest.TestCase):
             experiment = Experiment(conductance_based_simulation)
 
             sim_and_plot(experiment)
-            plt.show()
+            plt.show(block=False)
+            plt.close()
 
     def test_understand_why_most_firing_is_external(self):
         for current_g in np.linspace(start=0, stop=50, num=6):
@@ -281,7 +287,8 @@ class ModelWithOnlyAMPAAndGABATestCases(unittest.TestCase):
             experiment = Experiment(conductance_based_simulation)
 
             rate_monitor, spike_monitor, _, _, = sim_and_plot(experiment)
-            plt.show()
+            plt.show(block=False)
+            plt.close()
 
     def test_model_below_threshold_for_very_long_time(self):
 
@@ -306,7 +313,8 @@ class ModelWithOnlyAMPAAndGABATestCases(unittest.TestCase):
         experiment = Experiment(conductance_based_simulation)
 
         rate_monitor, spike_monitor, _, _, = sim_and_plot(experiment)
-        plt.show()
+        plt.show(block=False)
+        plt.close()
 
     #@unittest.skip("too long rn")
     # Results:

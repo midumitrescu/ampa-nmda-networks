@@ -105,7 +105,6 @@ def sim(experiment: Experiment, in_testing=True, eq=default_model):
     E_leak = experiment.neuron_params.E_leak
     V_r = experiment.neuron_params.V_r
 
-    g = experiment.network_params.g
     g_ampa = experiment.synaptic_params.g_ampa
     g_gaba = experiment.synaptic_params.g_gaba
 
@@ -134,7 +133,7 @@ def sim(experiment: Experiment, in_testing=True, eq=default_model):
                             delay=experiment.synaptic_params.D)
     exc_synapses.connect(p=experiment.network_params.epsilon)
 
-    inhib_synapses = Synapses(inhibitory_neurons, target=neurons, on_pre="g_i += g*g_ampa",
+    inhib_synapses = Synapses(inhibitory_neurons, target=neurons, on_pre="g_i += g_gaba",
                               delay=experiment.synaptic_params.D)
     inhib_synapses.connect(p=experiment.network_params.epsilon)
 
