@@ -94,7 +94,7 @@ def plot_(y_axis_values, x_axis_values, results, time_range, label_for_x_axis: s
              ha='center', va='top', fontsize=20)
 
     plt.tight_layout()
-    plt.show()
+    plt.show(block=False)
 
 
 def plot_raster_and_rates_unpickled(experiment, grid_spec_mother, rate_monitor, spike_monitor, time_range):

@@ -3,6 +3,7 @@ import unittest
 import matplotlib.pyplot as plt
 from IPython.core.pylabtools import figsize
 from brian2 import ms, ufarad, cm, siemens
+import numpy as np
 
 from Configuration import Experiment
 
@@ -22,15 +23,30 @@ some_params = {
 
 experiment = Experiment(some_params)
 
+class SimpleIntegrationstCase(unittest.TestCase):
 
-class MyTestCase(unittest.TestCase):
+    @staticmethod
+    def test_simple_plotting_works():
+        plt.plot(np.linspace(0, 1000), np.linspace(0, 1000))
+        plt.title("Test")
+        plt.show(block=False)
+        plt.close()
+
+    @staticmethod
+    def test_latex_plotting_works():
+        plt.rcParams['text.usetex'] = True
+        plt.plot(np.linspace(0, 1000), np.linspace(0, 1000))
+        plt.title(r'$\gamma$, $\frac{\nu_1}{\mu_2}$')
+        plt.show(block=False)
+        plt.close()
+
+class ComplexLatexTextsTestCase(unittest.TestCase):
+
     def test_matplotlib_text_generation(self):
-        # plt.plot()
         plt.figure(figsize=(10, 10))
         plt.title(experiment.gen_plot_title())
-        # \\text\u007b cm \u007d^2
         plt.subplots_adjust(top=0.7)
-        plt.show()
+        plt.show(block=False)
 
     def test_matplotlib_text_generation_for_g_L_004_siemens(self):
         plt.figure(figsize=(8, 8))
@@ -39,21 +55,19 @@ class MyTestCase(unittest.TestCase):
         config_for_siemens_magnitude["g_L"] = 0.004
         object_under_test = Experiment(config_for_siemens_magnitude)
         plt.title(f"$g_L=0.004$ S - {object_under_test.gen_plot_title()}")
-        # \\text\u007b cm \u007d^2
         plt.subplots_adjust(top=0.7)
-        plt.show()
+        plt.show(block=False)
 
-       #r"\frac{{\nu_{{\text{{Ext}}}}{{\nu_\text{{thr}}}}=" + f"{nu_ext_over_nu_thr: .3f}"
     def test_matplotlib_text_generation_for_nu_ext_over_nu_thr(self):
         # plt.plot()
         plt.figure(figsize=(10, 10))
         plt.title(r'$\frac{\nu_\mathrm{Ext}}{\nu_\mathrm{Thr}}=$'f"{1}")
         plt.xlabel(r"$\nu_\mathrm{Ext}$")
-        # \\text\u007b cm \u007d^2
         plt.subplots_adjust(top=0.7)
-        plt.show()
+        plt.show(block=False)
+        plt.close()
 
-    def test_example(self):
+    def test_plot_name_generation(self):
         config = {
             "sim_time": 5000,
             "sim_clock": 0.1 * ms,
@@ -79,13 +93,14 @@ class MyTestCase(unittest.TestCase):
         # \\text\u007b cm \u007d^2
         plt.subplots_adjust(top=0.7)
         plt.tight_layout()
-        plt.show()
+        plt.show(block=False)
+        plt.close()
 
         self.assertEqual("""Scan $\\frac{\\nu_E}{\\nu_T}$ and g
-        Network: [N=12500, $N_E=10000$, $N_I=2500$, $\gamma=0.25$, $\epsilon=0.1$]
-    Input: [$\\nu_T=2. Hz$, $\\frac{\\nu_E}{\\nu_T}= 1.90$, $\\nu_E=3.80$ Hz]
-    Neuron: [$C=1. uF, g_L=40. uS, \\theta=-40. mV, V_R=-65. mV, E_L=-65. mV, \\tau_M=25. ms, \\tau_{ ref }=2. ms$]
-    Synapse: [$g_\\mathrm{ AMPA }=2.52 \mu$S, $g_\\mathrm{ GABA }=2.52 \mu$S, $g=1$]""", object_under_test.gen_plot_title())
+    Network: [N=12500, $N_E=10000$, $N_I=2500$, $\gamma=0.25$, $\epsilon=0.1$]
+    Input: [$\\nu_T=2. Hz$, $\\frac{\\nu_E}{\\nu_T}=1.90$, $\\nu_E=3.80$ Hz]
+    Neuron: [$C=1. uF$, $g_L=40. uS$, $\\theta=-40. mV$, $V_R=-65. mV$, $E_L=-65. mV$, $\\tau_M=25. ms$, $\\tau_{\\mathrm{ref}}=2. ms$]
+    Synapse: [$g_{\\mathrm{AMPA}}=2.52\\,\\mu\\mathrm{S}$, $g_{\\mathrm{GABA}}=2.52\\,\\mu\\mathrm{S}$, $g=1$]""", object_under_test.gen_plot_title())
 
 
 if __name__ == '__main__':

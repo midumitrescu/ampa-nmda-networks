@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [tool.setuptools]
-packages = ["source"]
+packages = ["src"]
 
 [project.optional-dependencies]
 test = [
@@ -27,5 +27,7 @@ test = [
     "pytest-cov"
 ]
 
-[pytest]
-pythonpath = source/
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+log_cli = true
+addopts = ["-s"]

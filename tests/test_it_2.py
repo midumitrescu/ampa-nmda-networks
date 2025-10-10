@@ -1,12 +1,19 @@
 import unittest
 
 import numpy as np
+from brian2 import ms, Hz, mV, defaultclock, ufarad, cm, msiemens, NeuronGroup, PoissonInput, StateMonitor, run
 
-from it_2_richardson import PlotParams, sim
+from it_2_richardson import PlotParams, sim, Experiment
 import matplotlib.pyplot as plt
 from loguru import logger
 
-class MyTestCase(unittest.TestCase):
+
+'''
+Tests that make sure it 2 is working. 
+
+The firing rates are so high, that the syncronization between independent neurons is visible (sinusoidal wave)
+'''
+class It2TestCase(unittest.TestCase):
 
     def test_initialize_params(self):
         example =  {
@@ -25,7 +32,7 @@ class MyTestCase(unittest.TestCase):
 
     def test_should_simulate_for_200_ms(self):
         two_hundred_ms_simulation = {
-            "panel": "Short simulation",
+            "panel": self._testMethodName,
             "g": 0,
             "nu_ext_over_nu_thr": 1,
             "rate_range": [0, 250],
@@ -39,7 +46,7 @@ class MyTestCase(unittest.TestCase):
 
     def test_should_simulate_for_300_ms(self):
         two_hundred_ms_simulation = {
-            "panel": "Short simulation",
+            "panel": self._testMethodName,
             "g": 0,
             "nu_ext_over_nu_thr": 1,
             "t_range": [0, 300],
@@ -52,26 +59,26 @@ class MyTestCase(unittest.TestCase):
         self.assertEqual(300*ms, object_under_test.sim_time)
         self.assertAlmostEqual(299.95, float(rate_monitor.t[-1] * 1000))
 
-    def test_should_simulate_for_1_s_from_t_range_field(self):
+    def test_should_simulate_for_100_ms_from_t_range_field(self):
         simulation_for_1000_ms = {
-            "panel": "Testing threshold is reached",
+            "panel": self._testMethodName,
             "g": 0,
             "nu_ext_over_nu_thr": 10,
-            "t_range": [0, 1000],
+            "t_range": [0, 100],
             "rate_range": [0, 250],
             "rate_tick_step": 50,
         }
 
-        self.assertEqual(1000 * ms, Experiment(simulation_for_1000_ms).sim_time)
+        self.assertEqual(100 * ms, Experiment(simulation_for_1000_ms).sim_time)
 
     def test_nu_threshold(self):
 
         should_fire =  {
-            "panel": "Testing threshold is reached",
-            "sim_time": 1500,
+            "panel": self._testMethodName,
+            "sim_time": 100,
             "g": 0,
             "nu_ext_over_nu_thr": 1,
-            "t_range": [200, 250],
+            "t_range": [50, 100],
             "rate_range": [0, 250],
             "voltage_range": [-70, -35],
             "rate_tick_step": 50,
@@ -84,19 +91,19 @@ class MyTestCase(unittest.TestCase):
         rate_monitor, spike_monitor, v_monitor = sim(experiment=object_under_test)
         #make sure that the network fires, when no inhibition is present
         # this is achieved by taking gamma = 0
-        plt.show()
+        plt.show(block=False)
+        plt.close()
 
     def test_understand_why_nu_ext_is_so_large(self):
         np.random.seed(0)
 
         for ratio in np.linspace(0.9, 1.1, num=5):
             should_fire = {
-                "panel": "Testing threshold is reached",
+                "panel": self._testMethodName,
                 "g": 0,
-                "sim_time": 1500,
+                "sim_time": 120,
                 "nu_ext_over_nu_thr": ratio,
                 "t_range": [100, 110],
-                "rate_range": [0, 250],
                 "voltage_range": [-70, -35],
                 "rate_tick_step": 50,
             }
@@ -106,16 +113,17 @@ class MyTestCase(unittest.TestCase):
             rate_monitor, spike_monitor, v_monitor = sim(experiment=object_under_test)
             # make sure that the network fires, when no inhibition is present
             # this is achieved by taking gamma = 0
-            plt.show()
+            plt.show(block=False)
+            plt.close()
 
     def test_simulation_without_self_synapses_should_show_only_poisson_rates(self):
 
         for mult in np.linspace(0.01, 1, num=10):
             np.random.seed(0)
             no_feedback_synapses = Experiment({
-                "panel": "Testing threshold is reached",
+                "panel": self._testMethodName,
                 "g": 0,
-                "sim_time": 1500,
+                "sim_time": 120,
                 "sim_clock": 0.05 * ms,
                 "nu_ext_over_nu_thr": 1,
                 "t_range": [100, 120],
@@ -138,7 +146,9 @@ class MyTestCase(unittest.TestCase):
             rate_monitor, spike_monitor, v_monitor = sim(experiment=no_feedback_synapses)
             # make sure that the network fires, when no inhibition is present
             # this is achieved by taking gamma = 0
-            plt.show()
+            plt.show(block=False)
+            plt.close()
+
 
     def test_threshold_not_working(self):
         np.random.seed(0)
@@ -175,19 +185,17 @@ class MyTestCase(unittest.TestCase):
         duration = 500 * ms
         run(duration, report='text')
 
-        plt.axhline(y = theta/ms, linestyle="dotted", linewidth="0.3", color="k",
+        plt.axhline(y = theta/mV, linestyle="dotted", linewidth="0.3", color="k",
                             label="$\\theta$")
 
         plt.plot()
         for i in range(0, 2):
             plt.plot(v_monitor.t / ms, v_monitor[i].v / mV, label=f"Neuron {i}")
 
+        plt.ylim([-70, -35])
         plt.xlim([210, 220])
-        plt.show()
-
-
-
-
+        plt.show(block=False)
+        plt.close()
 
 
 if __name__ == '__main__':

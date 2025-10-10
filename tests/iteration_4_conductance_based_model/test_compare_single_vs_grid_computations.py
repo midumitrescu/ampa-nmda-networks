@@ -1,18 +1,19 @@
 import unittest
+from loguru import logger
+import sys
 
+import matplotlib.pyplot as plt
 from brian2 import ms
 
 from Configuration import Experiment
 from iteration_4_conductance_based_model.conductance_based_model import sim_and_plot
 from iteration_4_conductance_based_model.grid_computations import compare_g_s_vs_nu_ext_over_nu_thr
 
-from loguru import logger
-import sys
 logger.remove()
 logger.add(sys.stderr, level="INFO")
 
 
-class MyTestCase(unittest.TestCase):
+class SingleVSGridComputationTestCase(unittest.TestCase):
     def test_single_simulation_and_grid_produce_same_results(self):
         conductance_based_simulation = {
             "sim_time": 5_000,
@@ -32,6 +33,7 @@ class MyTestCase(unittest.TestCase):
         }
         experiment = Experiment(conductance_based_simulation)
         sim_and_plot(experiment)
+        plt.close()
 
         g_s = [4]
         nu_ext_over_nu_thrs = [1.88705]
@@ -53,6 +55,7 @@ class MyTestCase(unittest.TestCase):
         experiment = Experiment(conductance_based_simulation)
         compare_g_s_vs_nu_ext_over_nu_thr(experiment, g_s, nu_ext_over_nu_thrs)
 
+        plt.close()
 
 if __name__ == '__main__':
     unittest.main()
