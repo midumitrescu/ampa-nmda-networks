@@ -206,8 +206,8 @@ def plot_voltages_and_g_s(experiment, grid_spec_mother, g_monitor, spike_monitor
     ax_voltages.legend(loc="right")
     ax_voltages.set_xlabel("t [ms]")
     ax_voltages.set_ylabel("v [mV]")
-    ax_g_s.plot(g_monitor.t / ms, g_monitor[0].g_i, label="$g_i$[0]")
-    ax_g_s.plot(g_monitor.t / ms, g_monitor[0].g_e, label="$g_e$[0]")
+    ax_g_s.plot(g_monitor.t / ms, g_monitor[0].g_e, label="$g_e$[0]", alpha=0.7)
+    ax_g_s.plot(g_monitor.t / ms, g_monitor[0].g_i, label="$g_i$[0]", alpha=0.7)
     ax_g_s.legend(loc="best")
 
 
@@ -217,7 +217,7 @@ def plot_raster_and_rates(experiment, grid_spec_mother, rate_monitor, spike_moni
     ax_spikes, ax_rates = raster_and_population.subplots(sharex="col")
     ax_spikes.plot(spike_monitor.t / ms, spike_monitor.i, "|")
     rate_to_plot = rate_monitor.smooth_rate(width=experiment.plot_params.smoothened_rate_width) / Hz if experiment.plot_params.plot_smoothened_rate else rate_monitor.rate / Hz
-    ax_rates.plot(rate_monitor.t / ms, rate_to_plot)
+    ax_rates.plot(rate_monitor.t / ms, rate_to_plot, lw=0.5)
     ax_spikes.set_yticks([])
     # ax_rates.set_ylim(*experiment.plot_params.rate_range)
     # ax_rates.set_ylim([0, np.max(rate_monitor.rate[int(len(rate_monitor.t) / 2)] / Hz)])

@@ -107,7 +107,7 @@ def plot_raster_and_rates_unpickled(experiment, grid_spec_mother, rate_monitor, 
     ax_spikes.plot(spike_monitor[0], spike_monitor[1], "|")
     ax_spikes.set_yticks([])
 
-    ax_rates.plot(t, rate_monitor)
+    ax_rates.plot(t, rate_monitor, lw=0.5)
     for ax in [ax_spikes, ax_rates]:
         ax.set_xlim(*time_range)
     time_start = int(time_range[0] * ms / experiment.sim_clock)
@@ -137,12 +137,11 @@ def compare_g_s_vs_nu_ext_over_nu_thr(experiment, g_s, nu_ext_over_nu_thrs):
                              label_for_x_axis=r'$\frac{\nu_\mathrm{Ext}}{\nu_\mathrm{Thr}}$', label_for_y_axis="g", grid_title=title)
 
 def compare_g_ampa_vs_nu_ext_over_nu_thr(experiment, g_ampas, nu_ext_over_nu_thrs):
-    experiment.plot_params.panel = r"Compare g_\mathrm{AMPA} vs $\frac{\nu_\mathrm{Ext}}{\nu_\mathrm{Thr}}$"
     g_ampas = np.flip(g_ampas)
 
     experiments = [experiment.with_property(SynapticParams.KEY_G_AMPA, g_ampa).with_property(NetworkParams.KEY_NU_E_OVER_NU_THR, n)
                    for g_ampa, n in itertools.product(g_ampas, nu_ext_over_nu_thrs)]
-    title = fr""" Search for strength of $g_\mathrm{{AMPA}}$ such that network is stable
+    title = fr""" {experiment.plot_params.panel}
     Network: [N={experiment.network_params.N}, $N_E={experiment.network_params.N_E}$, $N_I={experiment.network_params.N_I}$, $\gamma={experiment.network_params.gamma}$, $\epsilon={experiment.network_params.epsilon}$]
     Input: [$\nu_T={experiment.nu_thr}$]
     Neuron: [$C={experiment.neuron_params.C * cm ** 2}$, $g_L={experiment.neuron_params.g_L * cm ** 2}$, $\theta={experiment.neuron_params.theta}$, $V_R={experiment.neuron_params.V_r}$, $E_L={experiment.neuron_params.E_leak}$, $\tau_M={experiment.neuron_params.tau}$, $\tau_{{\mathrm{{ref}}}}={experiment.neuron_params.tau_rp}$]

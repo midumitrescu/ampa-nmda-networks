@@ -41,9 +41,10 @@ class NetworkParams:
     KEY_NU_THR = "nu_thr"
     KEY_NU_E_OVER_NU_THR = "nu_ext_over_nu_thr"
 
-    KEY_N = "N"
     KEY_N_E = "N_E"
     KEY_N_I = "N_I"
+
+    KEY_RECORD_EXTRA = "record_N"
 
     KEY_C_EXT = "C_ext"
 
@@ -65,10 +66,11 @@ class NetworkParams:
         self.C_E = int(self.epsilon * self.N_E)
 
         self.C_ext = params.get(NetworkParams.KEY_C_EXT, self.C_E)
+        self.neurons_to_record =  params.get(NetworkParams.KEY_RECORD_EXTRA, 25)
 
     def __str__(self):
         return f"{self.__class__}({self.KEY_G}={self.g}, {self.KEY_GAMMA}={self.gamma}, {self.KEY_EPSILON}={self.epsilon}, {self.KEY_N_E}={self.N_E}, {self.KEY_N_I}={self.N_I}, \
-                {self.KEY_N}={self.N}, C_E={self.C_E}, {self.KEY_C_EXT}={self.C_ext})"
+                N={self.N}, C_E={self.C_E}, {self.KEY_C_EXT}={self.C_ext})"
 
 
 class NeuronModelParams:
@@ -121,13 +123,21 @@ class PlotParams:
         self.voltage_range = params.get(PlotParams.KEY_VOLTAGE_RANGE, None)
 
         self.rate_tick_step = params.get(PlotParams.KEY_RATE_TICK_STEP, 30)
-        self.smoothened_rate_width = 0.5 * ms
+        self.smoothened_rate_width = params.get(PlotParams.KEY_PLOT_SMOOTH_WIDTH, 0.5 * ms)
         self.plot_smoothened_rate = PlotParams.KEY_PLOT_TURN_OFF_SMOOTH_RATE not in params
+        self.plot_smoothened_rate = True
 
+class NMDAParams:
+    KEY_BETA = "beta"
+
+    def __init__(self, params):
+        self.beta = params.get(NMDAParams.KEY_BETA, 1)
 
 class Experiment:
     KEY_SIM_TIME = "sim_time"
     KEY_SIMULATION_CLOCK = "simulation_clock"
+
+    KEY_SELECTED_MODEL = "model"
 
     def __init__(self, params: dict):
         self.params = copy.deepcopy(params)
@@ -147,6 +157,10 @@ class Experiment:
         self.mean_inhibitory_input = - self.network_params.g * self.synaptic_params.J * self.neuron_params.tau * self.network_params.C_E * self.nu_ext
 
         self.sim_clock = params.get(Experiment.KEY_SIMULATION_CLOCK, 0.05 * ms)
+
+        self.nmda_params = NMDAParams(params)
+
+        self.model = params.get(Experiment.KEY_SELECTED_MODEL)
 
         logger.info("Effective Reversal {}",
                    (self.neuron_params.g_L * self.neuron_params.E_leak +
