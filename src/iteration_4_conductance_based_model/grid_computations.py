@@ -17,8 +17,8 @@ def produce_comparrison_plot(experiments: list[Experiment], increasing_g_s, incr
 
         rate_monitor, spike_monitor, _, _ = sim(current_experiment)
         spike_monitor_results = np.vstack((spike_monitor.t / ms, spike_monitor.i))
-        cv_s = compute_cvs(spike_monitor = spike_monitor)
-        psd = None
+        #cv_s = compute_cvs(spike_monitor = spike_monitor)
+        #psd = None
 
         return current_experiment, spike_monitor_results, np.array(
             rate_monitor.smooth_rate(width=experiment.plot_params.smoothened_rate_width) / Hz)

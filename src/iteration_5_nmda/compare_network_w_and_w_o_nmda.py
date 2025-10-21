@@ -9,18 +9,17 @@ from iteration_5_nmda.network_with_nmda import wang_model, translated_model
 g_ampas = [2.625e-6, 2.75e-06, 2.875e-6, 3e-06]
 nu_thresholds = [1.55, 1.5625, 1.575, 1.6, 1.65]
 simulation = {
-        #"sim_time": 5_000,
-        "sim_time": 5_00,
+        "sim_time": 5_000,
         "sim_clock": 0.1 * ms,
         "epsilon": 0.1,
         "C_ext": 1000,
 
         "g_L": 0.00004,
         PlotParams.KEY_PANEL: "Investigate the stability of a network with only AMPA and GABA",
-        #"t_range": [[0, 500], [3000, 5000]],
-        "t_range": [[0, 500]],
+        "t_range": [[0, 500], [3000, 5000], [4500, 4550]],
         "voltage_range": [-70, -30],
-        "smoothened_rate_width": 3 * ms
+        "smoothened_rate_width": 3 * ms,
+        Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD: []
     }
 
 def question_1_network_ampa_gaba_only(g=0):

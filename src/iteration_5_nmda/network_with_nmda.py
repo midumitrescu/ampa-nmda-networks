@@ -6,6 +6,8 @@ from loguru import logger
 from matplotlib import gridspec
 
 from Configuration import Experiment
+from iteration_4_conductance_based_model.conductance_based_model import plot_psd_and_CVs
+from iteration_5_nmda.developing_network_with_nmda import plot_internal_states
 
 plt.rcParams.update(mpl.rcParamsDefault)
 plt.rcParams['text.usetex'] = True
@@ -20,6 +22,12 @@ wang_model = """
     sigmoid_v = 1/(1 + exp(-0.062 * v/mvolt) * (MG_C/mmole / 3.57)): 1
 """
 
+
+wang_model_extended = f""" {wang_model}
+I_nmda = g_nmda * sigmoid_v * (v-E_nmda): amp / meter**2
+one_minus_g_nmda = 1- g_nmda/siemens * meter**2 : 1
+"""
+
 translated_model = """        
     dv/dt = 1/C * (-g_L * (v-E_leak) - g_e * (v-E_ampa) - g_i * (v-E_gaba) - g_nmda * sigmoid_v * (v-E_nmda)): volt (unless refractory)  
     dg_e/dt = -g_e / tau_ampa : siemens / meter**2
@@ -27,6 +35,11 @@ translated_model = """
     dg_nmda/dt = -g_nmda / tau_nmda_decay + alpha * x * (1- g_nmda/siemens * meter**2): siemens / meter**2
     dx/dt = - x / tau_nmda_rise :  siemens / meter**2
     sigmoid_v = 1/(1 + exp(-0.062 * (v/mvolt + 34)) * (MG_C/mmole / 3.57)): 1
+"""
+
+translated_model_extended = f""" {translated_model}
+I_nmda = g_nmda * sigmoid_v * (v-E_nmda): amp / meter**2
+one_minus_g_nmda = 1- g_nmda/siemens * meter**2 : 1
 """
 
 #units for NMDA
@@ -110,7 +123,8 @@ def sim(experiment: Experiment, in_testing=True, eq=wang_model):
                               delay=experiment.synaptic_params.D)
     inhib_synapses.connect(p=experiment.network_params.epsilon)
 
-    nmda_synapses = Synapses(excitatory_neurons, excitatory_neurons, on_pre='x += w', method="euler")
+    #nmda_synapses = Synapses(excitatory_neurons, excitatory_neurons, on_pre='x += w', method="euler")
+    nmda_synapses = Synapses(neurons, neurons, on_pre='x += w', method="euler")
     nmda_synapses.connect(p=experiment.network_params.epsilon)
 
     external_poisson_input = PoissonInput(
@@ -128,7 +142,7 @@ def sim(experiment: Experiment, in_testing=True, eq=wang_model):
 
     internal_states_monitor = StateMonitor(source=neurons[
                                     experiment.network_params.N_E - experiment.network_params.neurons_to_record: experiment.network_params.N_E + experiment.network_params.neurons_to_record],
-                             variables=["sigmoid_v"], record=True)
+                             variables=experiment.recorded_hidden_variables, record=True)
 
     run(experiment.sim_time)
 
@@ -152,22 +166,30 @@ def plot_simulation(experiment: Experiment, rate_monitor,
                     spike_monitor, v_monitor, g_monitor, internal_states_monitor, show=True):
     params_t_range = experiment.plot_params.t_range
 
-    if isinstance(params_t_range[0], list):
-        for time_slot in params_t_range:
+    if experiment.plot_params.show_raster_and_rate():
+        if isinstance(params_t_range[0], list):
+            for time_slot in params_t_range:
+                plot_simulation_in_one_time_range(experiment, rate_monitor, spike_monitor, v_monitor, g_monitor,
+                                                  time_range=time_slot)
+        else:
             plot_simulation_in_one_time_range(experiment, rate_monitor, spike_monitor, v_monitor, g_monitor,
-                                              time_range=time_slot)
-    else:
-        plot_simulation_in_one_time_range(experiment, rate_monitor, spike_monitor, v_monitor, g_monitor,
-                                          time_range=params_t_range)
+                                              time_range=params_t_range)
 
-    if show:
-        plt.show(block=False)
-        plt.close()
+        if show:
+            plt.show(block=False)
+            plt.close()
 
-    plot_internal_states(experiment, internal_states_monitor)
-    if show:
-        plt.show(block=False)
-        plt.close()
+    if experiment.plot_params.show_psd_and_cv():
+        plot_psd_and_CVs(experiment, rate_monitor, spike_monitor, v_monitor, g_monitor)
+        if show:
+            plt.show(block=False)
+            plt.close()
+
+    if experiment.plot_params.show_hidden_variables():
+        plot_internal_states(experiment, internal_states_monitor)
+        if show:
+            plt.show(block=False)
+            plt.close()
 
 
 def plot_simulation_in_one_time_range(experiment: Experiment, rate_monitor: PopulationRateMonitor,

@@ -67,6 +67,16 @@ class ComplexLatexTextsTestCase(unittest.TestCase):
         plt.show(block=False)
         plt.close()
 
+    def test_texts_for_it_5_hidden_variables(self):
+
+        for text in [r'$ g_\mathrm{NMDA}$''\n'r'[$\frac{{nS}}{{\mathrm{{cm}}^2}}]$', r"$I_\mathrm{NMDA}$""\n""[nA]"]:
+            plt.figure(figsize=(10, 10))
+            plt.title(text)
+            plt.xlabel(r"$\nu_\mathrm{Ext}$")
+            plt.subplots_adjust(top=0.7)
+            plt.show(block=False)
+            plt.close()
+
     def test_plot_name_generation(self):
         config = {
             "sim_time": 5000,

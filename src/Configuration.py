@@ -1,3 +1,5 @@
+import enum
+
 from loguru import logger
 from brian2 import ufarad, cm, siemens, mV, ms, msiemens, uS
 import numpy as np
@@ -115,6 +117,15 @@ class PlotParams:
     KEY_PLOT_SMOOTH_WIDTH = "smoothened_rate_width"
     KEY_PLOT_TURN_OFF_SMOOTH_RATE = "smoothened_rate_width"
 
+    KEY_PLOT_NEURONS_W_HIDDEN_VARIABLES = "neurons_w_hidden_variables_to_plot"
+
+    KEY_WHAT_PLOTS_TO_SHOW = "show_plots"
+
+    class AvailablePlots(enum.Enum):
+        RASTER_AND_RATE = 1
+        PSD_AND_CVS = 2
+        HIDDEN_VARIABLES = 3
+
 
     def __init__(self, params):
         self.panel = params.get(PlotParams.KEY_PANEL, "")
@@ -127,6 +138,18 @@ class PlotParams:
         self.plot_smoothened_rate = PlotParams.KEY_PLOT_TURN_OFF_SMOOTH_RATE not in params
         self.plot_smoothened_rate = True
 
+        self.neurons_to_plot = params.get(PlotParams.KEY_PLOT_NEURONS_W_HIDDEN_VARIABLES, [])
+        self.plots = params.get(PlotParams.KEY_WHAT_PLOTS_TO_SHOW, [PlotParams.AvailablePlots.RASTER_AND_RATE, PlotParams.AvailablePlots.PSD_AND_CVS, PlotParams.AvailablePlots.HIDDEN_VARIABLES])
+
+    def show_raster_and_rate(self):
+        return self.plots is not None and PlotParams.AvailablePlots.RASTER_AND_RATE in self.plots
+
+    def show_psd_and_cv(self):
+        return self.plots is not None and PlotParams.AvailablePlots.PSD_AND_CVS in self.plots
+
+    def show_hidden_variables(self):
+        return self.plots is not None and PlotParams.AvailablePlots.HIDDEN_VARIABLES in self.plots
+
 class NMDAParams:
     KEY_BETA = "beta"
 
@@ -138,6 +161,8 @@ class Experiment:
     KEY_SIMULATION_CLOCK = "simulation_clock"
 
     KEY_SELECTED_MODEL = "model"
+
+    KEY_HIDDEN_VARIABLES_TO_RECORD = "hidden_variables_to_record"
 
     def __init__(self, params: dict):
         self.params = copy.deepcopy(params)
@@ -161,6 +186,8 @@ class Experiment:
         self.nmda_params = NMDAParams(params)
 
         self.model = params.get(Experiment.KEY_SELECTED_MODEL)
+
+        self.recorded_hidden_variables = params.get(Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD, ["sigmoid_v", "x", "g_nmda", "I_nmda"])
 
         logger.info("Effective Reversal {}",
                    (self.neuron_params.g_L * self.neuron_params.E_leak +
