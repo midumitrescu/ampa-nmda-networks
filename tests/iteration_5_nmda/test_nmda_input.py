@@ -221,7 +221,33 @@ class MyTestCase(unittest.TestCase):
         self.assertTrue((internal_state.one_minus_g_nmda[:] >= 0).all())
         self.assertTrue((internal_state.one_minus_g_nmda[:] <= 1).all())
 
-    def test_both_models_are_correctly_written(self):
+    def test_simple_models_are_correctly_written(self):
+        nmda_based_simulation = {
+
+            "sim_time": 1000,
+            "sim_clock": 0.1 * ms,
+            "g": 1,
+            "g_ampa": 2.518667367869784e-06,
+            "g_gaba": 2.518667367869784e-06,
+            "nu_ext_over_nu_thr": 0.5,
+
+            "N_E": 10,
+            "epsilon": 0.1,
+            "C_ext": 100,
+
+            "record_N": 1,
+
+            "g_L": 0.00004,
+            "hidden_variables_to_record": ["sigmoid_v", "x", "g_nmda"],
+            "panel": self._testMethodName,
+        }
+        experiment = Experiment(nmda_based_simulation)
+
+        for model in [wang_model, translated_model]:
+            current = experiment.with_property(Experiment.KEY_SELECTED_MODEL, model)
+            sim(current)
+
+    def test_extended_models_are_correctly_written(self):
         nmda_based_simulation = {
 
             "sim_time": 1000,
@@ -241,10 +267,9 @@ class MyTestCase(unittest.TestCase):
             "panel": self._testMethodName,
         }
         experiment = Experiment(nmda_based_simulation)
-        for model in [wang_model, translated_model, wang_model_extended, translated_model_extended]:
+        for model in [wang_model_extended, translated_model_extended]:
             current = experiment.with_property(Experiment.KEY_SELECTED_MODEL, model)
             sim(current)
-
 
 
 

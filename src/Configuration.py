@@ -43,6 +43,8 @@ class NetworkParams:
     KEY_NU_THR = "nu_thr"
     KEY_NU_E_OVER_NU_THR = "nu_ext_over_nu_thr"
 
+    KEY_N = "N"
+
     KEY_N_E = "N_E"
     KEY_N_I = "N_I"
 
@@ -57,13 +59,22 @@ class NetworkParams:
 
         self.g = params.get(NetworkParams.KEY_G, 0)
         self.synaptic_params = SynapticParams(params, g=self.g)
-
-        self.N_E = params.get(NetworkParams.KEY_N_E, 10_000)
         self.gamma = params.get(NetworkParams.KEY_GAMMA, 0.25)
-        self.epsilon = params.get(NetworkParams.KEY_EPSILON, 0.1)
 
-        self.N_I = round(self.gamma * self.N_E)
-        self.N = self.N_E + self.N_I
+
+        if self.KEY_N in params and self.KEY_N_E in params:
+            raise ValueError("Please provide only one of N and N_E. Gamma will set the proper ration")
+
+        if self.KEY_N in params:
+            self.N = params.get(NetworkParams.KEY_N)
+            self.N_I  = round(self.gamma / (1 + self.gamma) * self.N)
+            self.N_E = self.N - self.N_I
+        else:
+            self.N_E = params.get(NetworkParams.KEY_N_E, 10_000)
+            self.N_I = round(self.gamma * self.N_E)
+            self.N = self.N_E + self.N_I
+
+        self.epsilon = params.get(NetworkParams.KEY_EPSILON, 0.1)
 
         self.C_E = int(self.epsilon * self.N_E)
 
