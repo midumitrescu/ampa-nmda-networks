@@ -4,8 +4,8 @@ from brian2 import ms
 
 from Configuration import Experiment
 from iteration_5_nmda import developing_network_with_nmda
-from iteration_5_nmda.network_with_nmda import sim_and_plot, sim, wang_model, translated_model, wang_model_extended, \
-    translated_model_extended
+from iteration_5_nmda.network_with_nmda import sim_and_plot, sim, wang_model, translated_model, wang_model_with_extra_variables, \
+    translated_model_with_extra_variables
 
 
 class MyTestCase(unittest.TestCase):
@@ -267,7 +267,7 @@ class MyTestCase(unittest.TestCase):
             "panel": self._testMethodName,
         }
         experiment = Experiment(nmda_based_simulation)
-        for model in [wang_model_extended, translated_model_extended]:
+        for model in [wang_model_with_extra_variables, translated_model_with_extra_variables]:
             current = experiment.with_property(Experiment.KEY_SELECTED_MODEL, model)
             sim(current)
 

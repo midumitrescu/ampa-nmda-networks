@@ -126,19 +126,26 @@ def simulate_with_step_input(experiment: Experiment, in_testing=True, eq=wang_mo
 
     @network_operation(dt=100 * ms)
     def toggle_inputs(t):
-        if int(t / second) % 2 == 0:
+        #if int(t / second) % 2 == 0:
+        if int(t / second) < 1:
             S_high.active = True
             S_low.active = False
+            logger.debug("at {} we have high active and low inactive", t)
         else:
             S_high.active = False
-            S_low.active = True
+            S_low.active = False
+            logger.debug("at {} we have high inactive and low inactive", t)
 
 
 
     rate_monitor = PopulationRateMonitor(neurons)
     spike_monitor = SpikeMonitor(neurons)
+    '''
     v_monitor = StateMonitor(source=neurons[
                                     experiment.network_params.N_E - experiment.network_params.neurons_to_record: experiment.network_params.N_E + experiment.network_params.neurons_to_record],
+                             variables="v", record=True)
+    '''
+    v_monitor = StateMonitor(source=neurons,
                              variables="v", record=True)
 
     g_monitor = StateMonitor(source=neurons[
