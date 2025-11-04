@@ -18,7 +18,7 @@ def sim_and_plot(experiment: Experiment, in_testing=True, eq=wang_model):
     plot_simulation(experiment, rate_monitor,
                     spike_monitor, v_monitor, g_monitor, internal_states_monitor)
 
-    return rate_monitor, spike_monitor, v_monitor, g_monitor
+    return rate_monitor, spike_monitor, v_monitor, g_monitor, internal_states_monitor
 
 
 def extract_rate(experiment: Experiment, rate_monitor: PopulationRateMonitor):
@@ -196,7 +196,6 @@ def plot_simulation(experiment: Experiment, rate_monitor,
 
 def plot_simulation_in_one_time_range(experiment: Experiment, rate_monitor: PopulationRateMonitor,
                                       spike_monitor, v_monitor, g_monitor, time_range=[100, 200]):
-    rate_tick_step = experiment.plot_params.rate_tick_step
     fig = plt.figure(figsize=(10, 12))
     fig.suptitle(experiment.gen_plot_title())
 
@@ -213,17 +212,20 @@ def plot_voltages_and_g_s(experiment, grid_spec_mother, g_monitor, spike_monitor
     v_min_plot, v_max_plot = find_v_min_and_v_max_for_plotting(experiment, v_monitor)
     ax_voltages.set_ylim([v_min_plot, v_max_plot])
     # TODO: improve this. Maybe set it as plot parameter
+
     for i in [0, 1]:
         plot_v_line(experiment, ax_voltages, v_monitor, spike_monitor, i)
     for ax in [ax_voltages, ax_g_s]:
         ax.set_xlim(*time_range)
+
     ax_voltages.legend(loc="right")
     ax_voltages.set_xlabel("t [ms]")
     ax_voltages.set_ylabel("v [mV]")
+
     i = 0
-    ax_g_s.plot(g_monitor.t / ms, g_monitor[i].g_i, label=rf"$g_E$[{i}]")
-    ax_g_s.plot(g_monitor.t / ms, g_monitor[i].g_e, label=rf"$g_I$[{i}]")
-    ax_g_s.plot(g_monitor.t / ms, g_monitor[i].g_nmda, label=rf"$g_\mathrm{{nmda}}$[{i}]")
+    ax_g_s.plot(g_monitor.t / ms, g_monitor[i].g_i, alpha=0.65, label=rf"$g_E$[{i}]")
+    ax_g_s.plot(g_monitor.t / ms, g_monitor[i].g_e, alpha=0.65, label=rf"$g_I$[{i}]")
+    ax_g_s.plot(g_monitor.t / ms, g_monitor[i].g_nmda, alpha=0.65, label=rf"$g_\mathrm{{nmda}}$[{i}]")
     ax_g_s.legend(loc="best")
 
 
@@ -236,11 +238,10 @@ def plot_raster_and_rates(experiment, grid_spec_mother, rate_monitor, spike_moni
         width=experiment.plot_params.smoothened_rate_width) / Hz if experiment.plot_params.plot_smoothened_rate else rate_monitor.rate / Hz
     ax_rates.plot(rate_monitor.t / ms, rate_to_plot)
     ax_spikes.set_yticks([])
-    # ax_rates.set_ylim(*experiment.plot_params.rate_range)
-    # ax_rates.set_ylim([0, np.max(rate_monitor.rate[int(len(rate_monitor.t) / 2)] / Hz)])
-    # ax_rates.set_ylim([0, np.max(rate_monitor.rate[int(len(rate_monitor.t) / 2)] / Hz)])
+
     for ax in [ax_spikes, ax_rates]:
         ax.set_xlim(*time_range)
+
     time_start = int(time_range[0] * ms / experiment.sim_clock)
     time_end = int(time_range[1] * ms / experiment.sim_clock)
     lims = [0, np.max(rate_to_plot[time_start:time_end]) * 1.1]

@@ -28,7 +28,7 @@ def extract_rate(experiment: Experiment, rate_monitor: PopulationRateMonitor):
         return rate_monitor.rate / Hz
 
 
-wang_model_with_separated_external_vs_netork_input = """        
+wang_model_with_separated_external_vs_network_input = """        
     dv/dt = 1/C * (-g_ext_ampa * (v-E_ampa) -g_L * (v-E_leak) - g_e * (v-E_ampa) - g_i * (v-E_gaba) - g_nmda * sigmoid_v * (v-E_nmda)): volt (unless refractory)  
     dg_ext_ampa/dt = -g_ext_ampa / tau_ampa : siemens / meter**2
     dg_e/dt = -g_e / tau_ampa : siemens / meter**2
@@ -72,10 +72,9 @@ def simulate_with_step_input(experiment: Experiment, in_testing=True, eq=wang_mo
     tau_gaba = 2 * ms
 
     E_ampa = experiment.synaptic_params.e_ampa
-
     E_gaba = experiment.synaptic_params.e_gaba
-
     E_nmda = experiment.synaptic_params.e_ampa
+
     MG_C = 1 * mmole  # extracellular magnesium concentration
     tau_nmda_decay = 100 * ms
     tau_nmda_rise = 2 * ms
@@ -131,7 +130,6 @@ def simulate_with_step_input(experiment: Experiment, in_testing=True, eq=wang_mo
             S_high.on[:] = 0
             S_low.on[:] = 0
             logger.debug("at {} we have high inactive and low inactive", t)
-
 
 
     rate_monitor = PopulationRateMonitor(neurons)

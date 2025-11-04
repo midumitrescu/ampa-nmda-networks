@@ -94,32 +94,24 @@ def simulate_with_step_input(experiment: Experiment, in_testing=True, eq=wang_mo
 
     P_high = PoissonGroup(experiment.network_params.C_ext, rates=experiment.nu_ext)
     P_low = PoissonGroup(experiment.network_params.C_ext, rates=0.1 * experiment.nu_ext)
-    S_high = Synapses(P_high, neurons, on_pre='g_e_post += g_ampa')
-    S_low = Synapses(P_low, neurons, on_pre='g_e_post += g_ampa')
+    S_high = Synapses(P_high, neurons, model="on: 1", on_pre='g_ext_ampa_post += on * g_ampa')
+    S_low = Synapses(P_low, neurons, model="on: 1", on_pre='g_ext_ampa_post += on * g_ampa')
 
     S_high.connect(p=experiment.network_params.epsilon)
     S_low.connect(i=list(S_high.i), j=list(S_high.j))
 
-
-    external_population_tp_neurons_connectivity = np.vstack((S_high.i, S_high.j))
-    logger.debug("Which external neurons connect to neuron # 1? {} ",
-                 external_population_tp_neurons_connectivity[:, external_population_tp_neurons_connectivity[1, :] == 1])
-
-    # Control which group is active via w values
-
-    S_high.active = True
-    S_low.active = False
+    S_high.on[:] = 1
+    S_low.on[:] = 0
 
     @network_operation(dt=100 * ms)
     def toggle_inputs(t):
-        #if int(t / second) % 2 == 0:
-        if int(t / second) < 1:
-            S_high.active = True
-            S_low.active = False
+        if int(t / second) % 2 == 0:
+            S_high.on = 1
+            S_low.on = 0
             logger.debug("at {} we have high active and low inactive", t)
         else:
-            S_high.active = False
-            S_low.active = False
+            S_high.on = 0
+            S_low.on = 1
             logger.debug("at {} we have high inactive and low inactive", t)
 
 
