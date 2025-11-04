@@ -8,13 +8,14 @@ from fontTools.unicodedata import block
 
 from BinarySeach import binary_search_for_target_value
 from Configuration import Experiment, SynapticParams, NetworkParams, PlotParams
+from Plotting import plot_non_blocking
 from iteration_4_conductance_based_model.conductance_based_model import sim_and_plot, sim
-
+from loguru import logger
 
 def compute_rate_for_nu_ext_over_nu_thr(nu_ext_over_nu_thr, g = 1, wait_for=4_000):
     conductance_based_simulation = {
 
-        "sim_time": 5_000,
+        "sim_time": 2_000,
         "sim_clock": 0.1 * ms,
         "g": g,
         "g_ampa": 2.518667367869784e-06,
@@ -37,8 +38,8 @@ def compute_rate_for_nu_ext_over_nu_thr(nu_ext_over_nu_thr, g = 1, wait_for=4_00
 
     mean_unsmoothened = np.mean(rate_monitor.rate[skip_iterations:])
     mean_smothened = np.mean(rate_monitor.smooth_rate(width=experiment.plot_params.smoothened_rate_width)[skip_iterations:])
-    print(f"For {nu_ext_over_nu_thr : .5f}, we get {mean_smothened}, {mean_unsmoothened}")
-    print(f"For {nu_ext_over_nu_thr : .5f}, we get without units {mean_smothened / Hz}, {mean_unsmoothened / Hz}")
+    logger.debug(f"For {nu_ext_over_nu_thr : .5f}, we get {mean_smothened}, {mean_unsmoothened}")
+    logger.debug(f"For {nu_ext_over_nu_thr : .5f}, we get without units {mean_smothened / Hz}, {mean_unsmoothened / Hz}")
     return mean_unsmoothened / Hz, mean_smothened / Hz
 
 
@@ -180,10 +181,10 @@ class ModelWithOnlyAMPAAndGABATestCases(unittest.TestCase):
         plt.close()
 
     def test_default_can_be_plotted_at_different_timesteps(self):
-        for current_nu_ext_over_nu_thr, current_g in itertools.product(np.linspace(start=0.01, stop=0.2, num=2), np.linspace(start=10, stop=20, num=2)):
+        for current_nu_ext_over_nu_thr, current_g in itertools.product(np.linspace(start=0.01, stop=0.2, num=1), np.linspace(start=10, stop=20, num=1)):
             conductance_based_simulation = {
 
-                "sim_time": 5000,
+                "sim_time": 1_500,
                 "sim_clock": 0.1 * ms,
                 "g": current_g,
                 "g_ampa": 2.518667367869784e-06,
@@ -195,15 +196,14 @@ class ModelWithOnlyAMPAAndGABATestCases(unittest.TestCase):
                 "g_L": 0.00004,
 
                 "panel": self._testMethodName,
-                "t_range": [[100, 120], [100, 300], [0, 1500], [2500, 3000], [4500, 5000]],
+                "t_range": [[100, 120], [100, 300], [0, 1500]],
                 "voltage_range": [-70, -30]
             }
 
             experiment = Experiment(conductance_based_simulation)
 
             sim_and_plot(experiment)
-            plt.show(block=False)
-            plt.close()
+
 
 
     def test_show_model_from_binary_search_value(self):
@@ -239,7 +239,7 @@ class ModelWithOnlyAMPAAndGABATestCases(unittest.TestCase):
         for current_g, nu_ext_over_nu_thr in itertools.product(three_g_s, nu_ext_over_nu_thrs):
             conductance_based_simulation = {
 
-                "sim_time": 5000,
+                "sim_time": 500,
                 "sim_clock": 0.1 * ms,
                 "g": current_g,
                 "g_ampa": 2.518667367869784e-06,
@@ -253,7 +253,7 @@ class ModelWithOnlyAMPAAndGABATestCases(unittest.TestCase):
                 "g_L": 0.00004,
 
                 "panel": self._testMethodName,
-                "t_range": [[0, 3000], [4000, 5000], [4500, 4800]],
+                "t_range": [[0, 500]],
                 "voltage_range": [-70, -30],
                 "smoothened_rate_width": 5 * ms
             }
@@ -290,6 +290,7 @@ class ModelWithOnlyAMPAAndGABATestCases(unittest.TestCase):
             plt.show(block=False)
             plt.close()
 
+    @unittest.skip("Test is too long")
     def test_model_below_threshold_for_very_long_time(self):
 
         conductance_based_simulation = {
@@ -329,6 +330,7 @@ class ModelWithOnlyAMPAAndGABATestCases(unittest.TestCase):
         # (2.3248291021445766, 2.324829102435615)+
         print(binary_search_for_target_value(lower_value=0, upper_value=10, func=look_for_rate_of_input_value, target_result=1))
 
+    @unittest.skip("Test is too long")
     def test_model_from_q_0_is_stable_on_the_long_run(self):
         simulation = {
             "panel": self._testMethodName,

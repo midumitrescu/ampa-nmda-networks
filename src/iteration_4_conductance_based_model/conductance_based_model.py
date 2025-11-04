@@ -6,6 +6,7 @@ from loguru import logger
 from matplotlib import gridspec
 
 from Configuration import Experiment
+from Plotting import plot_non_blocking
 
 '''
 Simulation params
@@ -34,8 +35,9 @@ def sim_and_plot(experiment: Experiment, in_testing=True, eq=default_model):
     plot_simulation(experiment, rate_monitor,
                     spike_monitor, v_monitor, g_monitor)
     plot_psd_and_CVs(experiment, rate_monitor, spike_monitor, v_monitor, g_monitor)
-    plt.show(block=False)
-    plt.close()
+
+    plot_non_blocking()
+
     return rate_monitor, spike_monitor, v_monitor, g_monitor
 
 

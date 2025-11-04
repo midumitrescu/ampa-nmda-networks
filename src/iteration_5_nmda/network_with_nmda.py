@@ -46,7 +46,7 @@ one_minus_g_nmda = 1- g_nmda/siemens * meter**2 : 1
 # [I_NMDA] Ampere / cm **2, same as siemens / cm ** 2 * volt !
 # g_nmda is siemens/ cm**2, same as g_ampa. Sigmoid must come out unitless
 
-def sim_and_plot(experiment: Experiment, in_testing=True, eq=wang_model):
+def sim_and_plot(experiment: Experiment, in_testing=True, eq=wang_model_with_extra_variables):
     rate_monitor, spike_monitor, v_monitor, g_monitor, internal_states_monitor = sim(experiment, in_testing, eq)
     plot_simulation(experiment, rate_monitor,
                     spike_monitor, v_monitor, g_monitor, internal_states_monitor)
@@ -61,7 +61,7 @@ def extract_rate(experiment: Experiment, rate_monitor: PopulationRateMonitor):
         return rate_monitor.rate / Hz
 
 
-def sim(experiment: Experiment, in_testing=True, eq=wang_model):
+def sim(experiment: Experiment, in_testing=True, eq=wang_model_with_extra_variables):
     """
     g --
     nu_ext_over_nu_thr -- ratio of external stimulus rate to threshold rate

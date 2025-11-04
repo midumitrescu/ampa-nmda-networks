@@ -2,14 +2,10 @@ import unittest
 
 import numpy as np
 from brian2 import meter, siemens, second
-from numpy.testing import assert_almost_equal
 
 from Configuration import Experiment, NetworkParams
-from iteration_5_nmda.network_with_nmda import wang_model_with_extra_variables
-from iteration_6_step_external_input import network_with_separated_external_and_network_input
 from iteration_6_step_external_input.network_with_separated_external_and_network_input import \
     wang_model_with_separated_external_vs_network_input, plot_simulation
-from iteration_6_step_external_input.network_with_step_inactivation_not_working import sim_and_plot
 from iteration_6_step_external_input.nnmda_input_canceled_after_1_s import simulate_with_1s_step_input
 from iteration_6_step_external_input.step_input_example import generate_step_input
 

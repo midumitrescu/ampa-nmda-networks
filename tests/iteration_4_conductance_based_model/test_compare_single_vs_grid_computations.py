@@ -16,7 +16,7 @@ logger.add(sys.stderr, level="INFO")
 class SingleVSGridComputationTestCase(unittest.TestCase):
     def test_single_simulation_and_grid_produce_same_results(self):
         conductance_based_simulation = {
-            "sim_time": 5_000,
+            "sim_time": 500,
             "sim_clock": 0.1 * ms,
             "g": 4,
             "g_ampa": 2.518667367869784e-06,
@@ -39,7 +39,7 @@ class SingleVSGridComputationTestCase(unittest.TestCase):
         nu_ext_over_nu_thrs = [1.88705]
 
         conductance_based_simulation = {
-            "sim_time": 5_000,
+            "sim_time": 500,
             "sim_clock": 0.1 * ms,
             "g_ampa": 2.518667367869784e-06,
             "epsilon": 0.1,

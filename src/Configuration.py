@@ -108,7 +108,7 @@ class NeuronModelParams:
         self.tau = self.C / self.g_L
         self.nu_thr = (self.theta - self.E_leak) / (self.synaptic_params.J * network_params.C_E * self.tau)
 
-        logger.info("Computed tau membrane = {}, nu threshold = {}", self.tau, self.nu_thr)
+        logger.debug("Computed tau membrane = {}, nu threshold = {}", self.tau, self.nu_thr)
 
     def __str__(self):
         return (f"{self.__class__}({NeuronModelParams.KEY_NEURON_C}={self.C}, {NeuronModelParams.KEY_NEURON_G_L}={self.g_L}, \
@@ -200,12 +200,12 @@ class Experiment:
 
         self.recorded_hidden_variables = params.get(Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD, ["sigmoid_v", "x", "g_nmda", "I_nmda"])
 
-        logger.info("Effective Reversal {}",
+        logger.debug("Effective Reversal {}",
                    (self.neuron_params.g_L * self.neuron_params.E_leak +
                    self.synaptic_params.g_ampa * self.synaptic_params.e_ampa +
                    self.synaptic_params.g_gaba * self.synaptic_params.e_gaba) / (self.neuron_params.g_L + self.synaptic_params.g_ampa + self.synaptic_params.g_gaba))
 
-        logger.info("Effective Reversal with included Poisson Rate {}",
+        logger.debug("Effective Reversal with included Poisson Rate {}",
                     (self.neuron_params.g_L * self.neuron_params.E_leak + self.synaptic_params.tau_ampa * self.nu_ext * self.synaptic_params.g_ampa * self.synaptic_params.e_ampa +
                      self.synaptic_params.g_ampa * self.synaptic_params.e_ampa +
                      self.synaptic_params.g_gaba * self.synaptic_params.e_gaba) / (

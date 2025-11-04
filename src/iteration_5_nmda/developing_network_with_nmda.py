@@ -123,14 +123,14 @@ def sim(experiment: Experiment, in_testing=True, eq=default_model):
 
     rate_monitor = PopulationRateMonitor(neurons)
     spike_monitor = SpikeMonitor(neurons)
-    v_monitor = StateMonitor(source=neurons[experiment.network_params.N_E - experiment.network_params.neurons_to_record: experiment.network_params.N_E + experiment.network_params.neurons_to_record],
+    v_monitor = StateMonitor(source=neurons[experiment.network_params.N_E - experiment.network_params.neurons_to_record: experiment.network_params.N_E + experiment.network_params.neurons_to_record + 1],
                              variables="v", record=True)
 
-    g_monitor = StateMonitor(source=neurons[experiment.network_params.N_E - experiment.network_params.neurons_to_record: experiment.network_params.N_E + experiment.network_params.neurons_to_record],
+    g_monitor = StateMonitor(source=neurons[experiment.network_params.N_E - experiment.network_params.neurons_to_record: experiment.network_params.N_E + experiment.network_params.neurons_to_record + 1],
                              variables=["g_e", "g_i", "g_nmda"], record=True)
 
     internal_states_monitor = StateMonitor(source=neurons[
-                                    experiment.network_params.N_E - experiment.network_params.neurons_to_record: experiment.network_params.N_E + experiment.network_params.neurons_to_record],
+                                    experiment.network_params.N_E - experiment.network_params.neurons_to_record: experiment.network_params.N_E + experiment.network_params.neurons_to_record + 1],
                              variables=["sigmoid_v", "x", "one_minus_g_nmda", "g_nmda", "I_nmda"], record=True)
 
     run(experiment.sim_time)
@@ -236,8 +236,8 @@ def find_v_min_and_v_max_for_plotting(experiment, v_monitor):
 def plot_internal_states(experiment: Experiment, internal_states_monitor):
     fig, ax = plt.subplots(5, 1, sharex=True, figsize=[10, 8])
 
-    neurons_to_plot = [(experiment.network_params.neurons_to_record - 2, "excitatory"), (experiment.network_params.neurons_to_record - 2, "excitatory"),
-                       (experiment.network_params.neurons_to_record + 1, "inhibitory"), (experiment.network_params.neurons_to_record + 2, "inhibitory")]
+    neurons_to_plot = [(experiment.network_params.neurons_to_record - 2, "excitatory"), (experiment.network_params.neurons_to_record - 1, "excitatory"),
+                       (experiment.network_params.neurons_to_record, "inhibitory"), (experiment.network_params.neurons_to_record + 1, "inhibitory")]
     for neuron_i, label in neurons_to_plot:
         ax[0].plot(internal_states_monitor.t / ms, internal_states_monitor[neuron_i].sigmoid_v, label=f"{neuron_i}", alpha=0.6)
         ax[1].plot(internal_states_monitor.t / ms, internal_states_monitor[neuron_i].x, label=f"x {neuron_i}", alpha=0.6)

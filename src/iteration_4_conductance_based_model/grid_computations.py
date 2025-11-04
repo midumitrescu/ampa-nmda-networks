@@ -6,6 +6,7 @@ from joblib import Parallel, delayed
 from matplotlib import gridspec
 
 from Configuration import Experiment, NetworkParams, SynapticParams, PlotParams
+from Plotting import plot_non_blocking
 from iteration_4_conductance_based_model.conductance_based_model import sim, compute_cvs
 
 
@@ -112,7 +113,8 @@ def plot_raster_and_rates_unpickled(experiment, grid_spec_mother, rate_monitor, 
         ax.set_xlim(*time_range)
     time_start = int(time_range[0] * ms / experiment.sim_clock)
     time_end = int(time_range[1] * ms / experiment.sim_clock)
-    lims = [0, np.max(rate_monitor[time_start:time_end]) * 1.1]
+    upper_limit = np.max(rate_monitor[time_start:time_end]) * 1.1 if len(rate_monitor) > 0 else 1
+    lims = [0, upper_limit]
     if lims[1] > 0:
         ax_rates.set_ylim(lims)
 
@@ -136,6 +138,8 @@ def compare_g_s_vs_nu_ext_over_nu_thr(experiment, g_s, nu_ext_over_nu_thrs):
     produce_comparrison_plot(experiments, g_s, nu_ext_over_nu_thrs,
                              label_for_x_axis=r'$\frac{\nu_\mathrm{Ext}}{\nu_\mathrm{Thr}}$', label_for_y_axis="g", grid_title=title)
 
+    plot_non_blocking()
+
 def compare_g_ampa_vs_nu_ext_over_nu_thr(experiment, g_ampas, nu_ext_over_nu_thrs):
     g_ampas = np.flip(g_ampas)
 
@@ -150,3 +154,5 @@ def compare_g_ampa_vs_nu_ext_over_nu_thr(experiment, g_ampas, nu_ext_over_nu_thr
     produce_comparrison_plot(experiments, g_ampas * 10**6, nu_ext_over_nu_thrs,
                              label_for_x_axis=r'$\frac{\nu_\mathrm{Ext}}{\nu_\mathrm{Thr}}$', label_for_y_axis=r"$g_\mathrm{AMPA}$",
                              grid_title=title)
+
+    plot_non_blocking()

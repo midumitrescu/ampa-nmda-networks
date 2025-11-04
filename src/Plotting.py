@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 from loguru import logger
 from brian2 import ufarad, cm, siemens, mV, ms
 
@@ -120,3 +121,8 @@ class Experiment:
         self.mean_inhibitory_input = - self.network_params.g * self.synaptic_params.J * self.neuron_params.tau * self.network_params.C_E * self.nu_ext
 
         self.sim_clock = params.get(Experiment.KEY_SIMULATION_CLOCK, 0.05 * ms)
+
+def plot_non_blocking():
+    plt.show(block=False)
+    plt.close("all")
+
