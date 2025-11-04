@@ -1,10 +1,15 @@
 import unittest
 
 import numpy as np
+from brian2 import meter, siemens
+from numpy.testing import assert_almost_equal
 
 from Configuration import Experiment, NetworkParams
 from iteration_5_nmda.network_with_nmda import wang_model_with_extra_variables
-from iteration_6_step_external_input.network_with_step_input_first_try import sim_and_plot
+from iteration_6_step_external_input import network_with_separated_external_and_network_input
+from iteration_6_step_external_input.network_with_separated_external_and_network_input import \
+    wang_model_with_separated_external_vs_netork_input
+from iteration_6_step_external_input.network_with_step_inactivation_not_working import sim_and_plot
 from iteration_6_step_external_input.step_input_example import generate_step_input
 
 
@@ -99,6 +104,32 @@ class MyTestCase(unittest.TestCase):
         object_under_test = Experiment(new_config)
 
         sim_and_plot(object_under_test)
+
+    def test_simulate_with_step_input_and_separated_external_vs_network_input(self):
+        np.random.seed(0)
+
+        new_config = {
+            "N": 1000,
+            "sim_time": 5_000,
+            "t_range": [[0, 1000], [0, 5_000]],
+
+            NetworkParams.KEY_NU_E_OVER_NU_THR:5.45,
+
+            NetworkParams.KEY_EPSILON: 0.3,
+            "g": 4,
+            "g_ampa": 2.4e-06,
+            "g_gaba": 2.4e-06,
+
+            "record_N": 10,
+            "hidden_variables_to_record": ["sigmoid_v", "x", "g_nmda", "I_nmda", "one_minus_g_nmda"],
+            "model": wang_model_with_separated_external_vs_netork_input
+        }
+
+        object_under_test = Experiment(new_config)
+
+        _, _, _, g_monitor, _ = network_with_separated_external_and_network_input.sim_and_plot(object_under_test)
+        last_g_ampa_ext = g_monitor.g_ext_ampa[1][-1000:] / siemens * (meter**2)
+        np.all(last_g_ampa_ext == 0)
 
 
 if __name__ == '__main__':

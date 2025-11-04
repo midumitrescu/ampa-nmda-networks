@@ -18,7 +18,7 @@ def sim_and_plot(experiment: Experiment, in_testing=True, eq=wang_model):
     plot_simulation(experiment, rate_monitor,
                     spike_monitor, v_monitor, g_monitor, internal_states_monitor)
 
-    return rate_monitor, spike_monitor, v_monitor, g_monitor
+    return rate_monitor, spike_monitor, v_monitor, g_monitor, internal_states_monitor
 
 
 def extract_rate(experiment: Experiment, rate_monitor: PopulationRateMonitor):
@@ -26,6 +26,19 @@ def extract_rate(experiment: Experiment, rate_monitor: PopulationRateMonitor):
         return rate_monitor.smooth_rate(width=experiment.plot_params.smoothened_rate_width) / Hz
     else:
         return rate_monitor.rate / Hz
+
+
+wang_model_with_separated_external_vs_netork_input = """        
+    dv/dt = 1/C * (-g_ext_ampa * (v-E_ampa) -g_L * (v-E_leak) - g_e * (v-E_ampa) - g_i * (v-E_gaba) - g_nmda * sigmoid_v * (v-E_nmda)): volt (unless refractory)  
+    dg_ext_ampa/dt = -g_ext_ampa / tau_ampa : siemens / meter**2
+    dg_e/dt = -g_e / tau_ampa : siemens / meter**2
+    dg_i/dt = -g_i / tau_gaba  : siemens / meter**2
+    dg_nmda/dt = -g_nmda / tau_nmda_decay + alpha * x * (1- g_nmda/siemens * meter**2): siemens / meter**2
+    dx/dt = - x / tau_nmda_rise :  siemens / meter**2
+    sigmoid_v = 1/(1 + exp(-0.062 * v/mvolt) * (MG_C/mmole / 3.57)): 1
+    I_nmda = g_nmda * sigmoid_v * (v-E_nmda): amp / meter**2
+    one_minus_g_nmda = 1- g_nmda/siemens * meter**2 : 1
+"""
 
 
 def simulate_with_step_input(experiment: Experiment, in_testing=True, eq=wang_model):
@@ -94,55 +107,41 @@ def simulate_with_step_input(experiment: Experiment, in_testing=True, eq=wang_mo
 
     P_high = PoissonGroup(experiment.network_params.C_ext, rates=experiment.nu_ext)
     P_low = PoissonGroup(experiment.network_params.C_ext, rates=0.1 * experiment.nu_ext)
-    S_high = Synapses(P_high, neurons, on_pre='g_e_post += g_ampa')
-    S_low = Synapses(P_low, neurons, on_pre='g_e_post += g_ampa')
+    S_high = Synapses(P_high, neurons, model="on: 1", on_pre='g_ext_ampa_post += on * g_ampa')
+    S_low = Synapses(P_low, neurons, model = "on: 1", on_pre='g_ext_ampa_post += on * g_ampa')
 
     S_high.connect(p=experiment.network_params.epsilon)
     S_low.connect(i=list(S_high.i), j=list(S_high.j))
 
+    S_high.on[:] = 1
+    S_low.on[:] = 0
 
     external_population_tp_neurons_connectivity = np.vstack((S_high.i, S_high.j))
     logger.debug("Which external neurons connect to neuron # 1? {} ",
                  external_population_tp_neurons_connectivity[:, external_population_tp_neurons_connectivity[1, :] == 1])
 
-    # Control which group is active via w values
-
-    S_high.active = True
-    S_low.active = False
-
     @network_operation(dt=100 * ms)
     def toggle_inputs(t):
         #if int(t / second) % 2 == 0:
         if int(t / second) < 1:
-            S_high.active = True
-            S_low.active = False
+            S_high.on[:] = 1
+            S_low.on[:] = 0
             logger.debug("at {} we have high active and low inactive", t)
         else:
-            S_high.active = False
-            S_low.active = False
+            S_high.on[:] = 0
+            S_low.on[:] = 0
             logger.debug("at {} we have high inactive and low inactive", t)
 
 
 
     rate_monitor = PopulationRateMonitor(neurons)
     spike_monitor = SpikeMonitor(neurons)
-    '''
-    v_monitor = StateMonitor(source=neurons[
-                                    experiment.network_params.N_E - experiment.network_params.neurons_to_record: experiment.network_params.N_E + experiment.network_params.neurons_to_record],
-                             variables="v", record=True)
-    '''
     v_monitor = StateMonitor(source=neurons,
                              variables="v", record=True)
 
     g_monitor = StateMonitor(source=neurons[
                                     experiment.network_params.N_E - experiment.network_params.neurons_to_record: experiment.network_params.N_E + experiment.network_params.neurons_to_record],
-                             variables=["g_e", "g_i", "g_nmda"], record=True)
-
-    '''
-    internal_states_monitor = StateMonitor(source=neurons[
-                                                  experiment.network_params.N_E - experiment.network_params.neurons_to_record: experiment.network_params.N_E + experiment.network_params.neurons_to_record],
-                                           variables=experiment.recorded_hidden_variables, record=True)
-    '''
+                             variables=["g_e", "g_i", "g_nmda", "g_ext_ampa"], record=True)
     internal_states_monitor = StateMonitor(source=neurons, variables=experiment.recorded_hidden_variables, record=True)
 
     run(experiment.sim_time)
@@ -196,7 +195,6 @@ def plot_simulation(experiment: Experiment, rate_monitor,
 
 def plot_simulation_in_one_time_range(experiment: Experiment, rate_monitor: PopulationRateMonitor,
                                       spike_monitor, v_monitor, g_monitor, time_range=[100, 200]):
-    rate_tick_step = experiment.plot_params.rate_tick_step
     fig = plt.figure(figsize=(10, 12))
     fig.suptitle(experiment.gen_plot_title())
 
@@ -212,7 +210,6 @@ def plot_voltages_and_g_s(experiment, grid_spec_mother, g_monitor, spike_monitor
                         label="$\\theta$")
     v_min_plot, v_max_plot = find_v_min_and_v_max_for_plotting(experiment, v_monitor)
     ax_voltages.set_ylim([v_min_plot, v_max_plot])
-    # TODO: improve this. Maybe set it as plot parameter
     for i in [0, 1]:
         plot_v_line(experiment, ax_voltages, v_monitor, spike_monitor, i)
     for ax in [ax_voltages, ax_g_s]:
@@ -220,10 +217,11 @@ def plot_voltages_and_g_s(experiment, grid_spec_mother, g_monitor, spike_monitor
     ax_voltages.legend(loc="right")
     ax_voltages.set_xlabel("t [ms]")
     ax_voltages.set_ylabel("v [mV]")
-    i = 0
-    ax_g_s.plot(g_monitor.t / ms, g_monitor[i].g_i, label=rf"$g_E$[{i}]")
-    ax_g_s.plot(g_monitor.t / ms, g_monitor[i].g_e, label=rf"$g_I$[{i}]")
-    ax_g_s.plot(g_monitor.t / ms, g_monitor[i].g_nmda, label=rf"$g_\mathrm{{nmda}}$[{i}]")
+    for i in [1]:
+        ax_g_s.plot(g_monitor.t / ms, g_monitor[i].g_ext_ampa, alpha=0.65, label=rf"$g_E$[{i}] Ext")
+        ax_g_s.plot(g_monitor.t / ms, g_monitor[i].g_i, alpha=0.65,label=rf"$g_E$[{i}]")
+        ax_g_s.plot(g_monitor.t / ms, g_monitor[i].g_e, alpha=0.65,label=rf"$g_I$[{i}]")
+        ax_g_s.plot(g_monitor.t / ms, g_monitor[i].g_nmda, alpha=0.65, label=rf"$g_\mathrm{{nmda}}$[{i}]")
     ax_g_s.legend(loc="best")
 
 
@@ -236,9 +234,6 @@ def plot_raster_and_rates(experiment, grid_spec_mother, rate_monitor, spike_moni
         width=experiment.plot_params.smoothened_rate_width) / Hz if experiment.plot_params.plot_smoothened_rate else rate_monitor.rate / Hz
     ax_rates.plot(rate_monitor.t / ms, rate_to_plot)
     ax_spikes.set_yticks([])
-    # ax_rates.set_ylim(*experiment.plot_params.rate_range)
-    # ax_rates.set_ylim([0, np.max(rate_monitor.rate[int(len(rate_monitor.t) / 2)] / Hz)])
-    # ax_rates.set_ylim([0, np.max(rate_monitor.rate[int(len(rate_monitor.t) / 2)] / Hz)])
     for ax in [ax_spikes, ax_rates]:
         ax.set_xlim(*time_range)
     time_start = int(time_range[0] * ms / experiment.sim_clock)
@@ -277,9 +272,7 @@ def plot_internal_states(experiment: Experiment, internal_states_monitor):
 
     ax[0].set_ylabel("activation \n [unitless]")
     ax[1].set_ylabel(r"$g_\mathrm{NMDA}$ ")
-    #ax[1].set_ylim([0, 0.06])
     ax[2].set_ylabel(r'$g_\mathrm{NMDA}$''\n'r'[$\frac{{nS}}{{\mathrm{{cm}}^2}}]$')
-    #ax[2].set_ylim([0, 0.3])
 
     ax[3].set_ylabel(r"$I_\mathrm{NMDA}$""\n""[nA]")
 
