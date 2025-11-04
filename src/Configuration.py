@@ -198,7 +198,7 @@ class Experiment:
 
         self.model = params.get(Experiment.KEY_SELECTED_MODEL)
 
-        self.recorded_hidden_variables = params.get(Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD, ["sigmoid_v", "x", "g_nmda", "I_nmda"])
+        self.recorded_hidden_variables = params.get(Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD, ["sigmoid_v", "x", "g_nmda", "I_nmda", "one_minus_g_nmda"])
 
         logger.debug("Effective Reversal {}",
                    (self.neuron_params.g_L * self.neuron_params.E_leak +

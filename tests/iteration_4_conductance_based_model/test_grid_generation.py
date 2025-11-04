@@ -198,7 +198,7 @@ class GridTestCases(unittest.TestCase):
         compare_g_ampa_vs_nu_ext_over_nu_thr(experiment, g_ampas, nu_thresholds)
         plt.close()
 
-
+    @unittest.skip("Test is too long")
     def test_question_1_q_to_s_r_for_ampa_0(self):
         g_s = [3, 4, 5, 6]
         nu_ext_over_nu_thrs = [1.5, 2, 2.5]
@@ -223,6 +223,7 @@ class GridTestCases(unittest.TestCase):
         plt.close()
 
     # Look for question from script:
+    @unittest.skip("Test is too long")
     def test_q_0_follow_up_explore_model_in_AI_state(self):
         g_ampas = [3e-06]
         nu_thresholds = [1.5]

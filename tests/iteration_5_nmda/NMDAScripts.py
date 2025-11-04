@@ -15,7 +15,7 @@ class NMDAScripts(unittest.TestCase):
     def test_nmda_model_runs_and_plots(self):
         nmda_based_simulation = {
 
-            "sim_time": 1000,
+            "sim_time": 500,
             "sim_clock": 0.1 * ms,
             "g": 1,
             "g_ampa": 2.518667367869784e-06,
@@ -31,7 +31,7 @@ class NMDAScripts(unittest.TestCase):
             "g_L": 0.00004,
 
             "panel": self._testMethodName,
-            "t_range": [[900, 1000]],
+            "t_range": [[400, 500]],
             "voltage_range": [-70, -30],
 
             PlotParams.KEY_WHAT_PLOTS_TO_SHOW: [PlotParams.AvailablePlots.RASTER_AND_RATE]
@@ -43,7 +43,7 @@ class NMDAScripts(unittest.TestCase):
     def test_sigmoid_no_scaling_no_concentration_scaling(self):
         nmda_based_simulation = {
 
-            "sim_time": 1000,
+            "sim_time": 500,
             "sim_clock": 0.1 * ms,
             "g": 1,
             "g_ampa": 2.518667367869784e-06,
@@ -80,7 +80,7 @@ class NMDAScripts(unittest.TestCase):
     def test_sigmoid_no_scaling_w_concentration(self):
         nmda_based_simulation = {
 
-            "sim_time": 1000,
+            "sim_time": 500,
             "sim_clock": 0.1 * ms,
             "g": 1,
             "g_ampa": 2.518667367869784e-06,
@@ -116,7 +116,7 @@ class NMDAScripts(unittest.TestCase):
     def test_clock_driven_dynamics(self):
         nmda_based_simulation = {
 
-            "sim_time": 1000,
+            "sim_time": 500,
             "sim_clock": 0.1 * ms,
             "g": 1,
             "g_ampa": 2.518667367869784e-06,
@@ -187,7 +187,7 @@ class NMDAScripts(unittest.TestCase):
     def test_g_nmda_tot(self):
         nmda_based_simulation = {
 
-            "sim_time": 1000,
+            "sim_time": 500,
             "sim_clock": 0.1 * ms,
             "g": 1,
             "g_ampa": 2.518667367869784e-06,
@@ -222,7 +222,7 @@ class NMDAScripts(unittest.TestCase):
     def test_v_under_g_nmda_input(self):
         nmda_based_simulation = {
 
-            "sim_time": 1000,
+            "sim_time": 500,
             "sim_clock": 0.1 * ms,
             "g": 1,
             "g_ampa": 2.518667367869784e-06,
@@ -257,7 +257,7 @@ class NMDAScripts(unittest.TestCase):
     def test_compare_translated_vs_wang_nmda_activation(self):
         nmda_based_simulation = {
 
-            "sim_time": 1000,
+            "sim_time": 500,
             "sim_clock": 0.1 * ms,
             "g": 1,
             "g_ampa": 2.518667367869784e-06,

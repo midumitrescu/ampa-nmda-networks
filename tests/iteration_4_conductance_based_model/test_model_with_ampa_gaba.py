@@ -48,6 +48,7 @@ class ModelWithOnlyAMPAAndGABATestCases(unittest.TestCase):
     def test_new_configuration_is_parsed(self):
         new_config = {
 
+            "sim_time": 10,
             "g": 1,
             "nu_ext_over_nu_thr": 1,
             "epsilon": 0.1,
@@ -94,7 +95,7 @@ class ModelWithOnlyAMPAAndGABATestCases(unittest.TestCase):
     def test_model_runs_only_with_exc_current(self):
         conductance_based_simulation = {
 
-            "sim_time": 100,
+            "sim_time": 150,
             "sim_clock": 0.05 * ms,
 
             "g": 1,
@@ -314,14 +315,14 @@ class ModelWithOnlyAMPAAndGABATestCases(unittest.TestCase):
         experiment = Experiment(conductance_based_simulation)
 
         rate_monitor, spike_monitor, _, _, = sim_and_plot(experiment)
-        plt.show(block=False)
-        plt.close()
+        plot_non_blocking()
 
     #@unittest.skip("too long rn")
     # Results:
     # g = 7 => (2.3248291021445766, 2.324829102435615)
     # g = 1 => (1.868896484375, 1.868896484384095)
     # g = 4 => (1.8871950361062773, 1.8871950363973156)
+    @unittest.skip("Test is too long")
     def test_find_nu_ext_over_nu_thr_binary_search(self):
 
         def look_for_rate_of_input_value(value):

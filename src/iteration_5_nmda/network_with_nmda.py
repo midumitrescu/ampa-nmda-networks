@@ -134,14 +134,14 @@ def sim(experiment: Experiment, in_testing=True, eq=wang_model_with_extra_variab
 
     rate_monitor = PopulationRateMonitor(neurons)
     spike_monitor = SpikeMonitor(neurons)
-    v_monitor = StateMonitor(source=neurons[experiment.network_params.N_E - experiment.network_params.neurons_to_record: experiment.network_params.N_E + experiment.network_params.neurons_to_record],
+    v_monitor = StateMonitor(source=neurons[experiment.network_params.N_E - experiment.network_params.neurons_to_record: experiment.network_params.N_E + experiment.network_params.neurons_to_record +1 ],
                              variables="v", record=True)
 
-    g_monitor = StateMonitor(source=neurons[experiment.network_params.N_E - experiment.network_params.neurons_to_record: experiment.network_params.N_E + experiment.network_params.neurons_to_record],
+    g_monitor = StateMonitor(source=neurons[experiment.network_params.N_E - experiment.network_params.neurons_to_record: experiment.network_params.N_E + experiment.network_params.neurons_to_record + 1],
                              variables=["g_e", "g_i", "g_nmda"], record=True)
 
     internal_states_monitor = StateMonitor(source=neurons[
-                                    experiment.network_params.N_E - experiment.network_params.neurons_to_record: experiment.network_params.N_E + experiment.network_params.neurons_to_record],
+                                    experiment.network_params.N_E - experiment.network_params.neurons_to_record: experiment.network_params.N_E + experiment.network_params.neurons_to_record + 1],
                              variables=experiment.recorded_hidden_variables, record=True)
 
     run(experiment.sim_time)

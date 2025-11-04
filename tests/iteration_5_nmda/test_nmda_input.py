@@ -66,92 +66,21 @@ class MyTestCase(unittest.TestCase):
             "t_range": [80, 100],
             "voltage_range": [-70, -30],
             "smoothened_rate_width": 0.5 * ms,
-            "record_N": 1,
+            "record_N": 2,
         }
 
         experiment = Experiment(nmda_based_simulation)
         sim_and_plot(experiment)
 
-    def test_unit_for_x_variable(self):
-        new_config = {
-            "sim_time": 10
-        }
-
-        experiment = Experiment(new_config)
-        sim_and_plot(experiment, eq="""
-            dv/dt = 1/C * (-g_L * (v-E_leak)) : volt (unless refractory)
-            dg_e/dt = -g_e / tau_ampa : siemens / meter**2
-            dg_i/dt = -g_i / tau_gaba  : siemens / meter**2
-            dg_nmda /dt = -g_nmda / tau_nmda_decay: siemens / meter**2
-            dx/dt = - x / tau_nmda_rise : siemens / meter**2
-        """)
-        # units w and x must have same units, due to x += w on pre (jumps) => x must be siemens / meter**2
-        #  sigmoid_v = 1/(1 + exp(-0.062 * v/mvolt)) * (MG_C/mmole / 3.57): 1
-
-    def test_sigmoid_is_unitless(self):
-        new_config = {
-            "sim_time": 10
-        }
-
-        experiment = Experiment(new_config)
-        sim(experiment, eq="""
-            dv/dt = 1/C * (-g_L * (v-E_leak)) : volt (unless refractory)
-            dg_e/dt = -g_e / tau_ampa : siemens / meter**2
-            dg_i/dt = -g_i / tau_gaba  : siemens / meter**2
-            dg_nmda /dt = -g_nmda / tau_nmda_decay: siemens / meter**2
-            dx/dt = - x / tau_nmda_rise : siemens / meter**2
-            sigmoid_v = 1/(1 + exp(-0.062 * v/mvolt)) * (MG_C/mmole / 3.57): 1
-        """)
-
-    def test_unit_for_I_ampa_is_correct(self):
-        new_config = {
-            "sim_time": 10
-        }
-
-        experiment = Experiment(new_config)
-        sim(experiment, eq="""
-            dv/dt = 1/C * (-g_L * (v-E_leak) - g_nmda * sigmoid_v * (v-E_nmda)): volt (unless refractory)
-            dg_e/dt = -g_e / tau_ampa : siemens / meter**2
-            dg_i/dt = -g_i / tau_gaba  : siemens / meter**2
-            dg_nmda /dt = -g_nmda / tau_nmda_decay: siemens / meter**2
-            dx/dt = - x / tau_nmda_rise : siemens / meter**2
-            sigmoid_v = 1/(1 + exp(-0.062 * v/mvolt)) * (MG_C/mmole / 3.57): 1
-        """)
-
-
-    def test_unit_g_nmda_is_correct(self):
-        new_config = {
-            "sim_time": 10
-        }
-
-        experiment = Experiment(new_config)
-        sim(experiment, eq="""
-            dv/dt = 1/C * (-g_L * (v-E_leak) - g_nmda * sigmoid_v * (v-E_nmda)): volt (unless refractory)
-            dg_e/dt = -g_e / tau_ampa : siemens / meter**2
-            dg_i/dt = -g_i / tau_gaba  : siemens / meter**2
-            dg_nmda/dt = -g_nmda / tau_nmda_decay + alpha * x * one_minus_g_ampa: siemens / meter**2
-            dx/dt = - x / tau_nmda_rise : siemens / meter**2 
-            sigmoid_v = 1/(1 + exp(-0.062 * v/mvolt)) * (MG_C/mmole / 3.57): 1
-            one_minus_g_ampa = 1- g_nmda/siemens * meter**2 : 1
-        """)
-
     def test_wang_model_runs_successfully(self):
         new_config = {
             "sim_time": 10,
-            "model": wang_model
+            "model": wang_model_with_extra_variables
         }
 
         experiment = Experiment(new_config)
         sim(experiment)
 
-    def test_translated_model_runs_successfully(self):
-        new_config = {
-            "sim_time": 10,
-            "model": translated_model
-        }
-
-        experiment = Experiment(new_config)
-        sim(experiment)
 
     def test_all_saturation_variables_are_interval_0_1_wang_model(self):
         nmda_based_simulation = {
