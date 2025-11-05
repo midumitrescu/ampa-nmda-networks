@@ -167,6 +167,17 @@ class NMDAParams:
     def __init__(self, params):
         self.beta = params.get(NMDAParams.KEY_BETA, 1)
 
+
+def check_plot_times_inside_sim_time(plot_params: PlotParams, sim_time):
+
+    if list is type(plot_params.t_range[0]):
+        for t_range in plot_params.t_range:
+            if t_range[1] > sim_time / ms:
+                raise ValueError(f"Sim time was only {sim_time}. We can not plot unit {t_range[1]}.")
+    elif plot_params.t_range[0] > sim_time / ms or plot_params.t_range[1] > sim_time / ms:
+        raise ValueError(f"Sim time was only {sim_time}. We can not plot unit {plot_params.t_range}.")
+
+
 class Experiment:
     KEY_SIM_TIME = "sim_time"
     KEY_SIMULATION_CLOCK = "simulation_clock"
@@ -184,6 +195,8 @@ class Experiment:
         self.synaptic_params = SynapticParams(params, g=self.network_params.g)
         self.neuron_params = NeuronModelParams(params=params, network_params=self.network_params)
         self.plot_params = PlotParams(params)
+
+        check_plot_times_inside_sim_time(self.plot_params, self.sim_time)
 
         self.nu_ext_over_nu_thr = params.get(NetworkParams.KEY_NU_E_OVER_NU_THR, 1)
         self.nu_thr = self.neuron_params.nu_thr

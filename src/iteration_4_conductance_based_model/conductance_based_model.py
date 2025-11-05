@@ -34,7 +34,7 @@ def sim_and_plot(experiment: Experiment, in_testing=True, eq=default_model):
     rate_monitor, spike_monitor, v_monitor, g_monitor = sim(experiment, in_testing, eq)
     plot_simulation(experiment, rate_monitor,
                     spike_monitor, v_monitor, g_monitor)
-    plot_psd_and_CVs(experiment, rate_monitor, spike_monitor, v_monitor, g_monitor)
+    #plot_psd_and_CVs(experiment, rate_monitor, spike_monitor, v_monitor, g_monitor)
 
     plot_non_blocking()
 

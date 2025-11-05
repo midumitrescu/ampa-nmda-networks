@@ -28,7 +28,7 @@ class ConfigurationParsingTestCases(unittest.TestCase):
 
     def test_when_g_gaba_not_present_then_g_gaba_should_be_computed(self):
         conductance_based_config = {
-            "sim_time": 1,
+            "sim_time": 100,
             "g": 2,
             "g_ampa": 1e-05,
         }
@@ -39,7 +39,7 @@ class ConfigurationParsingTestCases(unittest.TestCase):
 
     def test_when_g_is_0_g_gaba_is_0(self):
         conductance_based_config = {
-            "sim_time": 1,
+            "sim_time": 100,
             "g": 0,
             "g_ampa": 1e-05,
         }
@@ -50,7 +50,7 @@ class ConfigurationParsingTestCases(unittest.TestCase):
 
     def test_copy_works(self):
         conductance_based_config = {
-            "sim_time": 1,
+            "sim_time": 100,
             "g": 0,
             "g_ampa": 1e-05,
         }
@@ -58,6 +58,31 @@ class ConfigurationParsingTestCases(unittest.TestCase):
         object_under_test_2 = object_under_test.with_property(NetworkParams.KEY_G, 1)
         self.assertEqual(0, object_under_test.network_params.g)
         self.assertEqual(1, object_under_test_2.network_params.g)
+
+    def test_when_one_t_range_greater_than_sim_time_then_raise_error(self):
+        end_of_t_range_is_over_sim_time = {
+            "sim_time": 100,
+            "t_range": [0, 1000],
+        }
+        with self.assertRaises(ValueError) as e:
+            Experiment(end_of_t_range_is_over_sim_time)
+            print(e)
+
+    def test_at_least_one_t_ranges_greater_than_sim_time_then_raise_error(self):
+        end_of_t_range_is_over_sim_time = {
+            "sim_time": 100,
+            "t_range": [[0, 10], [0, 1000]],
+        }
+        with self.assertRaises(ValueError) as e:
+            Experiment(end_of_t_range_is_over_sim_time)
+            print(e)
+
+    def test_when_t_ranges_are_correct_then_experiment_is_correct(self):
+        end_of_t_range_is_over_sim_time = {
+            "sim_time": 100,
+            "t_range": [[0, 10], [0, 100]],
+        }
+        Experiment(end_of_t_range_is_over_sim_time)
 
 
 

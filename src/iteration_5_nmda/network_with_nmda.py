@@ -42,6 +42,11 @@ I_nmda = g_nmda * sigmoid_v * (v-E_nmda): amp / meter**2
 one_minus_g_nmda = 1- g_nmda/siemens * meter**2 : 1
 """
 
+wang_model_detailed = '''
+dv/dt = 1/C * (-I_Leak - I_Ext_syn - I_AMPA - I_GABA - I_NMDA): volt (unless refractory)  
+I_Leak = g_L * (v-E_leak): ampere (unless refractory)  
+'''
+
 #units for NMDA
 # [I_NMDA] Ampere / cm **2, same as siemens / cm ** 2 * volt !
 # g_nmda is siemens/ cm**2, same as g_ampa. Sigmoid must come out unitless
