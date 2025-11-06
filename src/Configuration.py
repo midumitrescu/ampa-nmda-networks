@@ -12,6 +12,7 @@ class SynapticParams:
 
     KEY_G_AMPA = "g_ampa"
     KEY_G_GABA = "g_gaba"
+    KEY_G_NMDA = "g_nmda"
 
     KEY_TAU_AMPA = "tau_ampa_ms"
     KEY_TAU_GABA = "tau_gaba_ms"
@@ -28,6 +29,8 @@ class SynapticParams:
 
         self.g_ampa = params.get(SynapticParams.KEY_G_AMPA, 0) * siemens / cm ** 2
         self.g_gaba = g * self.g_ampa
+
+        self.g_nmda = params.get(SynapticParams.KEY_G_NMDA, 0) * siemens / cm ** 2
 
         self.tau_ampa = params.get(SynapticParams.KEY_TAU_AMPA, 2) * ms
         self.tau_gaba = params.get(SynapticParams.KEY_TAU_AMPA, 2) * ms
@@ -140,9 +143,12 @@ class PlotParams:
     class AvailableHiddenVariables(enum.Enum):
         sigmoid_v = "sigmoid_v"
         x_nmda = "x_nmda"
+        s_nmda = "s_nmda"
         g_nmda = "g_nmda"
         I_nmda = "I_nmda"
         one_minus_s_nmda = "one_minus_s_nmda"
+
+        s_drive = "s_drive"
 
     hidden_variable_plot_details = {
         AvailableHiddenVariables.sigmoid_v.value: {
@@ -151,7 +157,7 @@ class PlotParams:
         },
         AvailableHiddenVariables.x_nmda.value: {
             "title": "X variable (NMDA upstroke)",
-            "y_label": r"$X_\mathrm{NMDA}"
+            "y_label": r"$x_\mathrm{NMDA}$"
         },
         AvailableHiddenVariables.g_nmda.value: {
             "title": "Total NMDA conductance",
@@ -163,7 +169,17 @@ class PlotParams:
         },
         AvailableHiddenVariables.one_minus_s_nmda.value: {
             "title": "how much free g_nmda exists? (1 - s) variable",
-            "y_label": "1-s [unitless]"
+            "y_label": "% unsaturated NMDA [unitless]"
+        },
+
+        AvailableHiddenVariables.s_nmda.value: {
+            "title": "S NMDA variable",
+            "y_label": r'$s_\mathrm{NMDA}$'
+        },
+
+        AvailableHiddenVariables.s_drive.value: {
+            "title": r'Driving force of $s_\mathrm{NMDA}$ is $\alpha \cdot x_\mathrm{NMDA} \cdot (1-s_\mathrm{NMDA})$',
+            "y_label": r"unitless"
         }
     }
 
@@ -184,6 +200,11 @@ class PlotParams:
         self.recorded_hidden_variables = params.get(Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD,
                                                     [var.value for var in PlotParams.AvailableHiddenVariables])
 
+        for hidden_variable in self.recorded_hidden_variables:
+            if hidden_variable not in self.AvailableHiddenVariables:
+                raise ValueError(
+                    f"{hidden_variable} not found in known hidden variables {self.AvailableHiddenVariables}")
+
     def show_raster_and_rate(self):
         return self.plots is not None and PlotParams.AvailablePlots.RASTER_AND_RATE in self.plots
 
@@ -199,8 +220,6 @@ class PlotParams:
 
         result = {}
         for hidden_variable in self.recorded_hidden_variables:
-            if hidden_variable not in self.AvailableHiddenVariables:
-                raise ValueError(f"{hidden_variable} not found in known hidden variables {self.AvailableHiddenVariables}")
             result[hidden_variable] = {
                 "index": len(result.items()),
                 "title": PlotParams.hidden_variable_plot_details[hidden_variable]["title"],

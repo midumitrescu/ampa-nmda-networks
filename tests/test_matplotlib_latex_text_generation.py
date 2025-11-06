@@ -6,6 +6,7 @@ from brian2 import ms, ufarad, cm, siemens
 import numpy as np
 
 from Configuration import Experiment
+from Plotting import plot_non_blocking
 
 some_params = {
     "panel": f"Testing matplotlib Text generation, sim clock = 0.05 ms",
@@ -29,16 +30,14 @@ class SimpleIntegrationstCase(unittest.TestCase):
     def test_simple_plotting_works():
         plt.plot(np.linspace(0, 1000), np.linspace(0, 1000))
         plt.title("Test")
-        plt.show(block=False)
-        plt.close()
+        plot_non_blocking()
 
     @staticmethod
     def test_latex_plotting_works():
         plt.rcParams['text.usetex'] = True
         plt.plot(np.linspace(0, 1000), np.linspace(0, 1000))
         plt.title(r'$\gamma$, $\frac{\nu_1}{\mu_2}$')
-        plt.show(block=False)
-        plt.close()
+        plot_non_blocking()
 
 class ComplexLatexTextsTestCase(unittest.TestCase):
 
@@ -46,7 +45,7 @@ class ComplexLatexTextsTestCase(unittest.TestCase):
         plt.figure(figsize=(10, 10))
         plt.title(experiment.gen_plot_title())
         plt.subplots_adjust(top=0.7)
-        plt.show(block=False)
+        plot_non_blocking()
 
     def test_matplotlib_text_generation_for_g_L_004_siemens(self):
         plt.figure(figsize=(8, 8))
@@ -56,7 +55,7 @@ class ComplexLatexTextsTestCase(unittest.TestCase):
         object_under_test = Experiment(config_for_siemens_magnitude)
         plt.title(f"$g_L=0.004$ S - {object_under_test.gen_plot_title()}")
         plt.subplots_adjust(top=0.7)
-        plt.show(block=False)
+        plot_non_blocking()
 
     def test_matplotlib_text_generation_for_nu_ext_over_nu_thr(self):
         # plt.plot()
@@ -64,8 +63,7 @@ class ComplexLatexTextsTestCase(unittest.TestCase):
         plt.title(r'$\frac{\nu_\mathrm{Ext}}{\nu_\mathrm{Thr}}=$'f"{1}")
         plt.xlabel(r"$\nu_\mathrm{Ext}$")
         plt.subplots_adjust(top=0.7)
-        plt.show(block=False)
-        plt.close()
+        plot_non_blocking()
 
     def test_texts_for_it_5_hidden_variables(self):
 
@@ -74,8 +72,17 @@ class ComplexLatexTextsTestCase(unittest.TestCase):
             plt.title(text)
             plt.xlabel(r"$\nu_\mathrm{Ext}$")
             plt.subplots_adjust(top=0.7)
-            plt.show(block=False)
-            plt.close()
+            plot_non_blocking()
+
+    def test_texts_for_nmda_refactoring_and_understanding_why_s_is_above_1(self):
+
+        for text in [r'Driving force of $s_{\text{NMDA}}$ = $\alpha \cdot x \cdot (1-s_{\text{NMDA}})$',
+                     'Driving force of $s_{\\text{NMDA}}$ = $\\alpha \\cdot x \\cdot (1-s_{\\text{NMDA}})$']:
+            plt.figure(figsize=(10, 10))
+            plt.title(text)
+            plt.xlabel(r"$\nu_\mathrm{Ext}$")
+            plt.subplots_adjust(top=0.7)
+            plot_non_blocking()
 
     def test_plot_name_generation(self):
         config = {
@@ -103,8 +110,7 @@ class ComplexLatexTextsTestCase(unittest.TestCase):
         # \\text\u007b cm \u007d^2
         plt.subplots_adjust(top=0.7)
         plt.tight_layout()
-        plt.show(block=False)
-        plt.close()
+        plot_non_blocking()
 
         self.assertEqual("""Scan $\\frac{\\nu_E}{\\nu_T}$ and g
     Network: [N=12500, $N_E=10000$, $N_I=2500$, $\gamma=0.25$, $\epsilon=0.1$]

@@ -117,7 +117,7 @@ class ConfigurationParsingTestCases(unittest.TestCase):
                                         'y_label': 'activation \n [unitless]'},
                           'x_nmda': {'index': 1,
                                      'title': 'X variable (NMDA upstroke)',
-                                     'y_label': '$X_\\mathrm{NMDA}'}},
+                                     'y_label': '$X_\\mathrm{NMDA}$'}},
                          object_under_test.plot_params.create_hidden_variables_plots_grid())
 
 

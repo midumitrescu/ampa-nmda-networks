@@ -1,11 +1,15 @@
 import unittest
 import numpy as np
 import time
+import matplotlib.pyplot as plt
+from brian2 import ms
 
 from numpy.testing import assert_array_equal
 
-from Configuration import Experiment, NetworkParams
+from Configuration import Experiment, NetworkParams, PlotParams
 from iteration_5_nmda_refactored.network_with_nmda import sim, sim_and_plot, create_connectivity_matrix
+
+plt.rcParams['text.usetex'] = True
 
 '''
 We have 3 big issue that we are having an issue with:
@@ -33,10 +37,13 @@ g_nmda = g_nmda_max * sigmoid_v * s_nmda: siemens / meter**2
 g_nmda_max: siemens / meter**2
 
 ds_nmda/dt = -s_nmda / tau_nmda_decay + alpha * x_nmda * (1 - s_nmda) : 1
+x_nmda_not_cliped : 1
 dx_nmda/dt = - x_nmda / tau_nmda_rise : 1
 
 sigmoid_v = 1/(1 + exp(-0.062 * v/mvolt) * (MG_C/mmole / 3.57)) : 1
 one_minus_s_nmda = 1 - s_nmda : 1
+alpha_x_t = alpha * x_nmda: Hz
+s_drive = alpha * x_nmda * (1 - s_nmda) : Hz
 """
 
 def sorted(array: np.ndarray) -> np.ndarray:
@@ -82,9 +89,8 @@ class RefactoredNMDAInput(unittest.TestCase):
         sim_and_plot(object_under_test)
 
     def test_sim_and_plot_with_external_input(self):
-
         interesting_nus = [1.8, 1.9, 2., 2.1]
-        interesting_nus = [1.5]
+        interesting_nus = [2]
         for nu_ext_over_nu_thr in interesting_nus:
             config = {
                 NetworkParams.KEY_NU_E_OVER_NU_THR: nu_ext_over_nu_thr,
@@ -92,12 +98,17 @@ class RefactoredNMDAInput(unittest.TestCase):
                 "g": 4,
                 "g_ampa": 2.4e-06,
                 "g_gaba": 2.4e-06,
+                "g_nmda": 1.6e-06,
 
                 Experiment.KEY_SELECTED_MODEL: extended_model,
-                Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD: ["sigmoid_v"],
+                #Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD: ["sigmoid_v",  "g_nmda", "I_nmda", "one_minus_s_nmda", "s_drive"],
+                Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD: ["x_nmda", "s_nmda", "s_drive", "one_minus_s_nmda"],
                 "record_N": 10,
 
-                "t_range": [[120, 170]],
+                #Experiment.KEY_SIMULATION_CLOCK: 0.005 * ms,
+
+                "t_range": [[0, 2000]],
+                PlotParams.KEY_WHAT_PLOTS_TO_SHOW: [PlotParams.AvailablePlots.RASTER_AND_RATE, PlotParams.AvailablePlots.HIDDEN_VARIABLES]
             }
             sim_and_plot(Experiment(config))
 
