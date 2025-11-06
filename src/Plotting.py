@@ -122,7 +122,8 @@ class Experiment:
 
         self.sim_clock = params.get(Experiment.KEY_SIMULATION_CLOCK, 0.05 * ms)
 
-def plot_non_blocking():
-    plt.show(block=False)
-    plt.close("all")
+def plot_non_blocking(show=True):
+    if show:
+        plt.show(block=False)
+        plt.close("all")
 

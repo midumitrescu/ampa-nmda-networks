@@ -2,7 +2,7 @@ import unittest
 
 from brian2 import second, siemens, cm
 
-from Configuration import Experiment, NetworkParams
+from Configuration import Experiment, NetworkParams, PlotParams
 
 
 class ConfigurationParsingTestCases(unittest.TestCase):
@@ -84,6 +84,41 @@ class ConfigurationParsingTestCases(unittest.TestCase):
         }
         Experiment(end_of_t_range_is_over_sim_time)
 
+    def test_when_hidden_variables_plot_should_not_be_shown(self):
+        should_not_show_hidden_variables = {
+            "sim_time": 100,
+            "t_range": [[0, 10], [0, 100]],
+        }
+
+        self.assertFalse(Experiment(should_not_show_hidden_variables).plot_params.show_hidden_variables())
+
+    def test_when_hidden_variables_plot_should_be_shown(self):
+        should_not_show_hidden_variables = {
+            "sim_time": 100,
+            "t_range": [[0, 10], [0, 100]],
+            "show_plots": [PlotParams.AvailablePlots.HIDDEN_VARIABLES]
+        }
+
+        object_under_test = Experiment(should_not_show_hidden_variables)
+        self.assertTrue(object_under_test.plot_params.show_hidden_variables())
+
+        self.assertEqual({'I_nmda': {'index': 3,
+                                     'title': 'NMDA current',
+                                     'y_label': '$I_\\mathrm{NMDA}$'},
+                          'g_nmda': {'index': 2,
+                                     'title': 'Total NMDA conductance',
+                                     'y_label': '$g_\\mathrm{NMDA}$\n'
+                                                '[$\\frac{{nS}}{{\\mathrm{{cm}}^2}}]$'},
+                          'one_minus_s_nmda': {'index': 4,
+                                               'title': 'how much free g_nmda exists? (1 - s) variable',
+                                               'y_label': '1-s [unitless]'},
+                          'sigmoid_v': {'index': 0,
+                                        'title': 'Sigmoid',
+                                        'y_label': 'activation \n [unitless]'},
+                          'x_nmda': {'index': 1,
+                                     'title': 'X variable (NMDA upstroke)',
+                                     'y_label': '$X_\\mathrm{NMDA}'}},
+                         object_under_test.plot_params.create_hidden_variables_plots_grid())
 
 
 if __name__ == '__main__':

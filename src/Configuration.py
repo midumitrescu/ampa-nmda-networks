@@ -137,6 +137,36 @@ class PlotParams:
         PSD_AND_CVS = 2
         HIDDEN_VARIABLES = 3
 
+    class AvailableHiddenVariables(enum.Enum):
+        sigmoid_v = "sigmoid_v"
+        x_nmda = "x_nmda"
+        g_nmda = "g_nmda"
+        I_nmda = "I_nmda"
+        one_minus_s_nmda = "one_minus_s_nmda"
+
+    hidden_variable_plot_details = {
+        AvailableHiddenVariables.sigmoid_v.value: {
+            "title": "Sigmoid",
+            "y_label": "activation \n [unitless]"
+        },
+        AvailableHiddenVariables.x_nmda.value: {
+            "title": "X variable (NMDA upstroke)",
+            "y_label": r"$X_\mathrm{NMDA}"
+        },
+        AvailableHiddenVariables.g_nmda.value: {
+            "title": "Total NMDA conductance",
+            "y_label": r'$g_\mathrm{NMDA}$''\n'r'[$\frac{{nS}}{{\mathrm{{cm}}^2}}]$'
+        },
+        AvailableHiddenVariables.I_nmda.value: {
+            "title": "NMDA current",
+            "y_label": r"$I_\mathrm{NMDA}$"
+        },
+        AvailableHiddenVariables.one_minus_s_nmda.value: {
+            "title": "how much free g_nmda exists? (1 - s) variable",
+            "y_label": "1-s [unitless]"
+        }
+    }
+
 
     def __init__(self, params):
         self.panel = params.get(PlotParams.KEY_PANEL, "")
@@ -150,7 +180,9 @@ class PlotParams:
         self.plot_smoothened_rate = True
 
         self.neurons_to_plot = params.get(PlotParams.KEY_PLOT_NEURONS_W_HIDDEN_VARIABLES, [])
-        self.plots = params.get(PlotParams.KEY_WHAT_PLOTS_TO_SHOW, [PlotParams.AvailablePlots.RASTER_AND_RATE, PlotParams.AvailablePlots.PSD_AND_CVS, PlotParams.AvailablePlots.HIDDEN_VARIABLES])
+        self.plots = params.get(PlotParams.KEY_WHAT_PLOTS_TO_SHOW, [PlotParams.AvailablePlots.RASTER_AND_RATE])
+        self.recorded_hidden_variables = params.get(Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD,
+                                                    [var.value for var in PlotParams.AvailableHiddenVariables])
 
     def show_raster_and_rate(self):
         return self.plots is not None and PlotParams.AvailablePlots.RASTER_AND_RATE in self.plots
@@ -160,6 +192,22 @@ class PlotParams:
 
     def show_hidden_variables(self):
         return self.plots is not None and PlotParams.AvailablePlots.HIDDEN_VARIABLES in self.plots
+
+    def create_hidden_variables_plots_grid(self):
+        if not self.show_hidden_variables():
+            return {}
+
+        result = {}
+        for hidden_variable in self.recorded_hidden_variables:
+            if hidden_variable not in self.AvailableHiddenVariables:
+                raise ValueError(f"{hidden_variable} not found in known hidden variables {self.AvailableHiddenVariables}")
+            result[hidden_variable] = {
+                "index": len(result.items()),
+                "title": PlotParams.hidden_variable_plot_details[hidden_variable]["title"],
+                "y_label": PlotParams.hidden_variable_plot_details[hidden_variable]["y_label"],
+            }
+        return result
+
 
 class NMDAParams:
     KEY_BETA = "beta"
@@ -185,6 +233,8 @@ class Experiment:
     KEY_SELECTED_MODEL = "model"
 
     KEY_HIDDEN_VARIABLES_TO_RECORD = "hidden_variables_to_record"
+
+    KEY_IN_TESTING = "in_testing"
 
     def __init__(self, params: dict):
         self.params = copy.deepcopy(params)
@@ -212,6 +262,8 @@ class Experiment:
         self.model = params.get(Experiment.KEY_SELECTED_MODEL)
 
         self.recorded_hidden_variables = params.get(Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD, ["sigmoid_v", "x", "g_nmda", "I_nmda", "one_minus_g_nmda"])
+
+        self.in_testing = params.get(Experiment.KEY_IN_TESTING, False)
 
         logger.debug("Effective Reversal {}",
                    (self.neuron_params.g_L * self.neuron_params.E_leak +
