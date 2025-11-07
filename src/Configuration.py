@@ -79,7 +79,7 @@ class NetworkParams:
 
         self.epsilon = params.get(NetworkParams.KEY_EPSILON, 0.1)
 
-        self.C_E = int(self.epsilon * self.N_E)
+        self.C_E = np.max((int(self.epsilon * self.N_E), 1))
 
         self.C_ext = params.get(NetworkParams.KEY_C_EXT, self.C_E)
         self.neurons_to_record =  params.get(NetworkParams.KEY_RECORD_EXTRA, 25)

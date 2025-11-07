@@ -76,7 +76,7 @@ def sim(experiment: Experiment, in_testing=True):
     MG_C = 1 * mmole  # extracellular magnesium concentration
     tau_nmda_decay = 100 * ms
     tau_nmda_rise = 2 * ms
-    alpha = 0.05 * Hz  # saturation of NMDA channels at high presynaptic firing rates
+    alpha = 0.05 * kHz   # saturation of NMDA channels at high presynaptic firing rates
 
     neurons = NeuronGroup(experiment.network_params.N,
                           model=experiment.model,
@@ -102,7 +102,7 @@ def sim(experiment: Experiment, in_testing=True):
     inhib_synapses.connect(i=inh_from, j=inh_to)
 
     # nmda_synapses = Synapses(excitatory_neurons, excitatory_neurons, on_pre='x += w', method="euler")
-    nmda_synapses = Synapses(neurons, neurons, on_post="x_nmda = 1", method="euler")
+    nmda_synapses = Synapses(neurons, neurons, on_pre="x_nmda = 1", method="euler", delay=experiment.synaptic_params.D)
     #TODO: pay attention here. Not only exc to exc. Also inh have NMDAs
     nmda_synapses.connect(i=exc_from, j=exc_to)
 
@@ -132,7 +132,7 @@ def sim(experiment: Experiment, in_testing=True):
     internal_states_monitor = StateMonitor(source=neurons[
                                                   experiment.network_params.N_E - experiment.network_params.neurons_to_record: experiment.network_params.N_E + experiment.network_params.neurons_to_record],
                                            variables=experiment.recorded_hidden_variables, record=True)
-    run(experiment.sim_time, report="text", report_period=500*ms)
+    run(experiment.sim_time, report="text", report_period=1*second)
 
     return rate_monitor, spike_monitor, v_monitor, g_monitor, internal_states_monitor
 
@@ -205,10 +205,10 @@ def plot_voltages_and_g_s(experiment, grid_spec_mother, g_monitor, spike_monitor
     ax_voltages.set_xlabel("t [ms]")
     ax_voltages.set_ylabel("v [mV]")
     i = 0
-    ax_g_s.plot(g_monitor.t / ms, g_monitor[i].g_ext_syn, label=rf"$g_\mathrm{{ext}}$[{i}]")
-    ax_g_s.plot(g_monitor.t / ms, g_monitor[i].g_e, label=rf"$g_I$[{i}]")
-    ax_g_s.plot(g_monitor.t / ms, g_monitor[i].g_i, label=rf"$g_E$[{i}]")
-    ax_g_s.plot(g_monitor.t / ms, g_monitor[i].g_nmda, label=rf"$g_\mathrm{{nmda}}$[{i}]")
+    ax_g_s.plot(g_monitor.t / ms, g_monitor[i].g_e_syn, label=rf"$g_\mathrm{{ext}}$[{i}]", alpha=0.5)
+    ax_g_s.plot(g_monitor.t / ms, g_monitor[i].g_e, label=rf"$g_I$[{i}]", alpha=0.5)
+    ax_g_s.plot(g_monitor.t / ms, g_monitor[i].g_i, label=rf"$g_E$[{i}]", alpha=0.5)
+    ax_g_s.plot(g_monitor.t / ms, g_monitor[i].g_nmda, label=rf"$g_\mathrm{{nmda}}$[{i}]", alpha=0.5)
     ax_g_s.legend(loc="best")
 
 
@@ -230,8 +230,7 @@ def plot_raster_and_rates(experiment, grid_spec_mother, rate_monitor, spike_moni
     time_end = int(time_range[1] * ms / experiment.sim_clock)
 
     lims = [0, np.max(rate_to_plot[time_start:time_end]) * 1.1]
-    ax_rates.set_ylim(
-        lims)
+    ax_rates.set_ylim(lims)
 
 
 def find_v_min_and_v_max_for_plotting(experiment, v_monitor):

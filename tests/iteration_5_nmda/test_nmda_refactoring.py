@@ -96,9 +96,9 @@ class RefactoredNMDAInput(unittest.TestCase):
                 NetworkParams.KEY_NU_E_OVER_NU_THR: nu_ext_over_nu_thr,
                 NetworkParams.KEY_EPSILON: 0.1,
                 "g": 4,
-                "g_ampa": 2.4e-06,
-                "g_gaba": 2.4e-06,
-                "g_nmda": 1.6e-06,
+                "g_ampa": 2.5e-06,
+                "g_gaba": 2.5e-06,
+                "g_nmda": 5e-07,
 
                 Experiment.KEY_SELECTED_MODEL: extended_model,
                 #Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD: ["sigmoid_v",  "g_nmda", "I_nmda", "one_minus_s_nmda", "s_drive"],
@@ -107,7 +107,7 @@ class RefactoredNMDAInput(unittest.TestCase):
 
                 #Experiment.KEY_SIMULATION_CLOCK: 0.005 * ms,
 
-                "t_range": [[0, 2000]],
+                "t_range": [[0, 2000], [1500, 1520]],
                 PlotParams.KEY_WHAT_PLOTS_TO_SHOW: [PlotParams.AvailablePlots.RASTER_AND_RATE, PlotParams.AvailablePlots.HIDDEN_VARIABLES]
             }
             sim_and_plot(Experiment(config))
