@@ -131,6 +131,17 @@ class ConfigurationParsingTestCases(unittest.TestCase):
 
         self.assertEqual(5, object_under_test.synaptic_params.g_nmda / siemens * cm**2)
 
+    def test_integration_method_is_parsed_correctly(self):
+        config = {
+            NetworkParams.KEY_N_E: 1,
+            "t_range": [[0, 10]],
+
+            "method": "euler"
+        }
+        object_under_test = Experiment(config)
+
+        self.assertEqual("euler", object_under_test.integration_method)
+
 
 if __name__ == '__main__':
     unittest.main()

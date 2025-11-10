@@ -1,4 +1,5 @@
 import enum
+from enum import Enum
 
 from loguru import logger
 from brian2 import ufarad, cm, siemens, mV, ms, msiemens, uS
@@ -262,10 +263,11 @@ def check_plot_times_inside_sim_time(plot_params: PlotParams, sim_time):
     elif plot_params.t_range[0] > sim_time / ms or plot_params.t_range[1] > sim_time / ms:
         raise ValueError(f"Sim time was only {sim_time}. We can not plot unit {plot_params.t_range}.")
 
-
 class Experiment:
     KEY_SIM_TIME = "sim_time"
     KEY_SIMULATION_CLOCK = "simulation_clock"
+
+    KEY_SIMULATION_METHOD = "method"
 
     KEY_SELECTED_MODEL = "model"
 
@@ -277,6 +279,9 @@ class Experiment:
         self.params = copy.deepcopy(params)
 
         self.sim_time = self.__extract_simulation_time__(params) * ms
+        self.sim_clock = params.get(Experiment.KEY_SIMULATION_CLOCK, 0.05) * ms
+
+        self.integration_method = params.get(Experiment.KEY_SIMULATION_METHOD, "euler")
 
         self.network_params = NetworkParams(params)
         self.synaptic_params = SynapticParams(params, g=self.network_params.g)
@@ -292,7 +297,6 @@ class Experiment:
         self.mean_excitatory_input = self.synaptic_params.J * self.neuron_params.tau * self.network_params.C_E * self.nu_ext
         self.mean_inhibitory_input = - self.network_params.g * self.synaptic_params.J * self.neuron_params.tau * self.network_params.C_E * self.nu_ext
 
-        self.sim_clock = params.get(Experiment.KEY_SIMULATION_CLOCK, 0.05 * ms)
 
         self.nmda_params = NMDAParams(params)
 
