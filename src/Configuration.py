@@ -149,6 +149,9 @@ class PlotParams:
         one_minus_s_nmda = "one_minus_s_nmda"
 
         s_drive = "s_drive"
+        alpha_x_t = "alpha_x_t"
+        g_nmda_max = "g_nmda_max"
+        bla_bla_bar = "bla_bla_bar"
 
     hidden_variable_plot_details = {
         AvailableHiddenVariables.sigmoid_v.value: {
@@ -174,12 +177,27 @@ class PlotParams:
 
         AvailableHiddenVariables.s_nmda.value: {
             "title": "S NMDA variable",
-            "y_label": r'$s_\mathrm{NMDA}$'
+            "y_label": r'$s_\mathrm{NMDA}$ \\n [unitless]'
         },
 
         AvailableHiddenVariables.s_drive.value: {
             "title": r'Driving force of $s_\mathrm{NMDA}$ is $\alpha \cdot x_\mathrm{NMDA} \cdot (1-s_\mathrm{NMDA})$',
-            "y_label": r"unitless"
+            "y_label": r"$[s^{-1}]$"
+        },
+
+        AvailableHiddenVariables.alpha_x_t.value: {
+            "title": r'$\alpha \cdot x_\mathrm{NMDA}$',
+            "y_label": r"$[s^{-1}]$"
+        },
+
+        AvailableHiddenVariables.g_nmda_max.value: {
+            "title": r'G NMDA max',
+            "y_label": r"$[\frac{\mathrm{siemens}}{m^2}]$"
+        },
+
+        AvailableHiddenVariables.bla_bla_bar.value: {
+            "title": r'Bla bla',
+            "y_label": r"$[\frac{\mathrm{siemens}}{m^2}]$"
         }
     }
 

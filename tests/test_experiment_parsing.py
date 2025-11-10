@@ -120,6 +120,17 @@ class ConfigurationParsingTestCases(unittest.TestCase):
                                      'y_label': '$X_\\mathrm{NMDA}$'}},
                          object_under_test.plot_params.create_hidden_variables_plots_grid())
 
+    def test_g_nmda_is_parsed_correctly(self):
+        config = {
+            NetworkParams.KEY_N_E: 1,
+            "g_nmda": 5,
+
+            "t_range": [[0, 10]],
+        }
+        object_under_test = Experiment(config)
+
+        self.assertEqual(5, object_under_test.synaptic_params.g_nmda / siemens * cm**2)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -41,10 +41,11 @@ def sim(experiment: Experiment):
     MG_C = 1 * mmole  # extracellular magnesium concentration
     tau_nmda_decay = 100 * ms
     tau_nmda_rise = 2 * ms
-    alpha = 0.05 * kHz  # saturation of NMDA channels at high presynaptic firing rates
+    alpha = 0.5 * kHz  # saturation of NMDA channels at high presynaptic firing rates
 
+    model = experiment.model
     neurons = NeuronGroup(1,
-                          model=experiment.model,
+                          model=model,
                           threshold="v >= theta",
                           reset="v = V_r",
                           refractory=experiment.neuron_params.tau_rp,
@@ -88,13 +89,13 @@ def sim_and_plot(experiment: Experiment):
     plot(experiment, rate_monitor,
                     spike_monitor, v_monitor, g_monitor, internal_states_monitor)
 
-    return rate_monitor, spike_monitor, v_monitor, g_monitor
+    return rate_monitor, spike_monitor, v_monitor, g_monitor, internal_states_monitor
 
 def plot_simulation_in_one_time_range(experiment, rate_monitor, spike_monitor, v_monitor, g_monitor, time_range):
     if experiment.plot_params.show_raster_and_rate():
         rate_tick_step = experiment.plot_params.rate_tick_step
         fig = plt.figure(figsize=(10, 12))
-        fig.suptitle(experiment.gen_plot_title())
+        fig.suptitle(generate_title(experiment))
 
         outer = gridspec.GridSpec(2, 1, figure=fig, height_ratios=[5, 2])
         plot_raster_and_rates(experiment, outer[0], rate_monitor, spike_monitor, time_range)
@@ -102,8 +103,52 @@ def plot_simulation_in_one_time_range(experiment, rate_monitor, spike_monitor, v
 
         plot_non_blocking(show=True)
 
-def plot_internal_states(experiment: Experiment, internal_states_monitor):
-    pass
+def plot_internal_states(experiment: Experiment, internal_states_monitor, time_range: tuple[int, int]):
+    if experiment.plot_params.show_hidden_variables():
+        fig, ax = plt.subplots(len(experiment.plot_params.recorded_hidden_variables), 1, sharex=True, figsize=[10, 8])
+
+        if 1 is len(experiment.plot_params.recorded_hidden_variables):
+            ax = [ax]
+        neurons_to_plot = [(0, "excitatory")]
+        for neuron_i, label in neurons_to_plot:
+
+            for hidden_var_name, hidden_var_plot_details in experiment.plot_params.create_hidden_variables_plots_grid().items():
+                index = hidden_var_plot_details['index']
+                curve_to_plot = internal_states_monitor[neuron_i].__getattr__(hidden_var_name)
+                start_index = int(time_range[0]  / experiment.sim_clock * ms)
+                end_index = int(time_range[1]  / experiment.sim_clock * ms)
+                min = np.min(curve_to_plot.data[start_index:end_index])
+                max = np.max(curve_to_plot.data[start_index:end_index])
+
+                if min is not None and min < 0:
+                    min = min * 1.1
+                if max is not None and max > 0:
+                    max = max * 1.1
+
+                ax[index].plot(internal_states_monitor.t / ms,
+                               curve_to_plot,
+                               label=f"Neuron {neuron_i} - {label}")
+                ax[index].set_ylim(bottom = min, top = max )
+
+
+        for hidden_var_name, hidden_var_plot_details in experiment.plot_params.create_hidden_variables_plots_grid().items():
+            index = hidden_var_plot_details['index']
+            title = hidden_var_plot_details['title']
+            y_label = hidden_var_plot_details['y_label']
+            ax[index].set_title(title)
+            ax[index].set_ylabel(y_label)
+
+        ax[-1].set_xlabel("t [ms]")
+
+        ax[0].legend(loc="right")
+
+        for current_ax in ax:
+            current_ax.set_xlim(*time_range)
+
+        fig.suptitle(f"{generate_title(experiment)} \n {neurons_to_plot}")
+        fig.tight_layout()
+
+        plot_non_blocking(show)
 
 def plot_raster_and_rates(experiment, grid_spec_mother, rate_monitor, spike_monitor, time_range):
     raster_and_population = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=grid_spec_mother, height_ratios=[4, 1],
@@ -163,6 +208,13 @@ def plot_v_line(experiment: Experiment, ax_voltages: Axes, v_monitor: StateMonit
     '''
     ax_voltages.vlines(x=spike_times_current_neuron, ymin=-70, ymax=-35, color=color, linestyle="-.", label=f"Neuron {i} Spike Time", lw=0.8)
 
+def generate_title(experiment: Experiment):
+    return fr"""{experiment.plot_params.panel}
+    Network: [N={experiment.network_params.N}, $N_E={experiment.network_params.N_E}$, $N_I={experiment.network_params.N_I}$, $\gamma={experiment.network_params.gamma}$, $\epsilon={experiment.network_params.epsilon}$]
+    Input: [$\nu_T={experiment.nu_thr}$, $\frac{{\nu_E}}{{\nu_T}}={experiment.nu_ext_over_nu_thr:.2f}$, $\nu_E={experiment.nu_ext:.2f}$ Hz]
+    Neuron: [$C={experiment.neuron_params.C * cm ** 2}$, $g_L={experiment.neuron_params.g_L * cm ** 2}$, $\theta={experiment.neuron_params.theta}$, $V_R={experiment.neuron_params.V_r}$, $E_L={experiment.neuron_params.E_leak}$, $\tau_M={experiment.neuron_params.tau}$, $\tau_{{\mathrm{{ref}}}}={experiment.neuron_params.tau_rp}$]
+    Synapse: [$g_{{\mathrm{{AMPA}}}}={experiment.synaptic_params.g_ampa * (cm ** 2) / uS:.2f}\,\mu\mathrm{{S}}$, $g_{{\mathrm{{GABA}}}}={experiment.synaptic_params.g_gaba * (cm ** 2) / uS:.2f}\,\mu\mathrm{{S}}$, $g={experiment.network_params.g}$]"""
+
 single_compartment_with_nmda_but_without_sigmoid = '''
 dv/dt = 1/C * (- I_L - I_nmda): volt (unless refractory)
         
@@ -170,7 +222,6 @@ I_L = g_L * (v-E_leak): amp / meter ** 2
 I_nmda = g_nmda * (v - E_nmda): amp / meter** 2
 
 g_nmda = g_nmda_max * s_nmda: siemens / meter**2
-g_nmda_max: siemens / meter**2
 
 ds_nmda/dt = -s_nmda / tau_nmda_decay + alpha * x_nmda * (1 - s_nmda) : 1
 dx_nmda/dt = - x_nmda / tau_nmda_rise : 1
@@ -235,10 +286,31 @@ class NMDAModelTestCases(unittest.TestCase):
             NetworkParams.KEY_C_EXT: 100,
             NetworkParams.KEY_NU_E_OVER_NU_THR: 5 * 1e-3,
             NetworkParams.KEY_EPSILON: 0.,
-            "g_nmda": 5e-07,
+            "g_nmda": 5e-6,
 
             Experiment.KEY_SELECTED_MODEL: single_compartment_with_nmda_but_without_sigmoid,
-            Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD: ["x_nmda", "s_nmda", "s_drive", "one_minus_s_nmda"],
+            Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD: ["x_nmda", "s_nmda", "s_drive", "one_minus_s_nmda", "I_nmda", "alpha_x_t"],
+            #Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD: ["bla_bla_bar"],
+            "record_N": 10,
+
+            "t_range": [[0, 2000], [1500, 1520]],
+            PlotParams.KEY_WHAT_PLOTS_TO_SHOW: [PlotParams.AvailablePlots.RASTER_AND_RATE,
+                                                PlotParams.AvailablePlots.HIDDEN_VARIABLES]
+        }
+
+        sim_and_plot(Experiment(config))
+
+    def test_nmda_moodel_with_less_input(self):
+        config = {
+
+            NetworkParams.KEY_N_E: 1,
+            NetworkParams.KEY_C_EXT: 100,
+            NetworkParams.KEY_NU_E_OVER_NU_THR: 0.1 * 5 * 1e-3,
+            NetworkParams.KEY_EPSILON: 0.,
+            "g_nmda": 8e-6,
+
+            Experiment.KEY_SELECTED_MODEL: single_compartment_with_nmda_but_without_sigmoid,
+            Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD: ["x_nmda", "s_nmda", "s_drive", "one_minus_s_nmda", "I_nmda", "alpha_x_t"],
             "record_N": 10,
 
             "t_range": [[0, 2000], [1500, 1520]],
