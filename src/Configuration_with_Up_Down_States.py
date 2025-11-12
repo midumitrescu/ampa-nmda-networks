@@ -420,3 +420,12 @@ class EffectiveTimeConstantEstimation:
         sigma_i_over_g_i_0 = self.std_inhibitory_conductance() / self.mean_inhibitory_conductance()
         logger.debug("Is diffusion approximation valid? sigma_e / g_e0 ={} << 1? {}", sigma_e_over_g_e_0, sigma_e_over_g_e_0 < 0.01)
         logger.debug("Is diffusion approximation valid? sigma_i / g_i0 ={} << 1? {}", sigma_i_over_g_i_0, sigma_i_over_g_i_0 < 0.01)
+
+
+class State:
+
+    def __init__(self, state_config={}):
+        self.state_config = copy.deepcopy(state_config)
+        self.N = None
+        self.N_E = None
+        self.N_I = None

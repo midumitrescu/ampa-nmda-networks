@@ -102,22 +102,13 @@ class ConfigurationParsingTestCases(unittest.TestCase):
         object_under_test = Experiment(should_not_show_hidden_variables)
         self.assertTrue(object_under_test.plot_params.show_hidden_variables())
 
-        self.assertEqual({'I_nmda': {'index': 3,
+        self.assertEqual({'I_nmda': {'index': 1,
                                      'title': 'NMDA current',
                                      'y_label': '$I_\\mathrm{NMDA}$'},
-                          'g_nmda': {'index': 2,
+                          'g_nmda': {'index': 0,
                                      'title': 'Total NMDA conductance',
                                      'y_label': '$g_\\mathrm{NMDA}$\n'
-                                                '[$\\frac{{nS}}{{\\mathrm{{cm}}^2}}]$'},
-                          'one_minus_s_nmda': {'index': 4,
-                                               'title': 'how much free g_nmda exists? (1 - s) variable',
-                                               'y_label': '1-s [unitless]'},
-                          'sigmoid_v': {'index': 0,
-                                        'title': 'Sigmoid',
-                                        'y_label': 'activation \n [unitless]'},
-                          'x_nmda': {'index': 1,
-                                     'title': 'X variable (NMDA upstroke)',
-                                     'y_label': '$X_\\mathrm{NMDA}$'}},
+                                                '[$\\frac{{nS}}{{\\mathrm{{cm}}^2}}]$'}},
                          object_under_test.plot_params.create_hidden_variables_plots_grid())
 
     def test_g_nmda_is_parsed_correctly(self):
@@ -129,7 +120,7 @@ class ConfigurationParsingTestCases(unittest.TestCase):
         }
         object_under_test = Experiment(config)
 
-        self.assertEqual(5, object_under_test.synaptic_params.g_nmda / siemens * cm**2)
+        self.assertEqual(5, object_under_test.synaptic_params.g_nmda / siemens * cm ** 2)
 
     def test_integration_method_is_parsed_correctly(self):
         config = {
@@ -141,6 +132,50 @@ class ConfigurationParsingTestCases(unittest.TestCase):
         object_under_test = Experiment(config)
 
         self.assertEqual("euler", object_under_test.integration_method)
+
+    def test_current_plots_should_not_be_shown_1(self):
+        config = {
+            NetworkParams.KEY_N_E: 1,
+            "t_range": [[0, 10]],
+        }
+        object_under_test = Experiment(config)
+
+        self.assertFalse(object_under_test.plot_params.show_currents_plots())
+
+    def test_current_plots_should_not_be_shown_2(self):
+        config = {
+            NetworkParams.KEY_N_E: 1,
+            "t_range": [[0, 10]],
+
+            "currents_to_record": ["I_Leak"]
+        }
+        object_under_test = Experiment(config)
+
+        self.assertFalse(object_under_test.plot_params.show_currents_plots())
+
+    def test_current_plots_should_not_be_shown_3(self):
+        config = {
+            NetworkParams.KEY_N_E: 1,
+            "t_range": [[0, 10]],
+
+            "currents_to_record": ["I_Leak"],
+            "show_plots": []
+        }
+        object_under_test = Experiment(config)
+
+        self.assertFalse(object_under_test.plot_params.show_currents_plots())
+
+    def test_recorded_currents_are_correctly_parsed(self):
+        config = {
+            NetworkParams.KEY_N_E: 1,
+            "t_range": [[0, 10]],
+
+            "currents_to_record": ["I_Leak"],
+            "show_plots": [PlotParams.AvailablePlots.CURRENTS]
+        }
+        object_under_test = Experiment(config)
+
+        self.assertTrue(object_under_test.plot_params.show_currents_plots())
 
 
 if __name__ == '__main__':
