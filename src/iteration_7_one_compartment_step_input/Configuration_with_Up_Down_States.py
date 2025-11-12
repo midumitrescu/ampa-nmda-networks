@@ -2,7 +2,7 @@ import copy
 import enum
 
 import numpy as np
-from brian2 import ufarad, cm, siemens, mV, ms, uS
+from brian2 import ufarad, cm, siemens, mV, ms, uS, Hz
 from loguru import logger
 
 
@@ -41,47 +41,73 @@ class SynapticParams:
         return f"{self.__class__}(J={self.J}, D={self.D})"
 
 
-class NetworkParams:
-    KEY_G = "g"
-    KEY_NU_THR = "nu_thr"
-    KEY_NU_E_OVER_NU_THR = "nu_ext_over_nu_thr"
+'''
+Brunel page 185:
+The parameter space remains large, even for such
+simple model neurons. In the following, using anatom-
+ical estimates for neocortex, we choose N E = 0.8N ,
+N I = 0.2N (80% of excitatory neurons). This implies
+C E = 4C I . We rewrite C I = γ C E —that is, γ = 0.25.
+
+N_I = gamma * N_E
+'''
+class State:
+
+    KEY_STATE_UP = "up_state"
+    KEY_STATE_DOWN = "down_state"
 
     KEY_N = "N"
-
     KEY_N_E = "N_E"
     KEY_N_I = "N_I"
 
-    KEY_RECORD_EXTRA = "record_N"
+    KEY_NU = "nu"
 
-    KEY_C_EXT = "C_ext"
-
-    KEY_GAMMA = "GAMMA"
-    KEY_EPSILON = "epsilon"
+    KEY_GAMMA = "gamma"
 
     def __init__(self, params: dict):
 
-        self.g = params.get(NetworkParams.KEY_G, 0)
-        self.synaptic_params = SynapticParams(params, g=self.g)
-        self.gamma = params.get(NetworkParams.KEY_GAMMA, 0.25)
+        self.gamma = params.get(State.KEY_GAMMA, 0.25)
+
 
         if self.KEY_N in params and self.KEY_N_E in params:
             raise ValueError("Please provide only one of N and N_E. Gamma will set the proper ration")
 
         if self.KEY_N in params:
-            self.N = params.get(NetworkParams.KEY_N)
+            self.N = params.get(State.KEY_N)
             self.N_I = round(self.gamma / (1 + self.gamma) * self.N)
             self.N_E = self.N - self.N_I
         else:
-            self.N_E = params.get(NetworkParams.KEY_N_E, 10_000)
+            self.N_E = params.get(State.KEY_N_E, 10_000)
             self.N_I = round(self.gamma * self.N_E)
             self.N = self.N_E + self.N_I
 
+        self.nu = params.get(State.KEY_NU, 0) * Hz
+
+
+class NetworkParams:
+    KEY_G = "g"
+    KEY_NU_THR = "nu_thr"
+    KEY_NU_E_OVER_NU_THR = "nu_ext_over_nu_thr"
+
+    KEY_RECORD_EXTRA = "record_N"
+
+    KEY_C_EXT = "C_ext"
+
+
+    KEY_EPSILON = "epsilon"
+
+    KEY_UP_STATE = "UP_STATE"
+    KEY_DOWN_STATE = "DOWN_STATE"
+
+    def __init__(self, params: dict):
+
+        self.g = params.get(NetworkParams.KEY_G, 0)
+        self.synaptic_params = SynapticParams(params, g=self.g)
+
         self.epsilon = params.get(NetworkParams.KEY_EPSILON, 0.1)
 
-        self.C_E = np.max((int(self.epsilon * self.N_E), 1))
-
-        self.C_ext = params.get(NetworkParams.KEY_C_EXT, self.C_E)
-        self.neurons_to_record = params.get(NetworkParams.KEY_RECORD_EXTRA, 25)
+        self.up_state = State(params[State.KEY_STATE_UP])
+        self.down_state = State(params[State.KEY_STATE_DOWN])
 
     def __str__(self):
         return f"{self.__class__}({self.KEY_G}={self.g}, {self.KEY_GAMMA}={self.gamma}, {self.KEY_EPSILON}={self.epsilon}, {self.KEY_N_E}={self.N_E}, {self.KEY_N_I}={self.N_I}, \
@@ -107,7 +133,7 @@ class NeuronModelParams:
         self.tau_rp = params.get(NeuronModelParams.KEY_TAU_REF, 2 * ms)
 
         self.tau = self.C / self.g_L
-        self.nu_thr = (self.theta - self.E_leak) / (self.synaptic_params.J * network_params.C_E * self.tau)
+        self.nu_thr = (self.theta - self.E_leak) / (self.synaptic_params.J * network_params.up_state.N_E * self.tau)
 
         logger.debug("Computed tau membrane = {}, nu threshold = {}", self.tau, self.nu_thr)
 
@@ -315,8 +341,8 @@ class Experiment:
         self.nu_thr = self.neuron_params.nu_thr
         self.nu_ext = self.nu_ext_over_nu_thr * self.nu_thr
 
-        self.mean_excitatory_input = self.synaptic_params.J * self.neuron_params.tau * self.network_params.C_E * self.nu_ext
-        self.mean_inhibitory_input = - self.network_params.g * self.synaptic_params.J * self.neuron_params.tau * self.network_params.C_E * self.nu_ext
+        self.mean_excitatory_input = self.synaptic_params.J * self.neuron_params.tau * self.network_params.up_state.N_E * self.nu_ext
+        self.mean_inhibitory_input = - self.network_params.g * self.synaptic_params.J * self.neuron_params.tau * self.network_params.up_state.N_E * self.nu_ext
 
         self.nmda_params = NMDAParams(params)
 
@@ -326,9 +352,11 @@ class Experiment:
 
         self.in_testing = params.get(Experiment.KEY_IN_TESTING, False)
 
-        self.effective_timeconstant_estimation = EffectiveTimeConstantEstimation(self)
+        self.effective_time_constant_up_state = EffectiveTimeConstantEstimation(self, self.network_params.up_state)
+        self.effective_time_constant_down_state = EffectiveTimeConstantEstimation(self, self.network_params.down_state)
 
-        logger.debug("Effective Reversal with included Poisson Rate {}", self.effective_timeconstant_estimation.E_0())
+        logger.debug("Effective Reversal Up State with included Poisson Rate {}", self.effective_time_constant_up_state.E_0())
+        logger.debug("Effective Reversal Down State with included Poisson Rate {}", self.effective_time_constant_down_state.E_0())
 
     def with_property(self, key: str, value: object):
         new_params = copy.deepcopy(self.params)
@@ -355,8 +383,9 @@ class Experiment:
 # Richardson Synaptic Shot Noise and Conductance Fluctuations Affect the Membrane Voltage with Equal Significance, 2005
 class EffectiveTimeConstantEstimation:
 
-    def __init__(self, config: Experiment):
+    def __init__(self, config: Experiment, state: State):
         self.config = config
+        self.state = state
         self.__check_is_diffusion_approximation_valid__()
 
     def E_0(self):
@@ -367,11 +396,11 @@ class EffectiveTimeConstantEstimation:
 
     # 2.6, 2.12
     def mean_excitatory_conductance(self):
-        return self.config.synaptic_params.tau_ampa * self.config.network_params.C_ext * self.config.nu_ext * self.config.synaptic_params.g_ampa
+        return self.config.synaptic_params.tau_ampa * self.state.N_E * self.state.nu * self.config.synaptic_params.g_ampa
 
     # 2.6, 2.12
     def mean_inhibitory_conductance(self):
-        return self.config.synaptic_params.tau_gaba * self.config.network_params.C_ext * self.config.nu_ext * self.config.synaptic_params.g_gaba
+        return self.config.synaptic_params.tau_gaba * self.state.N_I * self.state.nu * self.config.synaptic_params.g_gaba
 
     # 2.12
     def mean_total_conductance(self):
@@ -380,13 +409,13 @@ class EffectiveTimeConstantEstimation:
     # 2.6
     def std_excitatory_conductance(self):
         return self.config.synaptic_params.g_ampa * np.sqrt(
-            1 / 2 * self.config.synaptic_params.tau_ampa * self.config.network_params.C_ext * self.config.nu_ext
+            1 / 2 * self.config.synaptic_params.tau_ampa * self.state.N_E * self.state.nu
         )
 
     # 2.6
     def std_inhibitory_conductance(self):
         return self.config.synaptic_params.g_gaba * np.sqrt(
-            1 / 2 * self.config.synaptic_params.tau_gaba * self.config.network_params.C_ext * self.config.nu_ext
+            1 / 2 * self.config.synaptic_params.tau_gaba * self.state.N_I * self.state.nu
         )
 
     # 2.19
@@ -404,11 +433,7 @@ class EffectiveTimeConstantEstimation:
         E_e = self.config.synaptic_params.e_ampa
         E_i = self.config.synaptic_params.e_gaba
 
-        tau__e = tau_e / (tau_e + tau_0)
-        left = (s_e / g_0) ** 2 * (E_e - E_0) ** 2 * (tau__e)
-        tau__i = tau_i / (tau_i + tau_0)
-        right = (s_i / g_0) ** 2 * (E_i - E_0) ** 2 * (tau__i)
-        return np.sqrt(left + right)
+        return np.sqrt((s_e / g_0) ** 2 * (E_e - E_0) ** 2 * (tau_e / (tau_e + tau_0)) + (s_i / g_0) ** 2 * (E_i - E_0) ** 2 * (tau_i / (tau_i + tau_0)))
 
     def shunt_level(self):
         return (self.mean_excitatory_conductance() + self.mean_inhibitory_conductance()) / self.mean_total_conductance()
@@ -420,12 +445,3 @@ class EffectiveTimeConstantEstimation:
         sigma_i_over_g_i_0 = self.std_inhibitory_conductance() / self.mean_inhibitory_conductance()
         logger.debug("Is diffusion approximation valid? sigma_e / g_e0 ={} << 1? {}", sigma_e_over_g_e_0, sigma_e_over_g_e_0 < 0.01)
         logger.debug("Is diffusion approximation valid? sigma_i / g_i0 ={} << 1? {}", sigma_i_over_g_i_0, sigma_i_over_g_i_0 < 0.01)
-
-
-class State:
-
-    def __init__(self, state_config={}):
-        self.state_config = copy.deepcopy(state_config)
-        self.N = None
-        self.N_E = None
-        self.N_I = None

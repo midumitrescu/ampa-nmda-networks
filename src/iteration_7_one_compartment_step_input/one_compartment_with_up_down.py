@@ -1,9 +1,8 @@
 import brian2.devices.device
-import matplotlib.pyplot as plt
 from brian2 import *
 from matplotlib import gridspec
 
-from Configuration import Experiment
+from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment
 from Plotting import plot_non_blocking
 
 plt.rcParams.update(mpl.rcParamsDefault)
