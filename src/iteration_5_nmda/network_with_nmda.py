@@ -42,11 +42,16 @@ I_nmda = g_nmda * sigmoid_v * (v-E_nmda): amp / meter**2
 one_minus_g_nmda = 1- g_nmda/siemens * meter**2 : 1
 """
 
+wang_model_detailed = '''
+dv/dt = 1/C * (-I_Leak - I_Ext_syn - I_AMPA - I_GABA - I_NMDA): volt (unless refractory)  
+I_Leak = g_L * (v-E_leak): ampere (unless refractory)  
+'''
+
 #units for NMDA
 # [I_NMDA] Ampere / cm **2, same as siemens / cm ** 2 * volt !
 # g_nmda is siemens/ cm**2, same as g_ampa. Sigmoid must come out unitless
 
-def sim_and_plot(experiment: Experiment, in_testing=True, eq=wang_model):
+def sim_and_plot(experiment: Experiment, in_testing=True, eq=wang_model_with_extra_variables):
     rate_monitor, spike_monitor, v_monitor, g_monitor, internal_states_monitor = sim(experiment, in_testing, eq)
     plot_simulation(experiment, rate_monitor,
                     spike_monitor, v_monitor, g_monitor, internal_states_monitor)
@@ -61,7 +66,7 @@ def extract_rate(experiment: Experiment, rate_monitor: PopulationRateMonitor):
         return rate_monitor.rate / Hz
 
 
-def sim(experiment: Experiment, in_testing=True, eq=wang_model):
+def sim(experiment: Experiment, in_testing=True, eq=wang_model_with_extra_variables):
     """
     g --
     nu_ext_over_nu_thr -- ratio of external stimulus rate to threshold rate
@@ -134,14 +139,14 @@ def sim(experiment: Experiment, in_testing=True, eq=wang_model):
 
     rate_monitor = PopulationRateMonitor(neurons)
     spike_monitor = SpikeMonitor(neurons)
-    v_monitor = StateMonitor(source=neurons[experiment.network_params.N_E - experiment.network_params.neurons_to_record: experiment.network_params.N_E + experiment.network_params.neurons_to_record],
+    v_monitor = StateMonitor(source=neurons[experiment.network_params.N_E - experiment.network_params.neurons_to_record: experiment.network_params.N_E + experiment.network_params.neurons_to_record +1 ],
                              variables="v", record=True)
 
-    g_monitor = StateMonitor(source=neurons[experiment.network_params.N_E - experiment.network_params.neurons_to_record: experiment.network_params.N_E + experiment.network_params.neurons_to_record],
+    g_monitor = StateMonitor(source=neurons[experiment.network_params.N_E - experiment.network_params.neurons_to_record: experiment.network_params.N_E + experiment.network_params.neurons_to_record + 1],
                              variables=["g_e", "g_i", "g_nmda"], record=True)
 
     internal_states_monitor = StateMonitor(source=neurons[
-                                    experiment.network_params.N_E - experiment.network_params.neurons_to_record: experiment.network_params.N_E + experiment.network_params.neurons_to_record],
+                                    experiment.network_params.N_E - experiment.network_params.neurons_to_record: experiment.network_params.N_E + experiment.network_params.neurons_to_record + 1],
                              variables=experiment.recorded_hidden_variables, record=True)
 
     run(experiment.sim_time)

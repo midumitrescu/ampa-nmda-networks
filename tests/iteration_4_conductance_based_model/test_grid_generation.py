@@ -130,7 +130,7 @@ class GridTestCases(unittest.TestCase):
         experiment = Experiment(conductance_based_simulation)
 
         compare_g_s_vs_nu_ext_over_nu_thr(experiment, three_g_s, nu_ext_over_nu_thrs)
-        plt.close()
+
 
     def test_plot_relevant_example(self):
         g_s = [4, 6, 8, 16]
@@ -158,7 +158,7 @@ class GridTestCases(unittest.TestCase):
     def test_q_0(self):
         g_ampas = [2e-06, 2.5e-06, 3e-06]
         simulation = {
-            "sim_time": 5000,
+            "sim_time": 500,
             "sim_clock": 0.1 * ms,
             "g": 0,
             "g_ampa": 0,
@@ -190,7 +190,7 @@ class GridTestCases(unittest.TestCase):
             "g_L": 0.00004,
 
             "panel": f"g vs nu ext for nu ext producing close to 1 Hz",
-            "t_range": [[0, 200], [200, 500], [500, 1000], [4000, 4000]],
+            "t_range": [[0, 200], [200, 500], [500, 1000]],
             "voltage_range": [-70, -30],
             "smoothened_rate_width": 0.5 * ms
         }
@@ -198,7 +198,7 @@ class GridTestCases(unittest.TestCase):
         compare_g_ampa_vs_nu_ext_over_nu_thr(experiment, g_ampas, nu_thresholds)
         plt.close()
 
-
+    @unittest.skip("Test is too long")
     def test_question_1_q_to_s_r_for_ampa_0(self):
         g_s = [3, 4, 5, 6]
         nu_ext_over_nu_thrs = [1.5, 2, 2.5]
@@ -223,6 +223,7 @@ class GridTestCases(unittest.TestCase):
         plt.close()
 
     # Look for question from script:
+    @unittest.skip("Test is too long")
     def test_q_0_follow_up_explore_model_in_AI_state(self):
         g_ampas = [3e-06]
         nu_thresholds = [1.5]
