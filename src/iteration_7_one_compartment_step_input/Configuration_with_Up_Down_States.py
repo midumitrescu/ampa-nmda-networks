@@ -83,6 +83,9 @@ class State:
 
         self.nu = params.get(State.KEY_NU, 0) * Hz
 
+    def gen_plot_title(self):
+        return f"N={self.N}, $N_E={self.N_E}$, $N_I={self.N_I}$, $\\nu={self.nu}$, $\gamma={self.gamma}$"
+
 
 class NetworkParams:
     KEY_G = "g"
@@ -373,7 +376,7 @@ class Experiment:
         return np.max(params[PlotParams.KEY_T_RANGE])
 
     def gen_plot_title(self):
-        return fr"""{self.plot_params.panel}
+        return fr"""{self.plot_params.panel} Single Compartment Level
     Network: [N={self.network_params.N}, $N_E={self.network_params.N_E}$, $N_I={self.network_params.N_I}$, $\gamma={self.network_params.gamma}$, $\epsilon={self.network_params.epsilon}$]
     Input: [$\nu_T={self.nu_thr}$, $\frac{{\nu_E}}{{\nu_T}}={self.nu_ext_over_nu_thr:.2f}$, $\nu_E={self.nu_ext:.2f}$ Hz]
     Neuron: [$C={self.neuron_params.C * cm ** 2}$, $g_L={self.neuron_params.g_L * cm ** 2}$, $\theta={self.neuron_params.theta}$, $V_R={self.neuron_params.V_r}$, $E_L={self.neuron_params.E_leak}$, $\tau_M={self.neuron_params.tau}$, $\tau_{{\mathrm{{ref}}}}={self.neuron_params.tau_rp}$]
@@ -445,3 +448,6 @@ class EffectiveTimeConstantEstimation:
         sigma_i_over_g_i_0 = self.std_inhibitory_conductance() / self.mean_inhibitory_conductance()
         logger.debug("Is diffusion approximation valid? sigma_e / g_e0 ={} << 1? {}", sigma_e_over_g_e_0, sigma_e_over_g_e_0 < 0.01)
         logger.debug("Is diffusion approximation valid? sigma_i / g_i0 ={} << 1? {}", sigma_i_over_g_i_0, sigma_i_over_g_i_0 < 0.01)
+
+    def gen_plot_title(self):
+        return fr"$V_\mathrm{{eff, rev}}$ = {self.E_0() / mV: .2f} mV, $\sigma_v$ = {self.std_voltage() /mV : .2f} mV, Shunt Level = {self.shunt_level(): .2f}"
