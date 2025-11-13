@@ -1,11 +1,11 @@
-import pickle
 import unittest
 
 from brian2 import *
 
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment, PlotParams
+from iteration_7_one_compartment_step_input.grid_computations import sim_and_plot_experiment_grid
 from iteration_7_one_compartment_step_input.one_compartment_with_up_down import \
-    single_compartment_with_nmda_and_logged_variables, sim_and_plot, sim_and_plot_experiment_grid
+    single_compartment_with_nmda_and_logged_variables, sim_and_plot
 
 plt.rcParams.update(mpl.rcParamsDefault)
 plt.rcParams['text.usetex'] = True
@@ -116,14 +116,9 @@ class OneCompartmentUpDownStates(unittest.TestCase):
 
         experiment_1 = Experiment(config)
         experiment_2 = experiment_1.with_property("g_nmda", 2e-4)
+        experiment_3 = experiment_1.with_property("g_nmda", 2e-3)
 
-        pickle.dump(experiment_1, open("experiment_1.pickle", "wb"))
-        pickle.dump(experiment_2, open("experiment_2.pickle", "wb"))
-
-        experiment_1_cp = pickle.load(open("experiment_1.pickle", "rb"))
-        experiment_2_cp = pickle.load(open("experiment_2.pickle", "rb"))
-
-        sim_and_plot_experiment_grid([experiment_1, experiment_2])
+        sim_and_plot_experiment_grid([experiment_1, experiment_2, experiment_3])
 
 
 

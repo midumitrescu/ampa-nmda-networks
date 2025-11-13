@@ -1,13 +1,26 @@
 import brian2.devices.device
 from brian2 import *
-from joblib import Parallel, delayed
 from matplotlib import gridspec
 
-from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment
 from Plotting import plot_non_blocking
+from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment
 
 plt.rcParams.update(mpl.rcParamsDefault)
 plt.rcParams['text.usetex'] = True
+
+
+class SimulationResults:
+
+    def __init__(self, experiment: Experiment, rate_monitor: PopulationRateMonitor, spike_monitor: SpikeMonitor,
+                 v_monitor: StateMonitor, g_monitor: StateMonitor, internal_states_monitor: StateMonitor,
+                 currents_monitor: StateMonitor):
+        self.experiment = experiment
+        self.rate_monitor = rate_monitor
+        self.spike_monitor = spike_monitor
+        self.v_monitor = v_monitor
+        self.g_monitor = g_monitor
+        self.internal_states_monitor = internal_states_monitor
+        self.currents_monitor = currents_monitor
 
 
 def sim(experiment: Experiment):
@@ -117,69 +130,63 @@ def sim(experiment: Experiment):
     currents_monitor = StateMonitor(source=single_neuron, variables=experiment.plot_params.recorded_currents,
                                     record=True)
     reporting = "text" if experiment.in_testing else None
-    print("XXXXXXXXXXXXXXXXXXXXXXX")
     run(experiment.sim_time, report=reporting, report_period=1 * second)
-    print("YYYYYYYYYYYYYYYYYYYYYYY")
 
-    return rate_monitor, spike_monitor, v_monitor, g_monitor, internal_states_monitor, currents_monitor
+    return SimulationResults(experiment, rate_monitor, spike_monitor, v_monitor, g_monitor, internal_states_monitor,
+                             currents_monitor)
 
 
-def plot(experiment: Experiment, rate_monitor, spike_monitor, v_monitor, g_monitor, internal_states_monitor,
-         currents_monitor):
-    params_t_range = experiment.plot_params.t_range
+def plot(simulation_results: SimulationResults):
+    params_t_range = simulation_results.experiment.plot_params.t_range
 
     if isinstance(params_t_range[0], list):
         for time_range in params_t_range:
-            plot_simulation_in_one_time_range(experiment, rate_monitor, spike_monitor, v_monitor, g_monitor,
+            plot_simulation_in_one_time_range(simulation_results,
                                               time_range=time_range)
-            plot_currents_in_one_time_range(experiment, currents_monitor, time_range=time_range)
-            plot_internal_states(experiment, internal_states_monitor, time_range=time_range)
+            plot_currents_in_one_time_range(simulation_results, time_range=time_range)
+            plot_internal_states(simulation_results, time_range=time_range)
     else:
-        plot_internal_states(experiment, internal_states_monitor, time_range=params_t_range)
-        plot_currents_in_one_time_range(experiment, currents_monitor, time_range=params_t_range)
-        plot_simulation_in_one_time_range(experiment, rate_monitor, spike_monitor, v_monitor, g_monitor,
+        plot_simulation_in_one_time_range(simulation_results,
                                           time_range=params_t_range)
+        plot_currents_in_one_time_range(simulation_results, time_range=params_t_range)
+        plot_internal_states(simulation_results, time_range=params_t_range)
 
 
 def sim_and_plot(experiment: Experiment):
-    rate_monitor, spike_monitor, v_monitor, g_monitor, internal_states_monitor, currents_monitor = sim(experiment)
-    plot(experiment, rate_monitor,
-         spike_monitor, v_monitor, g_monitor, internal_states_monitor, currents_monitor)
-
-    return rate_monitor, spike_monitor, v_monitor, g_monitor, internal_states_monitor, currents_monitor
+    simulation_results = sim(experiment)
+    plot(simulation_results)
+    return simulation_results
 
 
-def plot_simulation_in_one_time_range(experiment: Experiment, rate_monitor: PopulationRateMonitor,
-                                      spike_monitor: SpikeMonitor,
-                                      v_monitor: StateMonitor, g_monitor: StateMonitor, time_range):
-    if experiment.plot_params.show_raster_and_rate():
-        rate_tick_step = experiment.plot_params.rate_tick_step
+def plot_simulation_in_one_time_range(simulation_results: SimulationResults, time_range):
+    if simulation_results.experiment.plot_params.show_raster_and_rate():
+
         fig = plt.figure(figsize=(10, 12))
-        fig.suptitle(generate_title(experiment))
+        fig.suptitle(generate_title(simulation_results.experiment))
 
         height_ratios = [1, 1]
         outer = gridspec.GridSpec(2, 1, figure=fig, height_ratios=height_ratios)
-        plot_raster_and_rates(experiment, outer[0], rate_monitor, spike_monitor, time_range)
-        plot_voltages_and_g_s(experiment, outer[1], g_monitor, spike_monitor, time_range, v_monitor)
+        plot_raster_and_rates(simulation_results, time_range, outer[0])
+        plot_voltages_and_g_s(simulation_results, time_range, outer[1])
 
         plot_non_blocking(show=True)
 
 
-def plot_internal_states(experiment: Experiment, internal_states_monitor, time_range: tuple[int, int]):
-    if experiment.plot_params.show_hidden_variables():
-        fig, ax = plt.subplots(len(experiment.plot_params.recorded_hidden_variables), 1, sharex=True, figsize=[10, 8])
+def plot_internal_states(simulation_results, time_range: tuple[int, int]):
+    if simulation_results.experiment.plot_params.show_hidden_variables():
+        fig, ax = plt.subplots(len(simulation_results.experiment.plot_params.recorded_hidden_variables), 1, sharex=True, figsize=[10, 8])
 
-        if 1 == len(experiment.plot_params.recorded_hidden_variables):
+        if 1 == len(simulation_results.experiment.plot_params.recorded_hidden_variables):
             ax = [ax]
         neurons_to_plot = [(0, "excitatory")]
         for neuron_i, label in neurons_to_plot:
 
-            for hidden_var_name, hidden_var_plot_details in experiment.plot_params.create_hidden_variables_plots_grid().items():
+            for hidden_var_name, hidden_var_plot_details in simulation_results.experiment.plot_params.create_hidden_variables_plots_grid().items():
                 index = hidden_var_plot_details['index']
-                curve_to_plot = internal_states_monitor[neuron_i].__getattr__(hidden_var_name) / \
+                curve_to_plot = simulation_results.internal_states_monitor[neuron_i].__getattr__(hidden_var_name) / \
                                 hidden_var_plot_details['scaling']
-                start_index = int(time_range[0] / experiment.sim_clock * ms)
-                end_index = int(time_range[1] / experiment.sim_clock * ms)
+                start_index = int(time_range[0] / simulation_results.experiment.sim_clock * ms)
+                end_index = int(time_range[1] / simulation_results.experiment.sim_clock * ms)
                 min = np.min(curve_to_plot.data[start_index:end_index])
                 max = np.max(curve_to_plot.data[start_index:end_index])
 
@@ -188,14 +195,14 @@ def plot_internal_states(experiment: Experiment, internal_states_monitor, time_r
                 if max is not None and max > 0:
                     max = max * 1.1
 
-                ax[index].plot(internal_states_monitor.t / ms,
+                ax[index].plot(simulation_results.internal_states_monitor.t / ms,
                                curve_to_plot,
                                label=f"Neuron {neuron_i} - {label}")
 
                 if min is not None and not np.isnan(min) and max is not None and not np.isnan(max):
                     ax[index].set_ylim(bottom=min, top=max)
 
-        for hidden_var_name, hidden_var_plot_details in experiment.plot_params.create_hidden_variables_plots_grid().items():
+        for hidden_var_name, hidden_var_plot_details in simulation_results.experiment.plot_params.create_hidden_variables_plots_grid().items():
             index = hidden_var_plot_details['index']
             title = hidden_var_plot_details['title']
             y_label = hidden_var_plot_details['y_label']
@@ -209,57 +216,55 @@ def plot_internal_states(experiment: Experiment, internal_states_monitor, time_r
         for current_ax in ax:
             current_ax.set_xlim(*time_range)
 
-        fig.suptitle(f"{generate_title(experiment)} \n {neurons_to_plot}")
+        fig.suptitle(f"{generate_title(simulation_results.experiment)} \n {neurons_to_plot}")
         fig.tight_layout()
 
         plot_non_blocking(show)
 
 
-def plot_currents_in_one_time_range(experiment: Experiment, currents_monitor: StateMonitor, time_range):
-    if not experiment.plot_params.show_currents_plots():
+def plot_currents_in_one_time_range(simulation_results: SimulationResults, time_range):
+    if not simulation_results.experiment.plot_params.show_currents_plots():
         return
 
     fig, ax = plt.subplots(num=1, figsize=(10, 8))
 
-    time_end, time_start = determine_start_and_end_recorded_indexes(experiment, time_range)
+    time_end, time_start = determine_start_and_end_recorded_indexes(simulation_results.experiment, time_range)
 
-    for current_to_plot in experiment.plot_params.recorded_currents:
-        current_curve = currents_monitor[0].__getattr__(current_to_plot)
+    for current_to_plot in simulation_results.experiment.plot_params.recorded_currents:
+        current_curve = simulation_results.currents_monitor[0].__getattr__(current_to_plot)
 
-        ax.plot(currents_monitor.t[time_start:time_end] / ms, current_curve[time_start:time_end],
+        ax.plot(simulation_results.currents_monitor.t[time_start:time_end] / ms, current_curve[time_start:time_end],
                 label=f"{current_to_plot}", alpha=0.5)
 
     ax.legend(loc="right")
     fig.tight_layout()
-    fig.suptitle(f"Current plot {generate_title(experiment)}")
+    fig.suptitle(f"Current plot {generate_title(simulation_results.experiment)}")
     plot_non_blocking()
 
-def plot_raster_and_rates(experiment, grid_spec_mother, rate_monitor, spike_monitor, time_range):
-    spike_monitor_results = np.vstack((spike_monitor.t / ms, spike_monitor.i))
 
-    plot_raster_and_rates_unpickled(experiment, grid_spec_mother, rate_monitor, spike_monitor_results, time_range)
+def plot_raster_and_rates(simulation_results: SimulationResults, time_range, grid_spec_mother):
+    spikes_array = np.vstack((simulation_results.spike_monitor.t / ms, simulation_results.spike_monitor.i))
+    rate_curve = simulation_results.rate_monitor.smooth_rate(
+        width=simulation_results.experiment.plot_params.smoothened_rate_width) / Hz if simulation_results.experiment.plot_params.plot_smoothened_rate else simulation_results.rate_monitor.rate / Hz
 
+    rates_array = np.vstack((simulation_results.rate_monitor.t / ms, rate_curve))
 
-def plot_raster_and_rates_unpickled(experiment, grid_spec_mother, rate_monitor, spike_monitor, time_range):
-    rate_curve = rate_monitor.smooth_rate(
-        width=experiment.plot_params.smoothened_rate_width) / Hz if experiment.plot_params.plot_smoothened_rate else rate_monitor.rate / Hz
-
-    rate_to_plot = np.vstack((rate_monitor.t / ms, rate_curve))
+    plot_raster_and_rates_unpickled(simulation_results.experiment, grid_spec_mother, rates_array, spikes_array, time_range)
 
 
-
-    raster_and_population = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=grid_spec_mother, height_ratios=[4, 1],
+def plot_raster_and_rates_unpickled(experiment, grid_spec_mother, rates_array, spikes_array, time_range):
+    raster_and_population = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=grid_spec_mother, height_ratios=[2, 1],
                                                              hspace=0)
     ax_spikes, ax_rates = raster_and_population.subplots(sharex="col")
-    ax_spikes.plot(spike_monitor[0], spike_monitor[1], "|")
-    ax_rates.plot(rate_to_plot[0], rate_to_plot[1])
+    ax_spikes.plot(spikes_array[0], spikes_array[1], "|")
+    ax_rates.plot(rates_array[0], rates_array[1])
     ax_spikes.set_yticks([])
 
     for ax in [ax_spikes, ax_rates]:
         ax.set_xlim(*time_range)
     time_end, time_start = determine_start_and_end_recorded_indexes(experiment, time_range)
 
-    lims = [0, np.max(rate_to_plot[time_start:time_end]) * 1.1]
+    lims = [0, np.max(rates_array[time_start:time_end]) * 1.1]
     ax_rates.set_ylim(lims)
 
 
@@ -269,19 +274,14 @@ def determine_start_and_end_recorded_indexes(experiment, time_range):
     return time_end, time_start
 
 
-def plot_voltages_and_g_s(experiment, grid_spec_mother, g_monitor, spike_monitor, time_range, v_monitor):
+def plot_voltages_and_g_s(simulation_results: SimulationResults, time_range,grid_spec_mother):
     voltage_and_g_s_examples = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=grid_spec_mother, hspace=0.8)
     ax_voltages, ax_g_s = voltage_and_g_s_examples.subplots(sharex="col")
-    ax_voltages.axhline(y=experiment.neuron_params.theta / ms, linestyle="dotted", linewidth="0.3", color="k",
+    ax_voltages.axhline(y=simulation_results.experiment.neuron_params.theta / ms, linestyle="dotted", linewidth="0.3", color="k",
                         label="$\\theta$")
-    '''
-    v_min_plot, v_max_plot = find_v_min_and_v_max_for_plotting(experiment, v_monitor)
 
-    if not np.isnan(v_max_plot):
-        ax_voltages.set_ylim([v_min_plot, v_max_plot])
-    '''
     for i in [0]:
-        plot_v_line(experiment, ax_voltages, v_monitor, spike_monitor, i)
+        plot_v_line(simulation_results, i, ax_voltages)
     for ax in [ax_voltages, ax_g_s]:
         ax.set_xlim(*time_range)
     ax_voltages.legend(loc="right")
@@ -289,18 +289,18 @@ def plot_voltages_and_g_s(experiment, grid_spec_mother, g_monitor, spike_monitor
     ax_voltages.set_ylabel("v [mV]")
     i = 0
 
-    ax_g_s.plot(g_monitor.t / ms, g_monitor[i].g_e, label=r"$g_\mathrm{Exc}$", alpha=0.5)
-    ax_g_s.plot(g_monitor.t / ms, g_monitor[i].g_i, label=r"$g_\mathrm{Inh}$", alpha=0.5)
+    ax_g_s.plot(simulation_results.g_monitor.t / ms, simulation_results.g_monitor[i].g_e, label=r"$g_\mathrm{Exc}$", alpha=0.5)
+    ax_g_s.plot(simulation_results.g_monitor.t / ms, simulation_results.g_monitor[i].g_i, label=r"$g_\mathrm{Inh}$", alpha=0.5)
 
-    ax_g_s.plot(g_monitor.t / ms, g_monitor[i].g_nmda, label=rf"$g_\mathrm{{nmda}}$[{i}]", alpha=0.5)
+    ax_g_s.plot(simulation_results.g_monitor.t / ms, simulation_results.g_monitor[i].g_nmda, label=rf"$g_\mathrm{{nmda}}$[{i}]", alpha=0.5)
     ax_g_s.legend(loc="best")
 
 
-def plot_v_line(experiment: Experiment, ax_voltages: Axes, v_monitor: StateMonitor, spike_monitor: SpikeMonitor,
-                i: int) -> None:
-    lines = ax_voltages.plot(v_monitor.t / ms, v_monitor[i].v / mV, lw=1)
+def plot_v_line(simulation_results,
+                i: int, ax_voltages: Axes) -> None:
+    lines = ax_voltages.plot(simulation_results.v_monitor.t / ms, simulation_results.v_monitor[i].v / mV, lw=1)
     color = lines[0].get_color()
-    spike_times_current_neuron = spike_monitor.all_values()['t'][i] / ms
+    spike_times_current_neuron = simulation_results.spike_monitor.all_values()['t'][i] / ms
 
     ax_voltages.vlines(x=spike_times_current_neuron, ymin=-70, ymax=-35, color=color, linestyle="-.",
                        label=f"Neuron {i} Spike Time", lw=0.8)
@@ -340,46 +340,3 @@ alpha_x_t = alpha * x_nmda: Hz
 s_drive = alpha * x_nmda * (1 - s_nmda) : Hz
 v_minus_e_gaba = v-E_gaba : volt
 '''
-
-'''
-Expectation is that all experiments share the same time windows
-'''
-def sim_and_plot_experiment_grid(experiments: list[Experiment]):
-
-    results = run_two_experiments(experiments)
-
-    t_range = experiments[0].plot_params.t_range
-    if t_range:
-        params_t_range = t_range
-
-        if isinstance(params_t_range[0], list):
-            for time_slot in params_t_range:
-                plot_results_grid(results, time_slot)
-        else:
-            plot_results_grid(results, t_range)
-
-
-def run_two_experiments(experiments):
-
-    def sim_unpickled(experiment: Experiment):
-        rate_monitor, spike_monitor, _, _, _, _ = sim(experiment)
-
-        return experiment, spike_monitor_results, np.array(
-            rate_monitor.smooth_rate(width=experiment.plot_params.smoothened_rate_width) / Hz)
-
-    return Parallel(n_jobs=2)(
-        delayed(sim_unpickled)(current_experiment) for current_experiment in experiments
-    )
-
-def plot_results_grid(results, time_range):
-    fig = plt.figure(figsize=(20, 25))
-    fig.suptitle("Working", size=25)
-
-    outer = gridspec.GridSpec(1, len(results), figure=fig, hspace=0.2,
-                              wspace=0.1)
-
-    for index, result in enumerate(results):
-        experiment, spike_results, rate_results = result
-        plot_raster_and_rates(experiment, outer[index], rate_results, spike_results, time_range)
-
-    fig.show()
