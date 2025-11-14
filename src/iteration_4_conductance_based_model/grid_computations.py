@@ -104,7 +104,6 @@ def plot_raster_and_rates_unpickled(experiment, grid_spec_mother, rate_monitor, 
     ax_spikes, ax_rates = raster_and_population.subplots(sharex="col")
     it_steps = int(experiment.sim_time / experiment.sim_clock)
     t = np.arange(0, it_steps) * experiment.sim_clock / ms
-    #ax_spikes.plot(spike_monitor[0], spike_monitor[1], "|", lw=0.1, markersize=0.1)
     ax_spikes.plot(spike_monitor[0], spike_monitor[1], "|")
     ax_spikes.set_yticks([])
 

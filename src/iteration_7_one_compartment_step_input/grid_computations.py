@@ -7,7 +7,8 @@ from mpl_toolkits.axes_grid1.mpl_axes import Axes
 
 from Plotting import plot_non_blocking
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment
-from iteration_7_one_compartment_step_input.one_compartment_with_up_down import sim, plot_raster_and_rates_unpickled
+from iteration_7_one_compartment_step_input.one_compartment_with_up_down import sim, plot_raster_and_rates_unpickled, \
+    SimulationResults
 
 '''
 Expectation is that all experiments share the same time windows
@@ -30,10 +31,12 @@ def sim_and_plot_experiment_grid(experiments: list[Experiment]):
 def run_two_experiments(experiments):
 
     def sim_unpickled(experiment: Experiment):
-        rate_monitor, spike_monitor, v_monitor, g_monitor, internal_states_monitor, currents_monitor = sim(experiment)
-        spike_monitor_results = np.vstack((spike_monitor.t / ms, spike_monitor.i))
-        return experiment, spike_monitor_results, np.array(
-            rate_monitor.smooth_rate(width=experiment.plot_params.smoothened_rate_width) / Hz)
+        simulation_results = sim(experiment)
+        simulation_results.v_monitor = None
+        simulation_results.g_monitor = None
+        simulation_results.internal_states_monitor = None
+        simulation_results.currents_monitor = None
+        return simulation_results
 
     return Parallel(n_jobs=2)(
         delayed(sim_unpickled)(current_experiment) for current_experiment in experiments
@@ -43,50 +46,15 @@ def plot_results_grid(results, time_range):
     fig = plt.figure(figsize=(20, 25))
     fig.suptitle("Working", size=25)
 
-    outer = gridspec.GridSpec(1, len(results), figure=fig, hspace=0.2,
+    outer = gridspec.GridSpec(2, len(results), figure=fig, hspace=0.2,
                               wspace=0.1)
 
     for index, result in enumerate(results):
-        experiment, spike_results, rate_results = result
-        plot_raster_and_rates_unpickled(experiment, outer[index], rate_results, spike_results, time_range)
-        plot_simulation_in_one_time_range_unpickled(experiment, outer[index], rate_results, spike_results, None, time_range)
+        plot_raster_and_rates_unpickled(result.experiment, outer[index], result, time_range)
+        plot_voltages_and_g_s(result, time_range, outer[1])
+        #plot_simulation_in_one_time_range_unpickled(result.experiment, outer[index], result, time_range)
 
     plot_non_blocking()
-
-def plot_simulation_in_one_time_range_unpickled(experiment: Experiment, rate_array: np.ndarray,
-                                      spikes_array: np.ndarray,
-                                      voltages_array: np.ndarray, g_s_array: dict, time_range):
-    if experiment.plot_params.show_raster_and_rate():
-
-        fig = plt.figure(figsize=(10, 12))
-        fig.suptitle("")
-
-        height_ratios = [1, 1]
-        outer = gridspec.GridSpec(2, 1, figure=fig, height_ratios=height_ratios)
-        plot_raster_and_rates_unpickled(experiment, outer[0], rate_array, spikes_array, time_range)
-        plot_voltages_and_g_s(experiment, outer[1], g_s_array, spikes_array, time_range, voltages_array)
-
-def plot_raster_and_rates_unpickled(experiment, grid_spec_mother, rate_monitor, spike_monitor, time_range):
-    raster_and_population = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=grid_spec_mother, height_ratios=[4, 1],
-                                                             hspace=0)
-    ax_spikes, ax_rates = raster_and_population.subplots(sharex="col")
-    it_steps = int(experiment.sim_time / experiment.sim_clock)
-    t = np.arange(0, it_steps) * experiment.sim_clock / ms
-    #ax_spikes.plot(spike_monitor[0], spike_monitor[1], "|", lw=0.1, markersize=0.1)
-    ax_spikes.plot(spike_monitor[0], spike_monitor[1], "|")
-    ax_spikes.set_yticks([])
-
-    ax_rates.plot(t, rate_monitor, lw=0.5)
-    for ax in [ax_spikes, ax_rates]:
-        ax.set_xlim(*time_range)
-    time_start = int(time_range[0] * ms / experiment.sim_clock)
-    time_end = int(time_range[1] * ms / experiment.sim_clock)
-    upper_limit = np.max(rate_monitor[time_start:time_end]) * 1.1 if len(rate_monitor) > 0 else 1
-    lims = [0, upper_limit]
-    if lims[1] > 0:
-        ax_rates.set_ylim(lims)
-
-    ax_rates.set_xlabel("time (ms)")
 
 def plot_voltages_and_g_s(experiment, grid_spec_mother, g_monitor, spike_monitor, time_range, v_monitor):
     voltage_and_g_s_examples = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=grid_spec_mother, hspace=0.8)

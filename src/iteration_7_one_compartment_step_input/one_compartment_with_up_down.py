@@ -8,6 +8,10 @@ from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States im
 plt.rcParams.update(mpl.rcParamsDefault)
 plt.rcParams['text.usetex'] = True
 
+class ExtendedDict(dict):
+    __getattr__ = dict.get
+    __setattr__ = dict.__setitem__
+
 
 class SimulationResults:
 
@@ -15,12 +19,41 @@ class SimulationResults:
                  v_monitor: StateMonitor, g_monitor: StateMonitor, internal_states_monitor: StateMonitor,
                  currents_monitor: StateMonitor):
         self.experiment = experiment
-        self.rate_monitor = rate_monitor
-        self.spike_monitor = spike_monitor
+        self.rates = self.__extract_rates__(rate_monitor)
+
+        self.spikes = self.__extract_spikes__(spike_monitor)
+
         self.v_monitor = v_monitor
         self.g_monitor = g_monitor
         self.internal_states_monitor = internal_states_monitor
         self.currents_monitor = currents_monitor
+
+    def __extract_rates__(self, rate_monitor: PopulationRateMonitor):
+        rates_to_extract = rate_monitor.smooth_rate(width=self.experiment.plot_params.smoothened_rate_width) / Hz \
+            if self.experiment.plot_params.plot_smoothened_rate \
+            else rate_monitor.rate / Hz
+        return np.vstack((rate_monitor.t / ms, rates_to_extract))
+
+    @staticmethod
+    def __extract_spikes__(spike_monitor: SpikeMonitor):
+        #return np.vstack((spike_monitor.t / ms, spike_monitor.i))
+        values = ExtendedDict({
+            "t": np.array(spike_monitor.t / ms),
+            "i": np.array(spike_monitor.i),
+            "all_values": spike_monitor.all_values(),
+        })
+
+        print(values.t)
+        print(values.i)
+        #logger.debug("t {}", values.t)
+        #logger.debug("i {}", values.i)
+        return values
+
+    def rate_monitor_t(self):
+        return self.rates[0]
+
+    def rate_monitor_rates(self):
+        return self.rates[1]
 
 
 def sim(experiment: Experiment):
@@ -32,10 +65,13 @@ def sim(experiment: Experiment):
         ax_rates -- matplotlib axes to plot rates on
         rate_tick_step -- step size for rate axis ticks
         """
-    start_scope()
     if experiment.in_testing:
         np.random.seed(0)
         brian2.devices.device.seed(0)
+        seed(0)
+        np.random.default_rng(0)
+
+    start_scope()
 
     defaultclock.dt = experiment.sim_clock
 
@@ -72,12 +108,14 @@ def sim(experiment: Experiment):
                                 method=experiment.integration_method)
     single_neuron.v[:] = -65 * mV
 
-    P_upstate_exc = PoissonGroup(experiment.network_params.up_state.N_E, rates=experiment.network_params.up_state.nu)
-    P_upstate_inh = PoissonGroup(experiment.network_params.up_state.N_I, rates=experiment.network_params.up_state.nu)
+    order = [0, 1, 2, 3, 4, 5] if experiment.in_testing else [None] * 5
+
+    P_upstate_exc = PoissonGroup(experiment.network_params.up_state.N_E, rates=experiment.network_params.up_state.nu, order=order[0])
+    P_upstate_inh = PoissonGroup(experiment.network_params.up_state.N_I, rates=experiment.network_params.up_state.nu, order=order[1])
     P_downstate_exc = PoissonGroup(experiment.network_params.down_state.N_E,
-                                   rates=experiment.network_params.down_state.nu)
+                                   rates=experiment.network_params.down_state.nu, order=order[2])
     P_downstate_inh = PoissonGroup(experiment.network_params.down_state.N_I,
-                                   rates=experiment.network_params.down_state.nu)
+                                   rates=experiment.network_params.down_state.nu, order=order[3])
 
     S_upstate_exc = Synapses(P_upstate_exc, single_neuron, model="on: 1", on_pre='g_e += on * g_ampa',
                              method=experiment.integration_method)
@@ -88,7 +126,7 @@ def sim(experiment: Experiment):
     S_downstate_inh = Synapses(P_downstate_inh, single_neuron, model="on: 1", on_pre='g_i += on * g_gaba',
                                method=experiment.integration_method)
 
-    P_nmda = PoissonGroup(N=10, rates=10 * Hz)
+    P_nmda = PoissonGroup(N=10, rates=10 * Hz, order=order[4])
     S_nmda = Synapses(P_nmda, single_neuron, on_pre="x_nmda = 1", method=experiment.integration_method)
 
     S_upstate_exc.connect(p=1)
@@ -104,7 +142,8 @@ def sim(experiment: Experiment):
 
     @network_operation(dt=100 * ms)
     def toggle_inputs(t):
-        if int(t / (0.5 * second)) % 2 == 0:
+        step = int(t / (0.5 * second))
+        if step % 2 == 0:
             S_upstate_exc.on = 1
             S_upstate_inh.on = 1
             S_downstate_exc.on = 0
@@ -132,6 +171,7 @@ def sim(experiment: Experiment):
     reporting = "text" if experiment.in_testing else None
     run(experiment.sim_time, report=reporting, report_period=1 * second)
 
+    #stop()
     return SimulationResults(experiment, rate_monitor, spike_monitor, v_monitor, g_monitor, internal_states_monitor,
                              currents_monitor)
 
@@ -152,7 +192,7 @@ def plot(simulation_results: SimulationResults):
         plot_internal_states(simulation_results, time_range=params_t_range)
 
 
-def sim_and_plot(experiment: Experiment):
+def sim_and_plot(experiment: Experiment) -> SimulationResults:
     simulation_results = sim(experiment)
     plot(simulation_results)
     return simulation_results
@@ -243,28 +283,26 @@ def plot_currents_in_one_time_range(simulation_results: SimulationResults, time_
 
 
 def plot_raster_and_rates(simulation_results: SimulationResults, time_range, grid_spec_mother):
-    spikes_array = np.vstack((simulation_results.spike_monitor.t / ms, simulation_results.spike_monitor.i))
-    rate_curve = simulation_results.rate_monitor.smooth_rate(
-        width=simulation_results.experiment.plot_params.smoothened_rate_width) / Hz if simulation_results.experiment.plot_params.plot_smoothened_rate else simulation_results.rate_monitor.rate / Hz
+    spikes_array = simulation_results.spikes
 
-    rates_array = np.vstack((simulation_results.rate_monitor.t / ms, rate_curve))
+    rates_array = np.vstack((simulation_results.rate_monitor_t(), simulation_results.rate_monitor_rates()))
 
-    plot_raster_and_rates_unpickled(simulation_results.experiment, grid_spec_mother, rates_array, spikes_array, time_range)
+    plot_raster_and_rates_unpickled(simulation_results.experiment, grid_spec_mother, simulation_results, time_range)
 
 
-def plot_raster_and_rates_unpickled(experiment, grid_spec_mother, rates_array, spikes_array, time_range):
+def plot_raster_and_rates_unpickled(experiment, grid_spec_mother, simulation_results: SimulationResults, time_range):
     raster_and_population = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=grid_spec_mother, height_ratios=[2, 1],
                                                              hspace=0)
     ax_spikes, ax_rates = raster_and_population.subplots(sharex="col")
-    ax_spikes.plot(spikes_array[0], spikes_array[1], "|")
-    ax_rates.plot(rates_array[0], rates_array[1])
+    ax_spikes.plot(simulation_results.spikes.t, simulation_results.spikes.i, "|")
+    ax_rates.plot(simulation_results.rate_monitor_t(), simulation_results.rate_monitor_rates())
     ax_spikes.set_yticks([])
 
     for ax in [ax_spikes, ax_rates]:
         ax.set_xlim(*time_range)
     time_end, time_start = determine_start_and_end_recorded_indexes(experiment, time_range)
 
-    lims = [0, np.max(rates_array[time_start:time_end]) * 1.1]
+    lims = [0, np.max(simulation_results.rate_monitor_rates()[time_start:time_end]) * 1.1]
     ax_rates.set_ylim(lims)
 
 
@@ -300,7 +338,8 @@ def plot_v_line(simulation_results,
                 i: int, ax_voltages: Axes) -> None:
     lines = ax_voltages.plot(simulation_results.v_monitor.t / ms, simulation_results.v_monitor[i].v / mV, lw=1)
     color = lines[0].get_color()
-    spike_times_current_neuron = simulation_results.spike_monitor.all_values()['t'][i] / ms
+    #spike_times_current_neuron = simulation_results.spike_monitor.all_values()['t'][i] / ms Keep This in mind
+    spike_times_current_neuron = simulation_results.spikes.all_values['t'][i] / ms
 
     ax_voltages.vlines(x=spike_times_current_neuron, ymin=-70, ymax=-35, color=color, linestyle="-.",
                        label=f"Neuron {i} Spike Time", lw=0.8)
