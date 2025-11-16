@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 from brian2 import ms, msiemens, cm, siemens
 
-from Plotting import plot_non_blocking
+from Plotting import show_plots_non_blocking
 from iteration_3_high_input_produces_oscillations.high_input_produces_bifurcation import sim, make_experiment_work_with_N_E_and_C_E_zero
 import matplotlib.pyplot as plt
 
@@ -32,7 +32,7 @@ class Understand_Syncronization_For_High_Input(unittest.TestCase):
             sim(experiment=no_feedback_synapses)
             # make sure that the network fires, when no inhibition is present
             # this is achieved by taking gamma = 0
-            plot_non_blocking()
+            show_plots_non_blocking()
             np.random.seed(0)
 
             no_feedback_plot_rate_raw = make_experiment_work_with_N_E_and_C_E_zero(no_feedback_synapses_config)
@@ -40,7 +40,7 @@ class Understand_Syncronization_For_High_Input(unittest.TestCase):
             no_feedback_plot_rate_raw.plot_params.panel = f"Iteration {index}: Testing neurons under high input, plot rate raw, sim clock = 0.05 ms"
 
             sim(experiment=no_feedback_plot_rate_raw)
-            plot_non_blocking()
+            show_plots_non_blocking()
 
             no_feedback_plot_rate_raw_increased_clock = make_experiment_work_with_N_E_and_C_E_zero(no_feedback_synapses_config)
             no_feedback_plot_rate_raw_increased_clock.sim_clock = 0.01 * ms
@@ -49,7 +49,7 @@ class Understand_Syncronization_For_High_Input(unittest.TestCase):
             sim(experiment=no_feedback_plot_rate_raw_increased_clock)
             # make sure that the network fires, when no inhibition is present
             # this is achieved by taking gamma = 0
-            plot_non_blocking()
+            show_plots_non_blocking()
 
     def test_with_different_g_l(self):
         for index, multiplication in enumerate(np.linspace(0.1, 2, num=3)):
@@ -77,7 +77,7 @@ class Understand_Syncronization_For_High_Input(unittest.TestCase):
             sim(experiment=no_feedback_synapses)
             # make sure that the network fires, when no inhibition is present
             # this is achieved by taking gamma = 0
-            plot_non_blocking()
+            show_plots_non_blocking()
 
             np.random.seed(0)
 
@@ -86,7 +86,7 @@ class Understand_Syncronization_For_High_Input(unittest.TestCase):
             no_feedback_plot_rate_raw.plot_params.panel = f"Iteration {index}: Testing neurons under high input, plot rate raw, sim clock = 0.05 ms"
 
             sim(experiment=no_feedback_plot_rate_raw)
-            plot_non_blocking()
+            show_plots_non_blocking()
 
             no_feedback_plot_rate_raw_increased_clock = make_experiment_work_with_N_E_and_C_E_zero(no_feedback_synapses_config)
             no_feedback_plot_rate_raw_increased_clock.sim_clock = 0.01 * ms
@@ -95,7 +95,7 @@ class Understand_Syncronization_For_High_Input(unittest.TestCase):
             sim(experiment=no_feedback_plot_rate_raw_increased_clock)
             # make sure that the network fires, when no inhibition is present
             # this is achieved by taking gamma = 0
-            plot_non_blocking()
+            show_plots_non_blocking()
 
 
 

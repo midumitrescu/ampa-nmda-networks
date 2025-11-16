@@ -8,7 +8,7 @@ from fontTools.unicodedata import block
 
 from BinarySeach import binary_search_for_target_value
 from Configuration import Experiment, SynapticParams, NetworkParams, PlotParams
-from Plotting import plot_non_blocking
+from Plotting import show_plots_non_blocking
 from iteration_4_conductance_based_model.conductance_based_model import sim_and_plot, sim
 from loguru import logger
 
@@ -315,7 +315,7 @@ class ModelWithOnlyAMPAAndGABATestCases(unittest.TestCase):
         experiment = Experiment(conductance_based_simulation)
 
         rate_monitor, spike_monitor, _, _, = sim_and_plot(experiment)
-        plot_non_blocking()
+        show_plots_non_blocking()
 
     #@unittest.skip("too long rn")
     # Results:

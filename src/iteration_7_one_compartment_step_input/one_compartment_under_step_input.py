@@ -4,7 +4,7 @@ from brian2 import *
 from matplotlib import gridspec
 
 from Configuration import Experiment
-from Plotting import plot_non_blocking
+from Plotting import show_plots_non_blocking
 
 plt.rcParams.update(mpl.rcParamsDefault)
 plt.rcParams['text.usetex'] = True
@@ -146,7 +146,7 @@ def plot_simulation_in_one_time_range(experiment: Experiment, rate_monitor: Popu
         plot_raster_and_rates(experiment, outer[0], rate_monitor, spike_monitor, time_range)
         plot_voltages_and_g_s(experiment, outer[1], g_monitor, spike_monitor, time_range, v_monitor)
 
-        plot_non_blocking(show=True)
+        show_plots_non_blocking(show=True)
 
 
 def plot_internal_states(experiment: Experiment, internal_states_monitor, time_range: tuple[int, int]):
@@ -195,7 +195,7 @@ def plot_internal_states(experiment: Experiment, internal_states_monitor, time_r
         fig.suptitle(f"{generate_title(experiment)} \n {neurons_to_plot}")
         fig.tight_layout()
 
-        plot_non_blocking(show)
+        show_plots_non_blocking(show)
 
 def plot_currents_in_one_time_range(experiment: Experiment, currents_monitor: StateMonitor, time_range):
     if not experiment.plot_params.show_currents_plots():
@@ -213,7 +213,7 @@ def plot_currents_in_one_time_range(experiment: Experiment, currents_monitor: St
     ax.legend(loc="right")
     fig.tight_layout()
     fig.suptitle(f"Current plot {generate_title(experiment)}")
-    plot_non_blocking()
+    show_plots_non_blocking()
 
 def plot_raster_and_rates(experiment, grid_spec_mother, rate_monitor, spike_monitor, time_range):
     raster_and_population = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=grid_spec_mother, height_ratios=[4, 1],

@@ -84,7 +84,7 @@ class State:
         self.nu = params.get(State.KEY_NU, 0) * Hz
 
     def gen_plot_title(self):
-        return f"N={self.N}, $N_E={self.N_E}$, $N_I={self.N_I}$, $\\nu={self.nu}$, $\gamma={self.gamma}$"
+        return f"$N_E={self.N_E}$, $N_I={self.N_I}$, $\\nu={self.nu}$, $\gamma={self.gamma}$"
 
 
 class NetworkParams:
@@ -244,6 +244,8 @@ class PlotParams:
         I_nmda = "I_nmda"
         I_Ext_syn = "I_ext_syn"
 
+        standard = ["I_L", "I_ampa", "I_gaba", "I_nmda"]
+
     def __init__(self, params):
         self.panel = params.get(PlotParams.KEY_PANEL, "")
         self.t_range = params.get(PlotParams.KEY_T_RANGE, [0, 100])
@@ -251,7 +253,7 @@ class PlotParams:
         self.voltage_range = params.get(PlotParams.KEY_VOLTAGE_RANGE, None)
 
         self.rate_tick_step = params.get(PlotParams.KEY_RATE_TICK_STEP, 30)
-        self.smoothened_rate_width = params.get(PlotParams.KEY_PLOT_SMOOTH_WIDTH, 0.5 * ms)
+        self.smoothened_rate_width = params.get(PlotParams.KEY_PLOT_SMOOTH_WIDTH, 0.5) * ms
         self.plot_smoothened_rate = PlotParams.KEY_PLOT_TURN_OFF_SMOOTH_RATE not in params
         self.plot_smoothened_rate = True
 
@@ -266,6 +268,9 @@ class PlotParams:
                     f"{hidden_variable} not found in known hidden variables {self.AvailableHiddenVariables}")
 
         self.recorded_currents = params.get(Experiment.KEY_CURRENTS_TO_RECORD, [])
+        if self.recorded_currents is None:
+            self.recorded_currents = []
+        self.recorded_g_s = params.get(Experiment.KEY_G_S_TO_RECORD, ["g_nmda", "g_e", "g_i"])
 
     def show_raster_and_rate(self):
         return self.plots is not None and PlotParams.AvailablePlots.RASTER_AND_RATE in self.plots
@@ -292,8 +297,9 @@ class PlotParams:
             }
         return result
 
+
     def show_currents_plots(self):
-        return self.plots is not None and PlotParams.AvailablePlots.CURRENTS in self.plots
+        return self.plots is not None and PlotParams.AvailablePlots.CURRENTS in self.plots and len(self.recorded_currents) > 0
 
 
 class NMDAParams:
@@ -322,6 +328,7 @@ class Experiment:
 
     KEY_HIDDEN_VARIABLES_TO_RECORD = "hidden_variables_to_record"
     KEY_CURRENTS_TO_RECORD = "currents_to_record"
+    KEY_G_S_TO_RECORD = "g_s_to_record"
 
     KEY_IN_TESTING = "in_testing"
 
@@ -450,4 +457,4 @@ class EffectiveTimeConstantEstimation:
         logger.debug("Is diffusion approximation valid? sigma_i / g_i0 ={} << 1? {}", sigma_i_over_g_i_0, sigma_i_over_g_i_0 < 0.01)
 
     def gen_plot_title(self):
-        return fr"$V_\mathrm{{eff, rev}}$ = {self.E_0() / mV: .2f} mV, $\sigma_v$ = {self.std_voltage() /mV : .2f} mV, Shunt Level = {self.shunt_level(): .2f}"
+        return fr"$V_\mathrm{{eff, rev}}$ = {self.E_0() / mV: .2f} mV, $\sigma_v$ = {self.std_voltage() /mV : .2f} mV, $g_{{\mathrm{{0, AMPA}}}}={self.mean_excitatory_conductance() * (cm ** 2) / uS:.2f}\,\mu\mathrm{{S}}$, $g_{{\mathrm{{0, GABA}}}}={self.mean_inhibitory_conductance() * (cm ** 2) / uS:.2f}\,\mu\mathrm{{S}}$, Shunt Level = {self.shunt_level(): .2f}"

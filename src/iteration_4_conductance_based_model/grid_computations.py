@@ -6,7 +6,7 @@ from joblib import Parallel, delayed
 from matplotlib import gridspec
 
 from Configuration import Experiment, NetworkParams, SynapticParams, PlotParams
-from Plotting import plot_non_blocking
+from Plotting import show_plots_non_blocking
 from iteration_4_conductance_based_model.conductance_based_model import sim, compute_cvs
 
 
@@ -137,7 +137,7 @@ def compare_g_s_vs_nu_ext_over_nu_thr(experiment, g_s, nu_ext_over_nu_thrs):
     produce_comparrison_plot(experiments, g_s, nu_ext_over_nu_thrs,
                              label_for_x_axis=r'$\frac{\nu_\mathrm{Ext}}{\nu_\mathrm{Thr}}$', label_for_y_axis="g", grid_title=title)
 
-    plot_non_blocking()
+    show_plots_non_blocking()
 
 def compare_g_ampa_vs_nu_ext_over_nu_thr(experiment, g_ampas, nu_ext_over_nu_thrs):
     g_ampas = np.flip(g_ampas)
@@ -154,4 +154,4 @@ def compare_g_ampa_vs_nu_ext_over_nu_thr(experiment, g_ampas, nu_ext_over_nu_thr
                              label_for_x_axis=r'$\frac{\nu_\mathrm{Ext}}{\nu_\mathrm{Thr}}$', label_for_y_axis=r"$g_\mathrm{AMPA}$",
                              grid_title=title)
 
-    plot_non_blocking()
+    show_plots_non_blocking()

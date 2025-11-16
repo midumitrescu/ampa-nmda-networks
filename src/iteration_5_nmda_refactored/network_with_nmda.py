@@ -5,7 +5,7 @@ from matplotlib import gridspec
 from loguru import logger
 
 from Configuration import Experiment
-from Plotting import plot_non_blocking
+from Plotting import show_plots_non_blocking
 from iteration_4_conductance_based_model.conductance_based_model import plot_psd_and_CVs
 
 plt.rcParams.update(mpl.rcParamsDefault)
@@ -168,7 +168,7 @@ def plot_simulation(experiment: Experiment, rate_monitor,
 
     if experiment.plot_params.show_psd_and_cv():
         plot_psd_and_CVs(experiment, rate_monitor, spike_monitor, v_monitor, g_monitor)
-        plot_non_blocking(show)
+        show_plots_non_blocking(show)
 
 
 def plot_simulation_in_one_time_range(experiment: Experiment, rate_monitor: PopulationRateMonitor,
@@ -183,7 +183,7 @@ def plot_simulation_in_one_time_range(experiment: Experiment, rate_monitor: Popu
         plot_raster_and_rates(experiment, outer[0], rate_monitor, spike_monitor, time_range)
         plot_voltages_and_g_s(experiment, outer[1], g_monitor, spike_monitor, time_range, v_monitor)
 
-        plot_non_blocking(show=show)
+        show_plots_non_blocking(show=show)
 
 
 def plot_voltages_and_g_s(experiment, grid_spec_mother, g_monitor, spike_monitor, time_range, v_monitor):
@@ -298,7 +298,7 @@ def plot_internal_states(experiment: Experiment, internal_states_monitor, time_r
         fig.suptitle(f"{experiment.gen_plot_title()} \n {neurons_to_plot}")
         fig.tight_layout()
 
-        plot_non_blocking(show)
+        show_plots_non_blocking(show)
 
 def create_connectivity_matrix(experiment: Experiment):
     if experiment.in_testing:

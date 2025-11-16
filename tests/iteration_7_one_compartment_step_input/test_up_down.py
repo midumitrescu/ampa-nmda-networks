@@ -1,14 +1,13 @@
 import unittest
 
-import numpy as np
 from brian2 import *
 
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment, PlotParams
-from iteration_7_one_compartment_step_input.grid_computations import sim_and_plot_experiment_grid
+from iteration_7_one_compartment_step_input.grid_computations import sim_and_plot_experiment_grid_with_nmda_cut_off_in_down_state, \
+    sim_and_plot_experiment_grid_up_down_state_with_persistent_nmda_input
 from iteration_7_one_compartment_step_input.one_compartment_with_up_down import \
     single_compartment_with_nmda_and_logged_variables, sim_and_plot
-
-from numpy.testing import assert_array_equal, assert_allclose
+from iteration_7_one_compartment_step_input.second_scrips import show_up_down_states_with_continuous_nmda_current
 
 plt.rcParams.update(mpl.rcParamsDefault)
 plt.rcParams['text.usetex'] = True
@@ -16,7 +15,7 @@ plt.rcParams['text.usetex'] = True
 
 class OneCompartmentUpDownStates(unittest.TestCase):
 
-    def test_up_down_state(self):
+    def test_up_down_state_can_be_simulated_and_plotted(self):
         config = {
 
             Experiment.KEY_IN_TESTING: True,
@@ -43,9 +42,10 @@ class OneCompartmentUpDownStates(unittest.TestCase):
 
             Experiment.KEY_SELECTED_MODEL: single_compartment_with_nmda_and_logged_variables,
             Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD: ["x_nmda", "v_minus_e_gaba"],
+            Experiment.KEY_CURRENTS_TO_RECORD: ["I_L", "I_ampa", "I_gaba", "I_nmda"],
 
             "t_range": [[0, 20], [0, 25]],
-            PlotParams.KEY_WHAT_PLOTS_TO_SHOW: [PlotParams.AvailablePlots.RASTER_AND_RATE]
+            PlotParams.KEY_WHAT_PLOTS_TO_SHOW: [PlotParams.AvailablePlots.RASTER_AND_RATE, PlotParams.AvailablePlots.CURRENTS, PlotParams.AvailablePlots.HIDDEN_VARIABLES]
         }
         sim_and_plot(Experiment(config))
 
@@ -82,7 +82,49 @@ class OneCompartmentUpDownStates(unittest.TestCase):
         }
         sim_and_plot(Experiment(config))
 
-    def test_two_up_down_state_with_nmda(self):
+    def test_grid_up_down_state_with_nmda(self):
+        config = {
+
+            Experiment.KEY_IN_TESTING: True,
+            Experiment.KEY_SIMULATION_METHOD: "euler",
+            "panel": "Exemplifying up and down states without NMDA input",
+
+            Experiment.KEY_SIMULATION_CLOCK: 0.5,
+
+            "g": 1,
+            "g_ampa": 2.4e-06,
+            "g_gaba": 2.4e-06,
+            "g_nmda": 0,
+
+            "up_state": {
+                "N_E": 1000,
+                "gamma": 1.2,
+                "nu": 100,
+            },
+            "down_state": {
+                "N_E": 100,
+                "gamma": 4,
+                "nu": 10,
+            },
+
+            PlotParams.KEY_PLOT_SMOOTH_WIDTH: 10,
+            Experiment.KEY_SELECTED_MODEL: single_compartment_with_nmda_and_logged_variables,
+            Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD: ["x_nmda", "v_minus_e_gaba"],
+
+            Experiment.KEY_CURRENTS_TO_RECORD: ["I_L", "I_nmda", "I_fast"],
+
+            "t_range": [[0, 3000]],
+            PlotParams.KEY_WHAT_PLOTS_TO_SHOW: [PlotParams.AvailablePlots.RASTER_AND_RATE, PlotParams.AvailablePlots.CURRENTS]
+        }
+
+        experiment_0 = Experiment(config)
+        experiment_1 = experiment_0.with_property("g_nmda", 2e-05)
+        experiment_2 = experiment_1.with_property("g_nmda", 4e-5)
+        experiment_3 = experiment_1.with_property("g_nmda", 5e-5)
+
+        sim_and_plot_experiment_grid_with_nmda_cut_off_in_down_state([experiment_0, experiment_1, experiment_2, experiment_3], title=self._testMethodName)
+
+    def test_grid_up_down_state_with_nmda_persistent(self):
         config = {
 
             Experiment.KEY_IN_TESTING: True,
@@ -103,121 +145,29 @@ class OneCompartmentUpDownStates(unittest.TestCase):
             },
             "down_state": {
                 "N_E": 100,
-                "gamma": 3,
+                "gamma": 4,
                 "nu": 10,
             },
 
+            PlotParams.KEY_PLOT_SMOOTH_WIDTH: 10,
             Experiment.KEY_SELECTED_MODEL: single_compartment_with_nmda_and_logged_variables,
             Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD: ["x_nmda", "v_minus_e_gaba"],
 
-            "t_range": [[0, 200], [0, 250]],
-            PlotParams.KEY_WHAT_PLOTS_TO_SHOW: [PlotParams.AvailablePlots.RASTER_AND_RATE]
+            Experiment.KEY_CURRENTS_TO_RECORD: ["I_L", "I_nmda", "I_fast"],
+
+            "t_range": [[0, 3000]],
+            PlotParams.KEY_WHAT_PLOTS_TO_SHOW: [PlotParams.AvailablePlots.RASTER_AND_RATE, PlotParams.AvailablePlots.CURRENTS]
         }
 
         experiment_1 = Experiment(config)
-        experiment_2 = experiment_1.with_property("g_nmda", 2e-4)
-        experiment_3 = experiment_1.with_property("g_nmda", 2e-3)
+        experiment_2 = experiment_1.with_property("g_nmda", 4e-5)
+        experiment_3 = experiment_1.with_property("g_nmda", 5e-5)
 
-        sim_and_plot_experiment_grid([experiment_1, experiment_2, experiment_3])
+        sim_and_plot_experiment_grid_up_down_state_with_persistent_nmda_input([experiment_1, experiment_2, experiment_3], title=self._testMethodName)
 
-    def test_rate_is_correctly_extracted(self):
-        config = {
+    def test_script_2(self):
+        show_up_down_states_with_continuous_nmda_current()
 
-            Experiment.KEY_IN_TESTING: True,
-            Experiment.KEY_SIMULATION_METHOD: "euler",
-            "panel": "Exemplifying up and down states without NMDA input",
-
-            Experiment.KEY_SIMULATION_CLOCK: 0.5,
-
-            "g": 1,
-            "g_ampa": 2.4e-06,
-            "g_gaba": 2.4e-06,
-            "g_nmda": 2e-05,
-
-            "up_state": {
-                "N_E": 1000,
-                "gamma": 1.2,
-                "nu": 100,
-            },
-            "down_state": {
-                "N_E": 100,
-                "gamma": 3,
-                "nu": 10,
-            },
-
-            Experiment.KEY_SELECTED_MODEL: single_compartment_with_nmda_and_logged_variables,
-            Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD: ["x_nmda", "v_minus_e_gaba"],
-
-            "t_range": [[0, 2000]],
-            PlotParams.KEY_WHAT_PLOTS_TO_SHOW: [PlotParams.AvailablePlots.RASTER_AND_RATE]
-        }
-        results = sim_and_plot(Experiment(config))
-
-        print(len(results.rate_monitor_rates()))
-        print(mean(results.rate_monitor_rates()))
-        print(sum(results.rate_monitor_rates()))
-
-        self.assertEqual(4000, len(results.rate_monitor_t()))
-        self.assertAlmostEqual(3999.0, sum(results.rate_monitor_t() * ms / second))
-        self.assertAlmostEqual(0.99975, mean(results.rate_monitor_t() * ms / second))
-
-        self.assertEqual(4000, len(results.rate_monitor_rates()))
-        self.assertAlmostEqual(3999.9999999999995, sum(results.rate_monitor_rates()))
-        self.assertAlmostEqual(0.999999999999, mean(results.rate_monitor_rates()))
-
-        assert_allclose([108.9773691, 488.40268401, 805.23989379, 488.40268401,
-                         108.9773691, 0., 0., 0.,
-                         0., 0.], results.rate_monitor_rates()[570:580])
-        assert_allclose([0., 0., 0., 0.,
-                         108.9773691, 488.40268401, 805.23989379, 488.40268401,
-                         108.9773691, 0.], results.rate_monitor_rates()[2215:2225])
-
-    def test_spikes_are_correctly_extracted(self):
-        config = {
-
-            Experiment.KEY_IN_TESTING: True,
-            Experiment.KEY_SIMULATION_METHOD: "euler",
-            "panel": "Exemplifying up and down states without NMDA input",
-
-            Experiment.KEY_SIMULATION_CLOCK: 0.5,
-
-            "g": 1,
-            "g_ampa": 2.4e-06,
-            "g_gaba": 2.4e-06,
-            "g_nmda": 2e-05,
-
-            "up_state": {
-                "N_E": 1000,
-                "gamma": 1.1,
-                "nu": 100,
-            },
-            "down_state": {
-                "N_E": 100,
-                "gamma": 3,
-                "nu": 10,
-            },
-
-            Experiment.KEY_SELECTED_MODEL: single_compartment_with_nmda_and_logged_variables,
-            Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD: ["x_nmda", "v_minus_e_gaba"],
-
-            "t_range": [[0, 2000]],
-            PlotParams.KEY_WHAT_PLOTS_TO_SHOW: [PlotParams.AvailablePlots.RASTER_AND_RATE]
-        }
-        results = sim_and_plot(Experiment(config))
-
-
-        self.assertEqual(19, len(results.spikes.t))
-        self.assertEqual(19, len(results.spikes.i))
-
-        assert_allclose([16. ,   49. ,   72.5,  113.5,  124.5,  156. ,  261. ,  301. ,
-        336.5,  446. ,  450.5, 1059. , 1067. , 1176.5, 1201. , 1212. ,
-       1282.5, 1307.5, 1437. ], results.spikes.t)
-
-        self.assertEqual(1, len(results.spikes.all_values.items()))
-        self.assertEqual(["t"], list(results.spikes.all_values.keys()))
-        assert_allclose([16. ,   49. ,   72.5,  113.5,  124.5,  156. ,  261. ,  301. ,
-        336.5,  446. ,  450.5, 1059. , 1067. , 1176.5, 1201. , 1212. ,
-       1282.5, 1307.5, 1437. ], results.spikes.all_values["t"][0] / ms)
 
 
 if __name__ == '__main__':
