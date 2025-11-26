@@ -11,16 +11,16 @@ from iteration_7_one_compartment_step_input.one_compartment_with_up_down import 
     simulate_with_up_and_down_state_and_nmda, \
     plot_voltages_and_g_s, SimulationResults, plot_simulation, plot_raster_and_rates, plot_currents
 
-
-def sim_and_plot_experiment_grid_with_increasing_nmda_input(experiment: Experiment, title, nmda_schedule: list[float]):
-    experiments = [experiment.with_property("g_nmda", nmda_strength) for nmda_strength in nmda_schedule]
-
-    title = fr"""{title}
+def grid_title(panel_title: str, experiment: Experiment) -> str:
+    return fr"""{panel_title}
     Up State: [{experiment.network_params.up_state.gen_plot_title()}, {experiment.effective_time_constant_up_state.gen_plot_title()}]
     Down State: [{experiment.network_params.down_state.gen_plot_title()}, {experiment.effective_time_constant_down_state.gen_plot_title()}]    
     Neuron: [$C={experiment.neuron_params.C * cm ** 2}$, $g_L={experiment.neuron_params.g_L * cm ** 2}$, $\theta={experiment.neuron_params.theta}$, $V_R={experiment.neuron_params.V_r}$, $E_L={experiment.neuron_params.E_leak}$, $\tau_M={experiment.neuron_params.tau}$, $\tau_{{\mathrm{{ref}}}}={experiment.neuron_params.tau_rp}$]
     Synapse: [$g_{{\mathrm{{AMPA}}}}={experiment.synaptic_params.g_ampa * (cm ** 2) / uS:.2f}\,\mu\mathrm{{S}}$, $g_{{\mathrm{{GABA}}}}={experiment.synaptic_params.g_gaba * (cm ** 2) / uS:.2f}\,\mu\mathrm{{S}}$, $g={experiment.network_params.g}$, $g_{{\mathrm{{NMDA}}}}= \mathrm{{ increasing }}$]"""
 
+def sim_and_plot_experiment_grid_with_increasing_nmda_input(experiment: Experiment, title, nmda_schedule: list[float]):
+    experiments = [experiment.with_property("g_nmda", nmda_strength) for nmda_strength in nmda_schedule]
+    title = grid_title(panel_title=title, experiment=experiment)
     return sim_and_plot_experiment_grid_with_lambda(experiments, title, run_simulate_with_cut_off_nmda_in_down_state)
 
 

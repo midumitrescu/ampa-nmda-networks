@@ -332,6 +332,8 @@ class Experiment:
 
     KEY_SELECTED_MODEL = "model"
 
+    KEY_STEADY_MODEL = "steady_model"
+
     KEY_HIDDEN_VARIABLES_TO_RECORD = "hidden_variables_to_record"
     KEY_CURRENTS_TO_RECORD = "currents_to_record"
     KEY_G_S_TO_RECORD = "g_s_to_record"
@@ -363,6 +365,7 @@ class Experiment:
         self.nmda_params = NMDAParams(params)
 
         self.model = params.get(Experiment.KEY_SELECTED_MODEL)
+        self.steady_state_model = params.get(Experiment.KEY_SELECTED_MODEL, None)
 
         self.recorded_hidden_variables = self.plot_params.recorded_hidden_variables
 
