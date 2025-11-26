@@ -2,7 +2,7 @@ import copy
 import enum
 
 import numpy as np
-from brian2 import ufarad, cm, siemens, mV, ms, uS
+from brian2 import ufarad, cm, siemens, mV, ms, uS, uamp
 from loguru import logger
 
 
@@ -157,54 +157,66 @@ class PlotParams:
     hidden_variable_plot_details = {
         AvailableHiddenVariables.sigmoid_v.value: {
             "title": "Sigmoid",
-            "y_label": "activation \n [unitless]"
+            "y_label": "activation \n [unitless]",
+            "unit": siemens / cm**2
         },
         AvailableHiddenVariables.x_nmda.value: {
             "title": "X variable (NMDA upstroke)",
-            "y_label": r"$x_\mathrm{NMDA}$"
+            "y_label": r"$x_\mathrm{NMDA}$",
+            "unit": siemens / cm**2
         },
         AvailableHiddenVariables.g_nmda.value: {
             "title": "Total NMDA conductance",
-            "y_label": r'$g_\mathrm{NMDA}$''\n'r'[$\frac{{nS}}{{\mathrm{{cm}}^2}}]$'
+            "y_label": r'$g_\mathrm{NMDA}$''\n'r'[$\frac{{nS}}{{\mathrm{{cm}}^2}}]$',
+            "unit": siemens / cm**2
         },
         AvailableHiddenVariables.I_nmda.value: {
             "title": "NMDA current",
-            "y_label": r"$I_\mathrm{NMDA}$"
+            "y_label": r"$I_\mathrm{NMDA}$",
+            "unit": uamp / cm**2
         },
         AvailableHiddenVariables.one_minus_s_nmda.value: {
             "title": "how much free g_nmda exists? (1 - s) variable",
-            "y_label": "% unsaturated NMDA [unitless]"
+            "y_label": "% unsaturated NMDA [unitless]",
+            "unit": 1
         },
 
         AvailableHiddenVariables.s_nmda.value: {
             "title": "S NMDA variable",
-            "y_label": r'$s_\mathrm{NMDA}$ \\n [unitless]'
+            "y_label": r'$s_\mathrm{NMDA}$ \\n [unitless]',
+            "unit": 1
+
         },
 
         AvailableHiddenVariables.s_drive.value: {
             "title": r'Driving force of $s_\mathrm{NMDA}$ is $\alpha \cdot x_\mathrm{NMDA} \cdot (1-s_\mathrm{NMDA})$',
-            "y_label": r"$[s^{-1}]$"
+            "y_label": r"$[s^{-1}]$",
+            "unit": 1
         },
 
         AvailableHiddenVariables.alpha_x_t.value: {
             "title": r'$\alpha \cdot x_\mathrm{NMDA}$',
-            "y_label": r"$[s^{-1}]$"
+            "y_label": r"$[s^{-1}]$",
+            "unit": 1
         },
 
         AvailableHiddenVariables.g_nmda_max.value: {
             "title": r'G NMDA max',
-            "y_label": r"$[\frac{\mathrm{siemens}}{m^2}]$"
+            "y_label": r"$[\frac{\mathrm{siemens}}{m^2}]$",
+            "unit": 1
         },
 
         AvailableHiddenVariables.bla_bla_bar.value: {
             "title": r'Bla bla',
-            "y_label": r"$[\frac{\mathrm{siemens}}{m^2}]$"
+            "y_label": r"$[\frac{\mathrm{siemens}}{m^2}]$",
+            "unit": 1
         },
 
         AvailableHiddenVariables.v_minus_e_gaba.value: {
             "title": r'$v-E_\mathrm{GABA}$',
             "y_label": r"$[mV]$",
-            "scaling": mV
+            "scaling": mV,
+            "unit": 1
         }
     }
 
@@ -259,7 +271,8 @@ class PlotParams:
                 "y_label": PlotParams.hidden_variable_plot_details[hidden_variable]["y_label"],
                 "scaling": PlotParams.hidden_variable_plot_details[hidden_variable]["scaling"] if "scaling" in
                                                                                                   PlotParams.hidden_variable_plot_details[
-                                                                                                      hidden_variable] else 1
+                                                                                                      hidden_variable] else 1,
+                "unit": PlotParams.hidden_variable_plot_details[hidden_variable]["unit"]
             }
         return result
 
@@ -324,7 +337,7 @@ class Experiment:
 
         self.recorded_hidden_variables = self.plot_params.recorded_hidden_variables
 
-        self.in_testing = params.get(Experiment.KEY_IN_TESTING, False)
+        self.in_testing = params.get(Experiment.KEY_IN_TESTING, True)
 
         self.effective_timeconstant_estimation = EffectiveTimeConstantEstimation(self)
 
@@ -347,9 +360,9 @@ class Experiment:
     def gen_plot_title(self):
         return fr"""{self.plot_params.panel}
     Network: [N={self.network_params.N}, $N_E={self.network_params.N_E}$, $N_I={self.network_params.N_I}$, $\gamma={self.network_params.gamma}$, $\epsilon={self.network_params.epsilon}$]
-    Input: [$\nu_T={self.nu_thr}$, $\frac{{\nu_E}}{{\nu_T}}={self.nu_ext_over_nu_thr:.2f}$, $\nu_E={self.nu_ext:.2f}$ Hz]
+    Input: [$\nu_T={self.nu_thr}$, $\frac{{\nu_E}}{{\nu_T}}={self.nu_ext_over_nu_thr:.4f}$, $\nu_E={self.nu_ext:.4f}$ Hz]
     Neuron: [$C={self.neuron_params.C * cm ** 2}$, $g_L={self.neuron_params.g_L * cm ** 2}$, $\theta={self.neuron_params.theta}$, $V_R={self.neuron_params.V_r}$, $E_L={self.neuron_params.E_leak}$, $\tau_M={self.neuron_params.tau}$, $\tau_{{\mathrm{{ref}}}}={self.neuron_params.tau_rp}$]
-    Synapse: [$g_{{\mathrm{{AMPA}}}}={self.synaptic_params.g_ampa * (cm ** 2) / uS:.2f}\,\mu\mathrm{{S}}$, $g_{{\mathrm{{GABA}}}}={self.synaptic_params.g_gaba * (cm ** 2) / uS:.2f}\,\mu\mathrm{{S}}$, $g={self.network_params.g}$]"""
+    Synapse: [$g_{{\mathrm{{AMPA}}}}={self.synaptic_params.g_ampa * (cm ** 2) / uS:.2f}\,\mu\mathrm{{S}}$, $g_{{\mathrm{{GABA}}}}={self.synaptic_params.g_gaba * (cm ** 2) / uS:.2f}\,\mu\mathrm{{S}}$, $g={self.network_params.g}$, $g_{{\mathrm{{NMDA}}}}={self.synaptic_params.g_nmda * (cm ** 2) / uS:.2f}\,\mu\mathrm{{S}}$]"""
 
 
 # Richardson Synaptic Shot Noise and Conductance Fluctuations Affect the Membrane Voltage with Equal Significance, 2005

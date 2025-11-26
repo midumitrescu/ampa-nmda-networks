@@ -59,8 +59,11 @@ class State:
     KEY_N = "N"
     KEY_N_E = "N_E"
     KEY_N_I = "N_I"
+    KEY_N_NMDA = "N_nmda"
 
     KEY_NU = "nu"
+
+    KEY_NU_NMDA = "nu_nmda"
 
     KEY_GAMMA = "gamma"
 
@@ -81,10 +84,13 @@ class State:
             self.N_I = round(self.gamma * self.N_E)
             self.N = self.N_E + self.N_I
 
+        self.N_NMDA = params.get(State.KEY_N_NMDA, 0)
+
         self.nu = params.get(State.KEY_NU, 0) * Hz
+        self.nu_nmda = params.get(State.KEY_NU_NMDA, 0) * Hz
 
     def gen_plot_title(self):
-        return f"$N_E={self.N_E}$, $N_I={self.N_I}$, $\\nu={self.nu}$, $\gamma={self.gamma}$"
+        return fr"$N_E={self.N_E}$, $N_I={self.N_I}$, $N_\mathrm{{NMDA}}={self.N_NMDA}$,  $\nu={self.nu}$, $\nu_\mathrm{{NMDA}}={self.nu_nmda}$, $\gamma={self.gamma}$"
 
 
 class NetworkParams:

@@ -30,14 +30,27 @@ def check_hidden_variables_are_present_in_model(model_to_run: str, experiment: E
     if len(not_present) > 0:
         raise ValueError(f"The following hidden variables are not present in the model: {not_present}")
 
-def sim_and_plot(experiment: Experiment, in_testing=True):
+def sim_and_plot(experiment: Experiment, in_testing=True) -> tuple[PopulationRateMonitor, SpikeMonitor, StateMonitor, StateMonitor, StateMonitor]:
     rate_monitor, spike_monitor, v_monitor, g_monitor, internal_states_monitor = sim(experiment, in_testing)
     plot_simulation(experiment, rate_monitor,
                     spike_monitor, v_monitor, g_monitor, internal_states_monitor)
 
     return rate_monitor, spike_monitor, v_monitor, g_monitor
 
+def sim_with_full_nmda_connections_and_plot(experiment: Experiment, in_testing=True) -> tuple[PopulationRateMonitor, SpikeMonitor, StateMonitor, StateMonitor, StateMonitor]:
+    rate_monitor, spike_monitor, v_monitor, g_monitor, internal_states_monitor = sim_with_nmda_also_to_inh(experiment, in_testing)
+    plot_simulation(experiment, rate_monitor,
+                    spike_monitor, v_monitor, g_monitor, internal_states_monitor)
+
+    return rate_monitor, spike_monitor, v_monitor, g_monitor
+
+def sim_with_nmda_also_to_inh(experiment: Experiment, in_testing=True):
+    return __sim__(experiment, in_testing, connect_nmda_to_inhibitory=True)
+
 def sim(experiment: Experiment, in_testing=True):
+    return __sim__(experiment, in_testing, connect_nmda_to_inhibitory=False)
+
+def __sim__(experiment: Experiment, in_testing=True, connect_nmda_to_inhibitory = False):
     """
     g --
     nu_ext_over_nu_thr -- ratio of external stimulus rate to threshold rate
@@ -52,7 +65,6 @@ def sim(experiment: Experiment, in_testing=True):
         brian2.devices.device.seed(0)
 
     defaultclock.dt = experiment.sim_clock
-
     C = experiment.neuron_params.C
 
     theta = experiment.neuron_params.theta
@@ -102,21 +114,19 @@ def sim(experiment: Experiment, in_testing=True):
     inhib_synapses.connect(i=inh_from, j=inh_to)
 
     # nmda_synapses = Synapses(excitatory_neurons, excitatory_neurons, on_pre='x += w', method="euler")
-    nmda_synapses = Synapses(neurons, neurons, on_pre="x_nmda = 1", method="euler", delay=experiment.synaptic_params.D)
-    #TODO: pay attention here. Not only exc to exc. Also inh have NMDAs
-    nmda_synapses.connect(i=exc_from, j=exc_to)
+    nmda_synapses = Synapses(neurons, neurons, on_pre="x_nmda += 1", method="euler", delay=experiment.synaptic_params.D)
+
+    nmda_from = exc_from
+    nmda_to = exc_to
+    if connect_nmda_to_inhibitory:
+        nmda_from = np.append(nmda_from, inh_from)
+        nmda_to = np.append(nmda_to, inh_to)
+    nmda_synapses.connect(i=nmda_from, j=nmda_to)
 
     external_poisson_input = PoissonInput(
         target=excitatory_neurons, target_var="g_e_syn", N=experiment.network_params.C_ext, rate=experiment.nu_ext,
         weight=experiment.synaptic_params.g_ampa
     )
-
-    '''
-    external_poisson_input = PoissonInput(
-        target=neurons, target_var="g_e_syn", N=experiment.network_params.C_ext, rate=experiment.nu_ext,
-        weight=experiment.synaptic_params.g_ampa
-    )
-    '''
     rate_monitor = PopulationRateMonitor(neurons)
     spike_monitor = SpikeMonitor(neurons)
     v_monitor = StateMonitor(source=neurons[
@@ -141,7 +151,7 @@ def plot_v_line(experiment: Experiment, ax_voltages: Axes, v_monitor: StateMonit
                 i: int) -> None:
     lines = ax_voltages.plot(v_monitor.t / ms, v_monitor[i].v / mV,
                              label=f"Neuron {i} - {'Exc' if i <= experiment.network_params.neurons_to_record else 'Inh'}",
-                             lw=1)
+                             lw=1, alpha=0.3)
     color = lines[0].get_color()
     spike_times_current_neuron = spike_monitor.all_values()['t'][i] / ms
 
@@ -205,10 +215,10 @@ def plot_voltages_and_g_s(experiment, grid_spec_mother, g_monitor, spike_monitor
     ax_voltages.set_xlabel("t [ms]")
     ax_voltages.set_ylabel("v [mV]")
     i = 0
-    ax_g_s.plot(g_monitor.t / ms, g_monitor[i].g_e_syn, label=rf"$g_\mathrm{{ext}}$[{i}]", alpha=0.5)
-    ax_g_s.plot(g_monitor.t / ms, g_monitor[i].g_e, label=rf"$g_I$[{i}]", alpha=0.5)
-    ax_g_s.plot(g_monitor.t / ms, g_monitor[i].g_i, label=rf"$g_E$[{i}]", alpha=0.5)
-    ax_g_s.plot(g_monitor.t / ms, g_monitor[i].g_nmda, label=rf"$g_\mathrm{{nmda}}$[{i}]", alpha=0.5)
+    ax_g_s.plot(g_monitor.t / ms, g_monitor[i].g_e_syn, label=rf"$g_\mathrm{{ext}}$[{i}]", alpha=0.3)
+    ax_g_s.plot(g_monitor.t / ms, g_monitor[i].g_e, label=rf"$g_I$[{i}]", alpha=0.3)
+    ax_g_s.plot(g_monitor.t / ms, g_monitor[i].g_i, label=rf"$g_E$[{i}]", alpha=0.3)
+    ax_g_s.plot(g_monitor.t / ms, g_monitor[i].g_nmda, label=rf"$g_\mathrm{{nmda}}$[{i}]", alpha=0.3)
     ax_g_s.legend(loc="best")
 
 
@@ -256,7 +266,8 @@ def plot_internal_states(experiment: Experiment, internal_states_monitor, time_r
 
             for hidden_var_name, hidden_var_plot_details in experiment.plot_params.create_hidden_variables_plots_grid().items():
                 index = hidden_var_plot_details['index']
-                ax[index].plot(internal_states_monitor.t / ms, internal_states_monitor[neuron_i].__getattr__(hidden_var_name), label=f"Neuron {neuron_i} - {label}")
+                ax[index].plot(internal_states_monitor.t / ms,
+                               internal_states_monitor[neuron_i].__getattr__(hidden_var_name), label=f"Neuron {neuron_i} - {label}", alpha=0.3)
 
         for hidden_var_name, hidden_var_plot_details in experiment.plot_params.create_hidden_variables_plots_grid().items():
             index = hidden_var_plot_details['index']

@@ -5,7 +5,7 @@ from numpy.testing import assert_allclose
 
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment, PlotParams
 from iteration_7_one_compartment_step_input.one_compartment_with_up_down import \
-    single_compartment_with_nmda_and_logged_variables, sim_and_plot, simulate_with_nmda_cut_off_in_down_state
+    single_compartment_with_nmda_and_logged_variables, sim_and_plot, simulate_with_up_and_down_state_and_nmda
 
 from loguru import logger
 
@@ -50,13 +50,13 @@ experiment = Experiment(config)
 class SimulationResultsPickled(unittest.TestCase):
 
     def test_experiment_without_currrents_extracts_variables_correctly(self):
-        simulate_with_nmda_cut_off_in_down_state(experiment.with_property("panel", self._testMethodName).with_property(Experiment.KEY_CURRENTS_TO_RECORD,
+        simulate_with_up_and_down_state_and_nmda(experiment.with_property("panel", self._testMethodName).with_property(Experiment.KEY_CURRENTS_TO_RECORD,
                                                                                                                        []))
-        simulate_with_nmda_cut_off_in_down_state(experiment.with_property("panel", self._testMethodName).with_property(Experiment.KEY_CURRENTS_TO_RECORD,
+        simulate_with_up_and_down_state_and_nmda(experiment.with_property("panel", self._testMethodName).with_property(Experiment.KEY_CURRENTS_TO_RECORD,
                                                                                                                        None))
 
     def test_rate_is_correctly_extracted(self):
-        results = simulate_with_nmda_cut_off_in_down_state(experiment.with_property("panel", self._testMethodName))
+        results = simulate_with_up_and_down_state_and_nmda(experiment.with_property("panel", self._testMethodName))
 
         self.assertEqual(4000, len(results.rate_monitor_t()))
         self.assertAlmostEqual(3999.0, sum(results.rate_monitor_t() * ms / second))
@@ -77,7 +77,7 @@ class SimulationResultsPickled(unittest.TestCase):
 
     def test_spikes_are_correctly_extracted(self):
         for i in range(2):
-            results = simulate_with_nmda_cut_off_in_down_state(experiment.with_property("panel", self._testMethodName))
+            results = simulate_with_up_and_down_state_and_nmda(experiment.with_property("panel", self._testMethodName))
 
             self.assertEqual(35, len(results.spikes.t))
             self.assertEqual(35, len(results.spikes.i))
@@ -95,7 +95,7 @@ class SimulationResultsPickled(unittest.TestCase):
                              1355.5, 1400.5, 1460., 1474., 1488.5], results.spikes.all_values["t"][0] / ms)
 
     def test_voltage_is_properly_extracted(self):
-        results = simulate_with_nmda_cut_off_in_down_state(experiment.with_property("panel", self._testMethodName))
+        results = simulate_with_up_and_down_state_and_nmda(experiment.with_property("panel", self._testMethodName))
 
         self.assertEqual(4000, len(results.voltages.t))
         self.assertAlmostEqual(mean(results.voltages.v[0]), -48.96536203021542)
@@ -104,7 +104,7 @@ class SimulationResultsPickled(unittest.TestCase):
                          - 42.210128, -42.771936, -43.027321, -42.3377, -41.240019])
 
     def test_g_values_are_correctly_extracted(self):
-        results = simulate_with_nmda_cut_off_in_down_state(Experiment(config))
+        results = simulate_with_up_and_down_state_and_nmda(Experiment(config))
 
         self.assertEqual(4000, len(results.g_s.t))
         self.assertEqual((1, 4000), results.g_s.g_e.shape)
