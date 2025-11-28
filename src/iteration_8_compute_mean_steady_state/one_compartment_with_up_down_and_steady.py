@@ -3,10 +3,13 @@ from brian2 import *
 from matplotlib import gridspec
 
 from Plotting import show_plots_non_blocking
-from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment
-from iteration_7_one_compartment_step_input.one_compartment_with_up_down import simulate_with_up_and_down_state_and_nmda
+from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment, State
+from iteration_7_one_compartment_step_input.one_compartment_with_up_down import \
+    simulate_with_up_and_down_state_and_nmda, simulate_with_down_and_up_state_and_nmda
 from iteration_7_one_compartment_step_input.one_compartment_with_up_down import SimulationResults as SimulationResultsOld
 from utils import ExtendedDict
+
+from loguru import logger
 
 plt.rcParams.update(mpl.rcParamsDefault)
 plt.rcParams['text.usetex'] = True
@@ -18,13 +21,16 @@ class SteadyStateResults:
         self.g_e_steady = steady_state_results[0].g_e[-1] / siemens * cm**2
         self.g_i_steady = steady_state_results[0].g_i[-1] / siemens * cm**2
         self.g_nmda_steady = steady_state_results[0].g_nmda[-1] / siemens * cm**2
-        self.g_nmda_steady = steady_state_results[0].g_nmda[-1] / siemens * cm**2
         self.x_nmda_steady = steady_state_results[0].x_nmda[-1]
         self.s_nmda_steady = steady_state_results[0].s_nmda[-1]
 
+    def __str__(self):
+        return (f"V = [{self.v_steady:.6f}], g_e = [{self.g_e_steady:.6f}], g_i = [{self.g_i_steady:.6f}], g_nmda = [{self.g_nmda_steady:.6f}], "
+                f"x = [{self.x_nmda_steady:.6f}], s = [{self.s_nmda_steady:.6f}] ")
+
 class SimulationResults(SimulationResultsOld):
 
-    def __init__(self, simulation_results_old: SimulationResultsOld, steady_state_results: SteadyStateResults):
+    def __init__(self, simulation_results_old: SimulationResultsOld, steady_up_state_results: SteadyStateResults, steady_down_state_results: SteadyStateResults):
         self.experiment = simulation_results_old.experiment
         self.rates = simulation_results_old.rates
         self.spikes = simulation_results_old.spikes
@@ -33,21 +39,36 @@ class SimulationResults(SimulationResultsOld):
         self.currents = simulation_results_old.currents
         self.internal_states_monitor = simulation_results_old.internal_states_monitor
 
-        self.steady_results = steady_state_results
+        self.steady_up_results = steady_up_state_results
+        self.steady_down_results = steady_down_state_results
 
-def sim_and_plot(experiment: Experiment) -> SimulationResults:
+def sim_and_plot_up_down(experiment: Experiment) -> SimulationResults:
     simulation_results = simulate_with_up_and_down_state_and_nmda_and_steady_state(experiment)
     plot_simulation(simulation_results)
     return simulation_results
 
+def sim_and_plot_down_up(experiment: Experiment) -> SimulationResults:
+    simulation_results = simulate_with_down_and_up_state_and_nmda_and_steady_state(experiment)
+    plot_simulation(simulation_results)
+    return simulation_results
+
+def simulate_with_down_and_up_state_and_nmda_and_steady_state(experiment: Experiment):
+    logger.debug("Simulating steady state for {}", experiment)
+    steady_up_state_results = sim_steady_state(experiment, state=experiment.network_params.up_state)
+    steady_down_state_results = sim_steady_state(experiment, state=experiment.network_params.down_state)
+    logger.debug("Steady state simulation for {} done! Results are Up State = {}, Down State = {}", experiment, steady_up_state_results, steady_down_state_results)
+    simulation_results = simulate_with_down_and_up_state_and_nmda(experiment)
+    return SimulationResults(simulation_results, steady_up_state_results, steady_down_state_results)
+
 def simulate_with_up_and_down_state_and_nmda_and_steady_state(experiment: Experiment):
     logger.debug("Simulating steady state for {}", experiment)
-    steady_state_results = sim_steady_state(experiment)
-    logger.debug("Steady state simulation for {} done!", experiment)
+    steady_up_state_results = sim_steady_state(experiment, state=experiment.network_params.up_state)
+    steady_down_state_results = sim_steady_state(experiment, state=experiment.network_params.down_state)
+    logger.debug("Steady state simulation for {} done! Results are Up State = {}, Down State = {}", experiment, steady_up_state_results, steady_down_state_results)
     simulation_results = simulate_with_up_and_down_state_and_nmda(experiment)
-    return SimulationResults(simulation_results, steady_state_results)
+    return SimulationResults(simulation_results, steady_up_state_results, steady_down_state_results)
 
-def sim_steady_state(experiment: Experiment) -> SteadyStateResults:
+def sim_steady_state(experiment: Experiment, state: State) -> SteadyStateResults:
 
     start_scope()
 
@@ -72,25 +93,30 @@ def sim_steady_state(experiment: Experiment) -> SteadyStateResults:
 
     tau_ampa = experiment.synaptic_params.tau_ampa
     tau_gaba = experiment.synaptic_params.tau_gaba
-    tau_nmda_decay = 100 * ms
-    tau_nmda_rise = 2 * ms
+    tau_nmda_rise = experiment.synaptic_params.tau_nmda_rise
+    tau_nmda_decay = experiment.synaptic_params.tau_nmda_decay
 
     alpha = 0.5 * kHz  # saturation of NMDA channels at high presynaptic firing rates
+
+    r_e = state.nu
+    r_i = state.nu
+    N_E = state.N_E
+    N_I = state.N_I
+    N_N = state.N_NMDA
+    r_nmda = state.nu_nmda
 
     neuron = NeuronGroup(1,
                           model=experiment.steady_state_model,
                           method="euler")
-
+    neuron.v[:] = experiment.neuron_params.E_leak
     v_monitor = StateMonitor(source=neuron,
                              variables=["v", "g_e", "g_i", "g_nmda", "x_nmda", "s_nmda"], record=True, dt=0.01 * ms)
 
     steady_state_network = Network([neuron, v_monitor])
 
     run(100 * ms, report="text", report_period=1 * second)
-
     result = SteadyStateResults(v_monitor)
     stop()
-
     return result
 
 def plot_simulation(simulation_results: SimulationResults):
@@ -146,6 +172,14 @@ def plot_currents(simulation_results: SimulationResults, time_range: tuple[int, 
     time_end, time_start = determine_start_and_end_recorded_indexes(simulation_results.experiment, time_range)
 
     ax_voltage.plot(simulation_results.voltages.t[time_start:time_end], simulation_results.voltages.v[0][time_start:time_end])
+    ax_voltage.axhline(y=simulation_results.steady_up_results.v_steady, linestyle="--", linewidth=1.5,
+                       label="Mean V - UP State")
+
+    ax_voltage.axhline(y=simulation_results.steady_down_results.v_steady, linestyle="--", linewidth=1.5,
+                       label="Mean V - Down State")
+
+    ax_voltage.legend()
+
 
     for current_to_plot in simulation_results.experiment.plot_params.recorded_currents:
         current_curve = simulation_results.currents[current_to_plot][0]
@@ -212,15 +246,25 @@ def plot_voltages_and_g_s(simulation_results: SimulationResults, time_range, gri
     g_i_lines = ax_g_s.plot(simulation_results.g_s.t, simulation_results.g_s.g_i[i], label=r"$g_\mathrm{Inh}$", alpha=0.5)
     g_nmda_lines = ax_g_s.plot(simulation_results.g_s.t / ms, simulation_results.g_s.g_nmda[i], label=rf"$g_\mathrm{{nmda}}$[{i}]", alpha=0.5)
 
-    ax_g_s.axhline(y=simulation_results.steady_results.g_e_steady, linestyle="dotted", linewidth="0.4",
+    ax_g_s.axhline(y=simulation_results.steady_up_results.g_e_steady, linestyle="--", linewidth=2,
                         color=g_e_lines[0].get_color(),
-                        label="$g_e$ steady")
-    ax_g_s.axhline(y=simulation_results.steady_results.g_i_steady, linestyle="dotted", linewidth="0.4",
+                        label="UP $g_e$ steady", alpha=0.6)
+    ax_g_s.axhline(y=simulation_results.steady_up_results.g_i_steady, linestyle="--", linewidth=2,
                    color=g_i_lines[0].get_color(),
-                   label="$g_i$ steady")
-    ax_g_s.axhline(y=simulation_results.steady_results.g_nmda_steady, linestyle="dotted", linewidth="0.4",
+                   label="UP $g_i$ steady", alpha=0.6)
+    ax_g_s.axhline(y=simulation_results.steady_up_results.g_nmda_steady, linestyle="--", linewidth=2,
                         color=g_nmda_lines[0].get_color(),
-                        label=r"$g_\mathrm{nmda}$")
+                        label=r"UP $g_\mathrm{nmda}$", alpha=0.6)
+
+    ax_g_s.axhline(y=simulation_results.steady_down_results.g_e_steady, linestyle="dotted", linewidth=2,
+                   color=g_e_lines[0].get_color(),
+                   label="Down $g_e$ steady", alpha=0.6)
+    ax_g_s.axhline(y=simulation_results.steady_down_results.g_i_steady, linestyle="dotted", linewidth=2,
+                   color=g_i_lines[0].get_color(),
+                   label="Down $g_i$ steady", alpha=0.6)
+    ax_g_s.axhline(y=simulation_results.steady_down_results.g_nmda_steady, linestyle="dotted", linewidth=2,
+                   color=g_nmda_lines[0].get_color(),
+                   label=r"Down $g_\mathrm{nmda}$", alpha=0.6)
 
 
     ax_g_s.set_ylabel("conductance \n" + r"[$\frac{\mathrm{siemens}}{\mathrm{cm}^2}$]")
@@ -236,6 +280,14 @@ def plot_v_line(simulation_results,
 
     ax_voltages.vlines(x=spike_times_current_neuron, ymin=-70, ymax=-35, color=color, linestyle="-.",
                        label=f"Neuron {i} Spike Time", lw=0.8)
+
+    ax_voltages.vlines(x=spike_times_current_neuron, ymin=-70, ymax=-35, color=color, linestyle="-.",
+                       label=f"Neuron {i} Spike Time", lw=0.8)
+    ax_voltages.axhline(y=simulation_results.steady_up_results.v_steady, color=color, linestyle="--", linewidth=1.5,
+                   label="Mean V - UP State")
+
+    ax_voltages.axhline(y=simulation_results.steady_down_results.v_steady, color=color, linestyle="--", linewidth=1.5,
+                        label="Mean V - Down State")
 
 def plot_internal_states_in_one_time_range(simulation_results, time_range: tuple[int, int]):
     if simulation_results.experiment.plot_params.show_hidden_variables():
@@ -292,7 +344,7 @@ def generate_title(experiment: Experiment):
     Up State: [{experiment.network_params.up_state.gen_plot_title()}, {experiment.effective_time_constant_up_state.gen_plot_title()}]
     Down State: [{experiment.network_params.down_state.gen_plot_title()}, {experiment.effective_time_constant_down_state.gen_plot_title()}]    
     Neuron: [$C={experiment.neuron_params.C * cm ** 2}$, $g_L={experiment.neuron_params.g_L * cm ** 2}$, $\theta={experiment.neuron_params.theta}$, $V_R={experiment.neuron_params.V_r}$, $E_L={experiment.neuron_params.E_leak}$, $\tau_M={experiment.neuron_params.tau}$, $\tau_{{\mathrm{{ref}}}}={experiment.neuron_params.tau_rp}$]
-    Synapse: [$g_{{\mathrm{{AMPA}}}}={experiment.synaptic_params.g_ampa * (cm ** 2) / uS:.2f}\,\mu\mathrm{{S}}$, $g_{{\mathrm{{GABA}}}}={experiment.synaptic_params.g_gaba * (cm ** 2) / uS:.2f}\,\mu\mathrm{{S}}$, $g={experiment.network_params.g}$, $g_{{\mathrm{{NMDA}}}}={experiment.synaptic_params.g_nmda * (cm ** 2) / uS:.2f}\,\mu\mathrm{{S}}$]"""
+    Synapse: [$g_{{\mathrm{{AMPA}}}}={experiment.synaptic_params.g_ampa * (cm ** 2):.2f}$, $g_{{\mathrm{{GABA}}}}={experiment.synaptic_params.g_gaba * (cm ** 2) / nS:.2f}\,n\mathrm{{S}}$, $g={experiment.network_params.g}$, $g_{{\mathrm{{NMDA}}}}={experiment.synaptic_params.g_nmda * (cm ** 2) / nS:.2f}\,n\mathrm{{S}}$]"""
 
 
 single_compartment_with_nmda = '''

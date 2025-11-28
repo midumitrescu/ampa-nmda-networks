@@ -17,25 +17,36 @@ class SynapticParams:
     KEY_TAU_AMPA = "tau_ampa_ms"
     KEY_TAU_GABA = "tau_gaba_ms"
 
+    KEY_TAU_NMDA_RISE = "tau_nmda_rise"
+    KEY_TAU_NMDA_DECAY = "tau_nmda_decay"
+
     KEY_E_AMPA = "E_ampa"
     KEY_E_GABA = "E_gaba"
 
     def __init__(self, params: dict, g: float):
-        self.g = None
+
 
         self.J = params.get(SynapticParams.KEY_SYNAPTIC_STRENGTH, 0.5 * mV)
         self.D = params.get(SynapticParams.KEY_SYNAPTIC_DELAY, 1.5 * ms)
 
         self.g_ampa = params.get(SynapticParams.KEY_G_AMPA, 0) * siemens / cm ** 2
-        self.g_gaba = g * self.g_ampa
+        if g is not None:
+            self.g_gaba = g * self.g_ampa
+            self.g = g
+        else:
+            self.g_gaba = params.get(SynapticParams.KEY_G_GABA, 0)
+            self.g = self.g_gaba / self.g_ampa
+
 
         self.g_nmda = params.get(SynapticParams.KEY_G_NMDA, 0) * siemens / cm ** 2
 
         self.tau_ampa = params.get(SynapticParams.KEY_TAU_AMPA, 2) * ms
-        self.tau_gaba = params.get(SynapticParams.KEY_TAU_AMPA, 2) * ms
+        self.tau_gaba = params.get(SynapticParams.KEY_TAU_GABA, 2) * ms
 
-        self.e_ampa = params.get(SynapticParams.KEY_E_AMPA, 0 * mV)
-        self.e_gaba = params.get(SynapticParams.KEY_E_AMPA, -80 * mV)
+        self.e_ampa = params.get(SynapticParams.KEY_E_AMPA, 0) * mV
+        self.e_gaba = params.get(SynapticParams.KEY_E_AMPA, -80) * mV
+        self.tau_nmda_rise = params.get(NeuronModelParams.KEY_TAU_NMDA_RISE, 2) * ms
+        self.tau_nmda_decay = params.get(NeuronModelParams.KEY_TAU_NMDA_DECAY, 100) * ms
 
     def __str__(self):
         return f"{self.__class__}(J={self.J}, D={self.D})"
@@ -131,15 +142,18 @@ class NeuronModelParams:
     KEY_NEURON_E_L = "E_leak"
     KEY_TAU_REF = "tau_ref"
 
+    KEY_TAU_NMDA_RISE = "tau_nmda_rise"
+    KEY_TAU_NMDA_DECAY = "tau_nmda_decay"
+
     def __init__(self, params: dict, network_params: NetworkParams = NetworkParams):
         self.synaptic_params = SynapticParams(params, g=network_params.g)
 
-        self.C = params.get(NeuronModelParams.KEY_NEURON_C, 1 * ufarad * (cm ** -2))
+        self.C = params.get(NeuronModelParams.KEY_NEURON_C, 1) * ufarad * (cm ** -2)
         self.g_L = params.get(NeuronModelParams.KEY_NEURON_G_L, 0.04e-3) * siemens * (cm ** -2)
-        self.theta = params.get(NeuronModelParams.KEY_NEURON_THRESHOLD, -40 * mV)
-        self.V_r = params.get(NeuronModelParams.KEY_NEURON_V_R, -65 * mV)
-        self.E_leak = params.get(NeuronModelParams.KEY_NEURON_E_L, -65 * mV)
-        self.tau_rp = params.get(NeuronModelParams.KEY_TAU_REF, 2 * ms)
+        self.theta = params.get(NeuronModelParams.KEY_NEURON_THRESHOLD, -40) * mV
+        self.V_r = params.get(NeuronModelParams.KEY_NEURON_V_R, -65) * mV
+        self.E_leak = params.get(NeuronModelParams.KEY_NEURON_E_L, -65) * mV
+        self.tau_rp = params.get(NeuronModelParams.KEY_TAU_REF, 2) * ms
 
         self.tau = self.C / self.g_L
         self.nu_thr = (self.theta - self.E_leak) / (self.synaptic_params.J * network_params.up_state.N_E * self.tau)
@@ -365,7 +379,7 @@ class Experiment:
         self.nmda_params = NMDAParams(params)
 
         self.model = params.get(Experiment.KEY_SELECTED_MODEL)
-        self.steady_state_model = params.get(Experiment.KEY_SELECTED_MODEL, None)
+        self.steady_state_model = params.get(Experiment.KEY_STEADY_MODEL, None)
 
         self.recorded_hidden_variables = self.plot_params.recorded_hidden_variables
 
@@ -396,7 +410,7 @@ class Experiment:
     Network: [N={self.network_params.N}, $N_E={self.network_params.N_E}$, $N_I={self.network_params.N_I}$, $\gamma={self.network_params.gamma}$, $\epsilon={self.network_params.epsilon}$]
     Input: [$\nu_T={self.nu_thr}$, $\frac{{\nu_E}}{{\nu_T}}={self.nu_ext_over_nu_thr:.2f}$, $\nu_E={self.nu_ext:.2f}$ Hz]
     Neuron: [$C={self.neuron_params.C * cm ** 2}$, $g_L={self.neuron_params.g_L * cm ** 2}$, $\theta={self.neuron_params.theta}$, $V_R={self.neuron_params.V_r}$, $E_L={self.neuron_params.E_leak}$, $\tau_M={self.neuron_params.tau}$, $\tau_{{\mathrm{{ref}}}}={self.neuron_params.tau_rp}$]
-    Synapse: [$g_{{\mathrm{{AMPA}}}}={self.synaptic_params.g_ampa * (cm ** 2) / uS:.2f}\,\mu\mathrm{{S}}$, $g_{{\mathrm{{GABA}}}}={self.synaptic_params.g_gaba * (cm ** 2) / uS:.2f}\,\mu\mathrm{{S}}$, $g={self.network_params.g}$]"""
+    Synapse: [$g_{{\mathrm{{AMPA}}}}={self.synaptic_params.g_ampa * (cm ** 2):.2f}$, $g_{{\mathrm{{GABA}}}}={self.synaptic_params.g_gaba * (cm ** 2):.2f}$, $g={self.network_params.g}$]"""
 
 
 # Richardson Synaptic Shot Noise and Conductance Fluctuations Affect the Membrane Voltage with Equal Significance, 2005

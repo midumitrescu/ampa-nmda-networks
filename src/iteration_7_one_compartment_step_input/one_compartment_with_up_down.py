@@ -116,8 +116,8 @@ def simulate_with_up_and_down_state_and_nmda(experiment: Experiment):
 
     tau_ampa = experiment.synaptic_params.tau_ampa
     tau_gaba = experiment.synaptic_params.tau_gaba
-    tau_nmda_decay = 100 * ms
-    tau_nmda_rise = 2 * ms
+    tau_nmda_rise = experiment.synaptic_params.tau_nmda_rise
+    tau_nmda_decay = experiment.synaptic_params.tau_nmda_decay
 
     alpha = 0.5 * kHz  # saturation of NMDA channels at high presynaptic firing rates
 
@@ -145,13 +145,13 @@ def simulate_with_up_and_down_state_and_nmda(experiment: Experiment):
                              method=experiment.integration_method)
     S_upstate_inh = Synapses(P_upstate_inh, single_neuron, model="on: 1", on_pre='g_i += on * g_gaba',
                              method=experiment.integration_method)
-    S_upstate_nmda = Synapses(P_upstate_nmda, single_neuron, model="on: 1", on_pre="x_nmda = on*1",
+    S_upstate_nmda = Synapses(P_upstate_nmda, single_neuron, model="on: 1", on_pre="x_nmda += on*1",
                                method=experiment.integration_method)
     S_downstate_exc = Synapses(P_downstate_exc, single_neuron, model="on: 1", on_pre='g_e += on * g_ampa',
                                method=experiment.integration_method)
     S_downstate_inh = Synapses(P_downstate_inh, single_neuron, model="on: 1", on_pre='g_i += on * g_gaba',
                                method=experiment.integration_method)
-    S_downstate_nmda = Synapses(P_downstate_nmda, single_neuron, model="on: 1", on_pre='x_nmda = on*1',
+    S_downstate_nmda = Synapses(P_downstate_nmda, single_neuron, model="on: 1", on_pre='x_nmda += on*1',
                                method=experiment.integration_method)
 
     S_upstate_exc.connect(p=1)
@@ -189,6 +189,136 @@ def simulate_with_up_and_down_state_and_nmda(experiment: Experiment):
             S_downstate_inh.on = 1
             S_downstate_nmda.on = 1
             logger.debug("at {} we have high inactive and low inactive", t / second)
+
+    rate_monitor = PopulationRateMonitor(single_neuron)
+    spike_monitor = SpikeMonitor(single_neuron)
+    v_monitor = StateMonitor(source=single_neuron,
+                             variables="v", record=True)
+
+    g_monitor = StateMonitor(source=single_neuron,
+                             variables=experiment.plot_params.recorded_g_s, record=True)
+
+    internal_states_monitor = StateMonitor(source=single_neuron, variables=experiment.recorded_hidden_variables,
+                                           record=True)
+    currents_monitor = StateMonitor(source=single_neuron, variables=experiment.plot_params.recorded_currents,
+                                    record=True)
+    reporting = "text" if experiment.in_testing else None
+    run(experiment.sim_time, report=reporting, report_period=1 * second)
+
+    return SimulationResults(experiment, rate_monitor, spike_monitor, v_monitor, g_monitor, internal_states_monitor,
+                             currents_monitor)
+
+def simulate_with_down_and_up_state_and_nmda(experiment: Experiment):
+    """
+        g --
+        nu_ext_over_nu_thr -- ratio of external stimulus rate to threshold rate
+        sim_time -- simulation time
+        ax_spikes -- matplotlib axes to plot spikes on
+        ax_rates -- matplotlib axes to plot rates on
+        rate_tick_step -- step size for rate axis ticks
+        """
+    if experiment.in_testing:
+        np.random.seed(0)
+        brian2.devices.device.seed(0)
+        seed(0)
+        np.random.default_rng(0)
+
+    start_scope()
+
+    defaultclock.dt = experiment.sim_clock
+
+    C = experiment.neuron_params.C
+
+    theta = experiment.neuron_params.theta
+    g_L = experiment.neuron_params.g_L
+    E_leak = experiment.neuron_params.E_leak
+    V_r = experiment.neuron_params.V_r
+
+    g_ampa = experiment.synaptic_params.g_ampa
+    g_gaba = experiment.synaptic_params.g_gaba
+    g_nmda_max = experiment.synaptic_params.g_nmda
+
+    E_ampa = experiment.synaptic_params.e_ampa
+    E_gaba = experiment.synaptic_params.e_gaba
+    E_nmda = experiment.synaptic_params.e_ampa
+
+    MG_C = 1 * mmole  # extracellular magnesium concentration
+
+    tau_ampa = experiment.synaptic_params.tau_ampa
+    tau_gaba = experiment.synaptic_params.tau_gaba
+    tau_nmda_decay = 100 * ms
+    tau_nmda_rise = 2 * ms
+
+    alpha = 0.5 * kHz  # saturation of NMDA channels at high presynaptic firing rates
+
+    model = experiment.model
+    single_neuron = NeuronGroup(1,
+                                model=model,
+                                threshold="v >= theta",
+                                reset="v = V_r",
+                                refractory=experiment.neuron_params.tau_rp,
+                                method=experiment.integration_method)
+    single_neuron.v[:] = -65 * mV
+
+    order = [0, 1, 2, 3, 4, 5] if experiment.in_testing else [0] * 5
+
+    P_upstate_exc = PoissonGroup(experiment.network_params.up_state.N_E, rates=experiment.network_params.up_state.nu, order=order[0])
+    P_upstate_inh = PoissonGroup(experiment.network_params.up_state.N_I, rates=experiment.network_params.up_state.nu, order=order[1])
+    P_upstate_nmda = PoissonGroup(N=experiment.network_params.up_state.N_NMDA, rates=experiment.network_params.up_state.nu_nmda, order=order[4])
+    P_downstate_exc = PoissonGroup(experiment.network_params.down_state.N_E,
+                                   rates=experiment.network_params.down_state.nu, order=order[2])
+    P_downstate_inh = PoissonGroup(experiment.network_params.down_state.N_I,
+                                   rates=experiment.network_params.down_state.nu, order=order[3])
+    P_downstate_nmda = PoissonGroup(N=experiment.network_params.down_state.N_NMDA, rates=experiment.network_params.down_state.nu_nmda, order=order[5])
+
+    S_upstate_exc = Synapses(P_upstate_exc, single_neuron, model="on: 1", on_pre='g_e += on * g_ampa',
+                             method=experiment.integration_method)
+    S_upstate_inh = Synapses(P_upstate_inh, single_neuron, model="on: 1", on_pre='g_i += on * g_gaba',
+                             method=experiment.integration_method)
+    S_upstate_nmda = Synapses(P_upstate_nmda, single_neuron, model="on: 1", on_pre="x_nmda += on*1",
+                               method=experiment.integration_method)
+    S_downstate_exc = Synapses(P_downstate_exc, single_neuron, model="on: 1", on_pre='g_e += on * g_ampa',
+                               method=experiment.integration_method)
+    S_downstate_inh = Synapses(P_downstate_inh, single_neuron, model="on: 1", on_pre='g_i += on * g_gaba',
+                               method=experiment.integration_method)
+    S_downstate_nmda = Synapses(P_downstate_nmda, single_neuron, model="on: 1", on_pre='x_nmda += on*1',
+                               method=experiment.integration_method)
+
+    S_upstate_exc.connect(p=1)
+    S_upstate_inh.connect(p=1)
+    S_upstate_nmda.connect(p=1)
+    S_downstate_exc.connect(p=1)
+    S_downstate_inh.connect(p=1)
+    S_downstate_nmda.connect(p=1)
+
+    S_upstate_exc.on[:] = 1
+    S_upstate_inh.on[:] = 1
+    S_upstate_nmda.on[:] = 1
+    S_downstate_exc.on[:] = 0
+    S_downstate_inh.on[:] = 0
+    S_downstate_nmda.on[:] = 0
+
+    @network_operation(dt=100 * ms)
+    def toggle_inputs(t):
+        step = int(t / (0.5 * second))
+        if step % 2 == 0:
+            S_upstate_exc.on = 0
+            S_upstate_inh.on = 0
+            S_upstate_nmda.on = 0
+
+            S_downstate_exc.on = 1
+            S_downstate_inh.on = 1
+            S_downstate_nmda.on =10
+            logger.debug("at {} we have up inactive and low active", t / second)
+        else:
+            S_upstate_exc.on = 1
+            S_upstate_inh.on = 1
+            S_upstate_nmda.on = 1
+
+            S_downstate_exc.on = 0
+            S_downstate_inh.on = 0
+            S_downstate_nmda.on = 0
+            logger.debug("at {} we have up active and down inactive", t / second)
 
     rate_monitor = PopulationRateMonitor(single_neuron)
     spike_monitor = SpikeMonitor(single_neuron)
@@ -398,7 +528,7 @@ def generate_title(experiment: Experiment):
     Up State: [{experiment.network_params.up_state.gen_plot_title()}, {experiment.effective_time_constant_up_state.gen_plot_title()}]
     Down State: [{experiment.network_params.down_state.gen_plot_title()}, {experiment.effective_time_constant_down_state.gen_plot_title()}]    
     Neuron: [$C={experiment.neuron_params.C * cm ** 2}$, $g_L={experiment.neuron_params.g_L * cm ** 2}$, $\theta={experiment.neuron_params.theta}$, $V_R={experiment.neuron_params.V_r}$, $E_L={experiment.neuron_params.E_leak}$, $\tau_M={experiment.neuron_params.tau}$, $\tau_{{\mathrm{{ref}}}}={experiment.neuron_params.tau_rp}$]
-    Synapse: [$g_{{\mathrm{{AMPA}}}}={experiment.synaptic_params.g_ampa * (cm ** 2) / uS:.2f}\,\mu\mathrm{{S}}$, $g_{{\mathrm{{GABA}}}}={experiment.synaptic_params.g_gaba * (cm ** 2) / uS:.2f}\,\mu\mathrm{{S}}$, $g={experiment.network_params.g}$, $g_{{\mathrm{{NMDA}}}}={experiment.synaptic_params.g_nmda * (cm ** 2) / uS:.2f}\,\mu\mathrm{{S}}$]"""
+    Synapse: [$g_{{\mathrm{{AMPA}}}}={experiment.synaptic_params.g_ampa * (cm ** 2):.2f}$, $g_{{\mathrm{{GABA}}}}={experiment.synaptic_params.g_gaba * (cm ** 2):.2f}$, $g={experiment.network_params.g}$, $g_{{\mathrm{{NMDA}}}}={experiment.synaptic_params.g_nmda * (cm ** 2):.2f}$]"""
 
 
 single_compartment_with_nmda = '''
