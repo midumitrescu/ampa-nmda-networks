@@ -201,8 +201,8 @@ R2 = PopulationRateMonitor(popE2)
 E1 = StateMonitor(stiminputE1, 'rates', record=0, dt=1*ms)
 E2 = StateMonitor(stiminputE2, 'rates', record=0, dt=1*ms)
 
-S_NMDA_1 = StateMonitor(popE1, variables=["s_NMDA_tot", "x", "I_NMDA"], record=True)
-S_NMDA_2 = StateMonitor(popE2, variables=["s_NMDA_tot", "x", "I_NMDA"], record=True)
+S_NMDA_1 = StateMonitor(popE1, variables=["s_NMDA_tot", "x", "I_NMDA", "s_AMPA", "s_AMPA_ext"], record=True)
+S_NMDA_2 = StateMonitor(popE2, variables=["s_NMDA_tot", "x", "I_NMDA", "s_AMPA", "s_AMPA_ext"], record=True)
 S_N_sum_group = StateMonitor(NMDA_sum_group, variables=["s"], record=True)
 
 
@@ -211,7 +211,7 @@ run(runtime, report='stdout', profile=True)
 print(profiling_summary())
 
 # Show results
-fig, axs = plt.subplots(7, 1, sharex=True, layout='constrained', gridspec_kw={'height_ratios': [2, 2, 2, 1, 1, 1, 1]}, figsize=(20, 15))
+fig, axs = plt.subplots(8, 1, sharex=True, layout='constrained', gridspec_kw={'height_ratios': [2, 2, 2, 1, 1, 1, 1, 1]}, figsize=(20, 15))
 axs[0].plot(SME1.t / ms, SME1.i, '.', markersize=2, color='darkred')
 axs[0].set(ylabel='population 1', ylim=(0, subN))
 
@@ -258,6 +258,25 @@ axs[6].plot(S_NMDA_1.t / ms, S_NMDA_1.I_NMDA[1], label='Neuron 1, pop 1')
 axs[6].plot(S_NMDA_2.t / ms, S_NMDA_2.I_NMDA[0], label='Neuron 0, pop 2')
 axs[6].plot(S_NMDA_2.t / ms, S_NMDA_2.I_NMDA[1], label='Neuron 1, pop 2')
 axs[6].set(ylabel='I')
+
+axs[7].plot(S_NMDA_1.t / ms, S_NMDA_1.s_AMPA[0], label='Neuron 0 AMPA recurrent, pop 1', alpha=0.5)
+axs[7].plot(S_NMDA_1.t / ms, S_NMDA_1.s_AMPA_ext[0], label='Neuron 0 AMPA EXT, pop 1', alpha=0.5)
+#axs[7].plot(S_NMDA_2.t / ms, S_NMDA_2.s_AMPA[0], label='Neuron 0, AMPA recurrent, pop 2', alpha=0.5)
+#axs[7].plot(S_NMDA_2.t / ms, S_NMDA_2.s_AMPA_ext[0], label='Neuron 0, AMPA EXT, pop 2', alpha=0.5)
+axs[7].set(ylabel='S AMPA')
+axs[7].legend()
+
+print("S AMPA averages compared to initially configured values")
+print(f"S AMP, neuron 0, Pop E: {np.mean(S_NMDA_1.s_AMPA[0])}")
+external_ampa_neuron_0 = np.mean(S_NMDA_1.s_AMPA_ext[0])
+expected_ampa_neuron_0 = tau_AMPA * gEEA * N_ext * rate_ext_E
+print(f"S AMPA Ext, neuron 0, Pop E: {external_ampa_neuron_0}")
+print(f"S AMPA Ext estimated via first moment: {in_unit(expected_ampa_neuron_0, nS, 5)}")
+print(f"Difference between expected and simulated: {in_unit(external_ampa_neuron_0 - expected_ampa_neuron_0, nS, 5)}")
+
+print(f"S AMP, neuron 0, Pop I: {np.mean(S_NMDA_2.s_AMPA[0])}")
+print(f"S AMPA Ext, neuron 0, Pop I: {np.mean(S_NMDA_2.s_AMPA_ext[0])}")
+
 
 plt.show(block=False)
 plt.close()

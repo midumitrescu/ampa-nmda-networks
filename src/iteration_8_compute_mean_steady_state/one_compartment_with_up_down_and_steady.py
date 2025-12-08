@@ -235,7 +235,7 @@ def plot_voltages_and_g_s(simulation_results: SimulationResults, time_range, gri
     for ax in [ax_voltages, ax_g_s]:
         ax.set_xlim(*time_range)
 
-    ax_voltages.set_title("Membrane voltage")
+    ax_voltages.set_title(rf"Membrane voltage. $V_\mathrm{{M, Up}}$ ={simulation_results.steady_up_results.v_steady: .3f} mV, $V_\mathrm{{M, Down}}$ ={simulation_results.steady_down_results.v_steady: .3f} mV")
     ax_voltages.legend(loc="right")
     ax_voltages.set_xlabel("t [ms]")
     ax_voltages.set_ylabel("v [mV]")

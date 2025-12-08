@@ -21,7 +21,6 @@ def sim_and_plot_experiment_grid_with_increasing_nmda_input_and_steady_state(exp
     title = grid_title(panel_title=title, experiment=experiment)
     return sim_and_plot_experiment_grid_with_lambda(experiments, title, run_simulate_with_steady_state)
 
-
 def run_simulate_with_steady_state(experiments: list[Experiment]):
     return parallelize(experiments, simulate_with_up_and_down_state_and_nmda_and_steady_state)
 
@@ -84,7 +83,7 @@ def plot_grid_raster_population_and_g_s(results: list[SimulationResults], time_r
 
 def gen_raster_and_rates_grid_subtitle(results: SimulationResults):
     experiment = results.experiment
-    return fr"""Synapse: [$g_{{\mathrm{{AMPA}}}}={experiment.synaptic_params.g_ampa * (cm ** 2) / uS:.2f}\,\mu\mathrm{{S}}$, $g_{{\mathrm{{GABA}}}}={experiment.synaptic_params.g_gaba * (cm ** 2) / uS:.2f}\,\mu\mathrm{{S}}$, $g={experiment.network_params.g}$, $g_{{\mathrm{{NMDA}}}}={experiment.synaptic_params.g_nmda * (cm ** 2) / uS:.2f}\,\mu\mathrm{{S}}$]"""
+    return fr"""Synapse: [$g_{{\mathrm{{AMPA}}}}={experiment.synaptic_params.g_ampa * (cm ** 2):.2f}$, $g_{{\mathrm{{GABA}}}}={experiment.synaptic_params.g_gaba * cm ** 2:.2f}$, $g={experiment.network_params.g}$, $g_{{\mathrm{{NMDA}}}}={experiment.synaptic_params.g_nmda * cm ** 2:.2f}$]"""
 
 
 def plot_grid_currents(results, time_range, title: str):
