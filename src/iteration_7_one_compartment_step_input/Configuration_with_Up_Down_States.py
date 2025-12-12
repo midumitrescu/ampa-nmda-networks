@@ -429,10 +429,13 @@ class EffectiveTimeConstantEstimation:
 
     # 2.6, 2.12
     def mean_excitatory_conductance(self):
+        # According to units computation, this is not in the same unit aas g_ampa. Check section 6.5 Units, Composed
+        #return self.config.synaptic_params.tau_ampa * self.state.N_E * self.state.nu * self.config.synaptic_params.g_ampa / 18**3
         return self.config.synaptic_params.tau_ampa * self.state.N_E * self.state.nu * self.config.synaptic_params.g_ampa
 
     # 2.6, 2.12
     def mean_inhibitory_conductance(self):
+        #return self.config.synaptic_params.tau_gaba * self.state.N_I * self.state.nu * self.config.synaptic_params.g_gaba / 18**3
         return self.config.synaptic_params.tau_gaba * self.state.N_I * self.state.nu * self.config.synaptic_params.g_gaba
 
     # 2.12
