@@ -1,17 +1,12 @@
-from loguru import logger
-from matplotlib import gridspec
+import matplotlib.pyplot as plt
 import matplotlib.pyplot as plt
 import numpy as np
+from brian2 import ufarad, cm, siemens, mV, msecond
 
-from brian2 import ufarad, cm, siemens, mV, ms, uS, Hz, nS, msecond
-
-from Plotting import show_plots_non_blocking
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment
-from iteration_8_compute_mean_steady_state.one_compartment_with_up_down_and_steady import SimulationResults
 from utils import ExtendedDict
 
 plt.rcParams['text.usetex'] = True
-
 
 def simulate_native(experiment: Experiment):
     if experiment.in_testing:
@@ -84,11 +79,8 @@ def simulate_native(experiment: Experiment):
         # --------------------------------
         # Conductances g_e, g_i + noise
         # --------------------------------
-        g_e[t + 1] = g_e[t] + dt * (-g_e[t] + mean_ampa) / tau_ampa \
-                     + sigma_e * np.sqrt(dt) * np.random.randn()
-
-        g_i[t + 1] = g_i[t] + dt * (-g_i[t] + mean_gaba) / tau_gaba \
-                     + sigma_i * np.sqrt(dt) * np.random.randn()
+        g_e[t + 1] = g_e[t] + (dt * (-g_e[t] + mean_ampa) + sigma_e * np.sqrt(dt) * np.random.randn()) / tau_ampa
+        g_i[t + 1] = g_i[t] + (dt * (-g_i[t] + mean_gaba) + sigma_i * np.sqrt(dt) * np.random.randn()) / tau_gaba
 
         # --------------------------------
         # NMDA dynamics
@@ -104,8 +96,10 @@ def simulate_native(experiment: Experiment):
         # --------------------------------
         #dv = (1 / C) * (-I_L - I_ampa - I_gaba - I_nmda) / 10**6
         dv = (1 / C) * (-I_L[t] - I_ampa[t] - I_gaba[t] - I_nmda[t])
-        v[t + 1] = v[t] + dt * dv
-        print(f"v[{t+1}] = {v[t+1]: .5f}")
+        dv_step = dt * dv * 1000
+        v[t + 1] = v[t] + dv_step
+        #print(f"delta v = dt * dv =  {dv_step}")
+        #print(f"v[{t+1}] = {v[t+1]: .5f}")
         if v[t + 1] >= theta:
             spikes.append(t * dt)
         if len(spikes) > 0:
@@ -121,51 +115,6 @@ def simulate_native(experiment: Experiment):
         "x_nmda": x_nmda,
         "experiment": experiment
     })
-
-
-def plot_simulation(results: dict):
-    dt = results.experiment.sim_clock
-    T = results.experiment.sim_time
-    steps = int(T / dt)
-
-    # ---------------------------------------------------------------------
-    # Plot results
-    # ---------------------------------------------------------------------
-    time = np.arange(steps) * dt
-
-    plt.figure(figsize=(10, 6))
-    plt.subplot(3, 1, 1)
-    plt.plot(time, results.v, label="normal scaling")
-    plt.plot(time, results.v*10, label="10 scaling")
-    plt.plot(time, results.v*100, label="100 scaling")
-    plt.plot(time, results.v*1000, label="1000 scaling")
-    plt.ylim([-70, -10])
-    plt.ylabel("v (mV)")
-    plt.legend()
-
-    plt.subplot(3, 1, 2)
-    plt.plot(time, results.g_e, label="g_e")
-    plt.plot(time, results.g_i, label="g_i")
-    plt.ylabel("conductance (S)")
-    plt.legend()
-
-    plt.subplot(3, 1, 3)
-    plt.plot(time, results.s_nmda, label="s_nmda")
-    plt.plot(time, results.x_nmda, label="x_nmda")
-    plt.legend()
-
-    plt.xlabel("time (s)")
-    plt.tight_layout()
-    show_plots_non_blocking()
-
-
-def generate_title(experiment: Experiment):
-    return fr"""{experiment.plot_params.panel}
-    Up State: [{experiment.network_params.up_state.gen_plot_title()}, {experiment.effective_time_constant_up_state.gen_plot_title()}]
-    Down State: [{experiment.network_params.down_state.gen_plot_title()}, {experiment.effective_time_constant_down_state.gen_plot_title()}]    
-    Neuron: [$C={experiment.neuron_params.C * cm ** 2}$, $g_L={experiment.neuron_params.g_L * cm ** 2}$, $\theta={experiment.neuron_params.theta}$, $V_R={experiment.neuron_params.V_r}$, $E_L={experiment.neuron_params.E_leak}$, $\tau_M={experiment.neuron_params.tau}$, $\tau_{{\mathrm{{ref}}}}={experiment.neuron_params.tau_rp}$]
-    Synapse: [$g_{{\mathrm{{AMPA}}}}={experiment.synaptic_params.g_ampa * (cm ** 2):.2f}$, $g_{{\mathrm{{GABA}}}}={experiment.synaptic_params.g_gaba * (cm ** 2) / nS:.2f}\,n\mathrm{{S}}$, $g={experiment.network_params.g}$, $g_{{\mathrm{{NMDA}}}}={experiment.synaptic_params.g_nmda * (cm ** 2) / nS:.2f}\,n\mathrm{{S}}$]"""
-
 
 single_compartment_with_nmda = '''
 dv/dt = 1/C * (- I_L - I_ampa - I_gaba - I_nmda): volt (unless refractory)

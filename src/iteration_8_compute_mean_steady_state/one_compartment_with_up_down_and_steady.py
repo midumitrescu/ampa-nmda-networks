@@ -1,15 +1,13 @@
-import brian2.devices.device
 from brian2 import *
+from loguru import logger
 from matplotlib import gridspec
 
 from Plotting import show_plots_non_blocking
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment, State
 from iteration_7_one_compartment_step_input.one_compartment_with_up_down import \
+    SimulationResults
+from iteration_7_one_compartment_step_input.one_compartment_with_up_down import \
     simulate_with_up_and_down_state_and_nmda, simulate_with_down_and_up_state_and_nmda
-from iteration_7_one_compartment_step_input.one_compartment_with_up_down import SimulationResults as SimulationResultsOld
-from utils import ExtendedDict
-
-from loguru import logger
 
 plt.rcParams.update(mpl.rcParamsDefault)
 plt.rcParams['text.usetex'] = True
@@ -28,26 +26,26 @@ class SteadyStateResults:
         return (f"V = [{self.v_steady:.6f}], g_e = [{self.g_e_steady:.6f}], g_i = [{self.g_i_steady:.6f}], g_nmda = [{self.g_nmda_steady:.6f}], "
                 f"x = [{self.x_nmda_steady:.6f}], s = [{self.s_nmda_steady:.6f}] ")
 
-class SimulationResults(SimulationResultsOld):
+class SimulationResultsWithSteadyState(SimulationResults):
 
-    def __init__(self, simulation_results_old: SimulationResultsOld, steady_up_state_results: SteadyStateResults, steady_down_state_results: SteadyStateResults):
-        self.experiment = simulation_results_old.experiment
-        self.rates = simulation_results_old.rates
-        self.spikes = simulation_results_old.spikes
-        self.voltages = simulation_results_old.voltages
-        self.g_s = simulation_results_old.g_s
-        self.currents = simulation_results_old.currents
-        self.internal_states_monitor = simulation_results_old.internal_states_monitor
+    def __init__(self, simulation_results: SimulationResults, steady_up_state_results: SteadyStateResults, steady_down_state_results: SteadyStateResults):
+        self.experiment = simulation_results.experiment
+        self.rates = simulation_results.rates
+        self.spikes = simulation_results.spikes
+        self.voltages = simulation_results.voltages
+        self.g_s = simulation_results.g_s
+        self.currents = simulation_results.currents
+        self.internal_states_monitor = simulation_results.internal_states_monitor
 
         self.steady_up_results = steady_up_state_results
         self.steady_down_results = steady_down_state_results
 
-def sim_and_plot_up_down(experiment: Experiment) -> SimulationResults:
+def sim_and_plot_up_down(experiment: Experiment) -> SimulationResultsWithSteadyState:
     simulation_results = simulate_with_up_and_down_state_and_nmda_and_steady_state(experiment)
     plot_simulation(simulation_results)
     return simulation_results
 
-def sim_and_plot_down_up(experiment: Experiment) -> SimulationResults:
+def sim_and_plot_down_up(experiment: Experiment) -> SimulationResultsWithSteadyState:
     simulation_results = simulate_with_down_and_up_state_and_nmda_and_steady_state(experiment)
     plot_simulation(simulation_results)
     return simulation_results
@@ -58,7 +56,7 @@ def simulate_with_down_and_up_state_and_nmda_and_steady_state(experiment: Experi
     steady_down_state_results = sim_steady_state(experiment, state=experiment.network_params.down_state)
     logger.debug("Steady state simulation for {} done! Results are Up State = {}, Down State = {}", experiment, steady_up_state_results, steady_down_state_results)
     simulation_results = simulate_with_down_and_up_state_and_nmda(experiment)
-    return SimulationResults(simulation_results, steady_up_state_results, steady_down_state_results)
+    return SimulationResultsWithSteadyState(simulation_results, steady_up_state_results, steady_down_state_results)
 
 def simulate_with_up_and_down_state_and_nmda_and_steady_state(experiment: Experiment):
     logger.debug("Simulating steady state for {}", experiment)
@@ -66,7 +64,7 @@ def simulate_with_up_and_down_state_and_nmda_and_steady_state(experiment: Experi
     steady_down_state_results = sim_steady_state(experiment, state=experiment.network_params.down_state)
     logger.debug("Steady state simulation for {} done! Results are Up State = {}, Down State = {}", experiment, steady_up_state_results, steady_down_state_results)
     simulation_results = simulate_with_up_and_down_state_and_nmda(experiment)
-    return SimulationResults(simulation_results, steady_up_state_results, steady_down_state_results)
+    return SimulationResultsWithSteadyState(simulation_results, steady_up_state_results, steady_down_state_results)
 
 def sim_steady_state(experiment: Experiment, state: State) -> SteadyStateResults:
 
@@ -114,12 +112,12 @@ def sim_steady_state(experiment: Experiment, state: State) -> SteadyStateResults
 
     steady_state_network = Network([neuron, v_monitor])
 
-    run(100 * ms, report="text", report_period=1 * second)
+    run(1 * second, report="text", report_period=1 * second)
     result = SteadyStateResults(v_monitor)
     stop()
     return result
 
-def plot_simulation(simulation_results: SimulationResults):
+def plot_simulation(simulation_results: SimulationResultsWithSteadyState):
     params_t_range = simulation_results.experiment.plot_params.t_range
 
     if isinstance(params_t_range[0], list):
@@ -135,7 +133,7 @@ def plot_simulation(simulation_results: SimulationResults):
         plot_internal_states_in_one_time_range(simulation_results, time_range=params_t_range)
 
 
-def plot_raster_and_g_s_in_one_time_range(simulation_results: SimulationResults, time_range):
+def plot_raster_and_g_s_in_one_time_range(simulation_results: SimulationResultsWithSteadyState, time_range):
     if simulation_results.experiment.plot_params.show_raster_and_rate():
 
         fig = plt.figure(figsize=(14, 12))
@@ -149,7 +147,7 @@ def plot_raster_and_g_s_in_one_time_range(simulation_results: SimulationResults,
         show_plots_non_blocking(show=True)
 
 
-def plot_currents_in_one_time_range(simulation_results: SimulationResults, time_range):
+def plot_currents_in_one_time_range(simulation_results: SimulationResultsWithSteadyState, time_range):
     if not simulation_results.experiment.plot_params.show_currents_plots():
         return
 
@@ -165,7 +163,7 @@ def plot_currents_in_one_time_range(simulation_results: SimulationResults, time_
     fig.tight_layout()
     show_plots_non_blocking()
 
-def plot_currents(simulation_results: SimulationResults, time_range: tuple[int, int], grid_spec_mother: SubplotSpec):
+def plot_currents(simulation_results: SimulationResultsWithSteadyState, time_range: tuple[int, int], grid_spec_mother: SubplotSpec):
     voltage_and_currents = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=grid_spec_mother)
     ax_voltage, ax_currents = voltage_and_currents.subplots(sharex="row")
 
@@ -192,7 +190,7 @@ def plot_currents(simulation_results: SimulationResults, time_range: tuple[int, 
     return ax_voltage, ax_currents
 
 
-def plot_raster_and_rates(simulation_results: SimulationResults, time_range, grid_spec_mother):
+def plot_raster_and_rates(simulation_results: SimulationResultsWithSteadyState, time_range, grid_spec_mother):
 
     raster_and_population = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=grid_spec_mother, height_ratios=[2, 1],
                                                              hspace=0)
@@ -224,7 +222,7 @@ def determine_start_and_end_recorded_indexes(experiment, time_range):
     return time_end, time_start
 
 
-def plot_voltages_and_g_s(simulation_results: SimulationResults, time_range, grid_spec_mother):
+def plot_voltages_and_g_s(simulation_results: SimulationResultsWithSteadyState, time_range, grid_spec_mother):
     voltage_and_g_s_examples = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=grid_spec_mother, hspace=0.8)
     ax_voltages, ax_g_s = voltage_and_g_s_examples.subplots(sharex="col")
     ax_voltages.axhline(y=simulation_results.experiment.neuron_params.theta / ms, linestyle="dotted", linewidth="0.3", color="k",
@@ -268,7 +266,7 @@ def plot_voltages_and_g_s(simulation_results: SimulationResults, time_range, gri
 
 
     ax_g_s.set_ylabel("conductance \n" + r"[$\frac{\mathrm{siemens}}{\mathrm{cm}^2}$]")
-    ax_g_s.legend(loc="best")
+    ax_g_s.legend(loc="right")
 
 
 def plot_v_line(simulation_results,

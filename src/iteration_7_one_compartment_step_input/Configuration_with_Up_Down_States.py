@@ -100,6 +100,8 @@ class State:
         self.nu = params.get(State.KEY_NU, 0) * Hz
         self.nu_nmda = params.get(State.KEY_NU_NMDA, 0) * Hz
 
+        self.effective_timeconstant_estimation: EffectiveTimeConstantEstimation = None
+
     def gen_plot_title(self):
         return fr"$N_E={self.N_E}$, $N_I={self.N_I}$, $N_\mathrm{{NMDA}}={self.N_NMDA}$,  $\nu={self.nu}$, $\nu_\mathrm{{NMDA}}={self.nu_nmda}$, $\gamma={self.gamma}$"
 
@@ -347,6 +349,7 @@ class Experiment:
     KEY_SELECTED_MODEL = "model"
 
     KEY_STEADY_MODEL = "steady_model"
+    KEY_DIFFUSION_MODEL = "diffusion_model"
 
     KEY_HIDDEN_VARIABLES_TO_RECORD = "hidden_variables_to_record"
     KEY_CURRENTS_TO_RECORD = "currents_to_record"
@@ -380,6 +383,7 @@ class Experiment:
 
         self.model = params.get(Experiment.KEY_SELECTED_MODEL)
         self.steady_state_model = params.get(Experiment.KEY_STEADY_MODEL, None)
+        self.diffusion_model = params.get(Experiment.KEY_DIFFUSION_MODEL, None)
 
         self.recorded_hidden_variables = self.plot_params.recorded_hidden_variables
 
@@ -421,6 +425,8 @@ class EffectiveTimeConstantEstimation:
         self.state = state
         self.__check_is_diffusion_approximation_valid__()
 
+        self.state.effective_timeconstant_estimation = self
+
     def E_0(self):
         effective_reversal = (self.config.neuron_params.g_L * self.config.neuron_params.E_leak +
                               self.mean_excitatory_conductance() * self.config.synaptic_params.e_ampa +
@@ -437,6 +443,9 @@ class EffectiveTimeConstantEstimation:
     def mean_inhibitory_conductance(self):
         #return self.config.synaptic_params.tau_gaba * self.state.N_I * self.state.nu * self.config.synaptic_params.g_gaba / 18**3
         return self.config.synaptic_params.tau_gaba * self.state.N_I * self.state.nu * self.config.synaptic_params.g_gaba
+
+    def mean_nmda_activation(self):
+        return self.config.synaptic_params.tau_nmda_rise * self.state.N_NMDA * self.state.nu_nmda
 
     # 2.12
     def mean_total_conductance(self):

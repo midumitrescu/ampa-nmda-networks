@@ -12,7 +12,7 @@ from iteration_7_one_compartment_step_input.grid_computations import sim_and_plo
 
 from iteration_8_compute_mean_steady_state import one_compartment_with_up_down_and_steady
 from iteration_8_compute_mean_steady_state.one_compartment_with_up_down_and_steady import \
-    simulate_with_up_and_down_state_and_nmda_and_steady_state, SimulationResults, plot_raster_and_rates, \
+    simulate_with_up_and_down_state_and_nmda_and_steady_state, SimulationResultsWithSteadyState, plot_raster_and_rates, \
     plot_voltages_and_g_s, plot_currents, plot_simulation
 
 
@@ -26,7 +26,7 @@ def run_simulate_with_steady_state(experiments: list[Experiment]):
 
 def sim_and_plot_experiment_grid_with_lambda(experiments: list[Experiment], title,
                                              obtain_results_function: Callable[
-                                                 [list[Experiment]], list[SimulationResults]]):
+                                                 [list[Experiment]], list[SimulationResultsWithSteadyState]]):
     results = obtain_results_function(experiments)
 
     t_range = experiments[0].plot_params.t_range
@@ -46,7 +46,7 @@ def sim_and_plot_experiment_grid_with_lambda(experiments: list[Experiment], titl
     return results
 
 def parallelize(experiments: list[Experiment],
-                function_simulate_one_experiment: Callable[[Experiment], SimulationResults]):
+                function_simulate_one_experiment: Callable[[Experiment], SimulationResultsWithSteadyState]):
     def sim_unpickled(experiment: Experiment):
         simulation_results = function_simulate_one_experiment(experiment)
         simulation_results.internal_states_monitor = None
@@ -57,12 +57,12 @@ def parallelize(experiments: list[Experiment],
     )
 
 
-def plot_results_grid(results: list[SimulationResults], time_range: tuple[int, int], title: str):
+def plot_results_grid(results: list[SimulationResultsWithSteadyState], time_range: tuple[int, int], title: str):
     plot_grid_raster_population_and_g_s(results, time_range, title=title)
     plot_grid_currents(results, time_range, title=title)
 
 
-def plot_grid_raster_population_and_g_s(results: list[SimulationResults], time_range: tuple[int, int], title: str):
+def plot_grid_raster_population_and_g_s(results: list[SimulationResultsWithSteadyState], time_range: tuple[int, int], title: str):
     if not results[0].experiment.plot_params.show_raster_and_rate():
         return
 
@@ -81,7 +81,7 @@ def plot_grid_raster_population_and_g_s(results: list[SimulationResults], time_r
     show_plots_non_blocking()
 
 
-def gen_raster_and_rates_grid_subtitle(results: SimulationResults):
+def gen_raster_and_rates_grid_subtitle(results: SimulationResultsWithSteadyState):
     experiment = results.experiment
     return fr"""Synapse: [$g_{{\mathrm{{AMPA}}}}={experiment.synaptic_params.g_ampa * (cm ** 2):.2f}$, $g_{{\mathrm{{GABA}}}}={experiment.synaptic_params.g_gaba * cm ** 2:.2f}$, $g={experiment.network_params.g}$, $g_{{\mathrm{{NMDA}}}}={experiment.synaptic_params.g_nmda * cm ** 2:.2f}$]"""
 
