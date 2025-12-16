@@ -7,17 +7,17 @@ class NMDAModels(enum.Enum):
         "eq": """
 dv/dt = 1/C * (- I_L - I_syn - I_Exc - I_Inh - I_nmda): volt (unless refractory)
 
-I_L = g_L * (v-E_leak): amp / meter ** 2
-I_syn = g_e_syn * (v-E_ampa): amp / meter ** 2
-I_Exc = g_e * (v-E_ampa): amp / meter ** 2
-I_Inh = g_i * (v-E_gaba): amp / meter ** 2
-I_nmda = g_nmda * (v - E_ampa): amp / meter** 2
+I_L = g_L * (v-E_leak): amp
+I_syn = g_e_syn * (v-E_ampa): amp
+I_Exc = g_e * (v-E_ampa): amp
+I_Inh = g_i * (v-E_gaba): amp
+I_nmda = g_nmda * (v - E_ampa): amp
 
-dg_e_syn/dt = -g_e_syn / tau_ampa  : siemens / meter**2
-dg_e/dt = -g_e / tau_ampa : siemens / meter**2
-dg_i/dt = -g_i / tau_gaba  : siemens / meter**2
+dg_e_syn/dt = -g_e_syn / tau_ampa  : siemens
+dg_e/dt = -g_e / tau_ampa : siemens
+dg_i/dt = -g_i / tau_gaba  : siemens
 
-g_nmda = g_nmda_max * sigmoid_v * s_nmda: siemens / meter**2
+g_nmda = g_nmda_max * sigmoid_v * s_nmda: siemens
 
 ds_nmda/dt = -s_nmda / tau_nmda_decay + alpha * x_nmda * (1 - s_nmda) : 1
 x_nmda_not_cliped : 1

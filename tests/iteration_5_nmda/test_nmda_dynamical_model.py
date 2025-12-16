@@ -212,8 +212,8 @@ def generate_title(experiment: Experiment):
     return fr"""{experiment.plot_params.panel}
     Network: [N={experiment.network_params.N}, $N_E={experiment.network_params.N_E}$, $N_I={experiment.network_params.N_I}$, $\gamma={experiment.network_params.gamma}$, $\epsilon={experiment.network_params.epsilon}$]
     Input: [$\nu_T={experiment.nu_thr}$, $\frac{{\nu_E}}{{\nu_T}}={experiment.nu_ext_over_nu_thr:.2f}$, $\nu_E={experiment.nu_ext:.2f}$ Hz]
-    Neuron: [$C={experiment.neuron_params.C * cm ** 2}$, $g_L={experiment.neuron_params.g_L * cm ** 2}$, $\theta={experiment.neuron_params.theta}$, $V_R={experiment.neuron_params.V_r}$, $E_L={experiment.neuron_params.E_leak}$, $\tau_M={experiment.neuron_params.tau}$, $\tau_{{\mathrm{{ref}}}}={experiment.neuron_params.tau_rp}$]
-    Synapse: [$g_{{\mathrm{{AMPA}}}}={experiment.synaptic_params.g_ampa * (cm ** 2) / uS:.2f}\,\mu\mathrm{{S}}$, $g_{{\mathrm{{GABA}}}}={experiment.synaptic_params.g_gaba * (cm ** 2) / uS:.2f}\,\mu\mathrm{{S}}$, $g={experiment.network_params.g}$]"""
+    Neuron: [$C={experiment.neuron_params.C}$, $g_L={experiment.neuron_params.g_L}$, $\theta={experiment.neuron_params.theta}$, $V_R={experiment.neuron_params.V_r}$, $E_L={experiment.neuron_params.E_leak}$, $\tau_M={experiment.neuron_params.tau}$, $\tau_{{\mathrm{{ref}}}}={experiment.neuron_params.tau_rp}$]
+    Synapse: [$g_{{\mathrm{{AMPA}}}}={experiment.synaptic_params.g_ampa/ uS:.2f}\,\mu\mathrm{{S}}$, $g_{{\mathrm{{GABA}}}}={experiment.synaptic_params.g_gaba/ uS:.2f}\,\mu\mathrm{{S}}$, $g={experiment.network_params.g}$]"""
 
 single_compartment_with_nmda_but_without_sigmoid = '''
 dv/dt = 1/C * (- I_L - I_nmda): volt (unless refractory)

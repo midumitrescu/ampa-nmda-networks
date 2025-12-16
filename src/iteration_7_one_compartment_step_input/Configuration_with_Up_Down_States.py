@@ -2,7 +2,7 @@ import copy
 import enum
 
 import numpy as np
-from brian2 import ufarad, cm, siemens, mV, ms, uS, Hz, nS
+from brian2 import ufarad, siemens, mV, ms, uS, Hz, nS
 from loguru import logger
 
 
@@ -29,7 +29,7 @@ class SynapticParams:
         self.J = params.get(SynapticParams.KEY_SYNAPTIC_STRENGTH, 0.5 * mV)
         self.D = params.get(SynapticParams.KEY_SYNAPTIC_DELAY, 1.5 * ms)
 
-        self.g_ampa = params.get(SynapticParams.KEY_G_AMPA, 0) * siemens / cm ** 2
+        self.g_ampa = params.get(SynapticParams.KEY_G_AMPA, 0) * siemens
         if g is not None:
             self.g_gaba = g * self.g_ampa
             self.g = g
@@ -38,7 +38,7 @@ class SynapticParams:
             self.g = self.g_gaba / self.g_ampa
 
 
-        self.g_nmda = params.get(SynapticParams.KEY_G_NMDA, 0) * siemens / cm ** 2
+        self.g_nmda = params.get(SynapticParams.KEY_G_NMDA, 0) * siemens
 
         self.tau_ampa = params.get(SynapticParams.KEY_TAU_AMPA, 2) * ms
         self.tau_gaba = params.get(SynapticParams.KEY_TAU_GABA, 2) * ms
@@ -150,8 +150,8 @@ class NeuronModelParams:
     def __init__(self, params: dict, network_params: NetworkParams = NetworkParams):
         self.synaptic_params = SynapticParams(params, g=network_params.g)
 
-        self.C = params.get(NeuronModelParams.KEY_NEURON_C, 1) * ufarad * (cm ** -2)
-        self.g_L = params.get(NeuronModelParams.KEY_NEURON_G_L, 0.04e-3) * siemens * (cm ** -2)
+        self.C = params.get(NeuronModelParams.KEY_NEURON_C, 1) * ufarad
+        self.g_L = params.get(NeuronModelParams.KEY_NEURON_G_L, 0.04e-3) * siemens
         self.theta = params.get(NeuronModelParams.KEY_NEURON_THRESHOLD, -40) * mV
         self.V_r = params.get(NeuronModelParams.KEY_NEURON_V_R, -65) * mV
         self.E_leak = params.get(NeuronModelParams.KEY_NEURON_E_L, -65) * mV
@@ -413,8 +413,8 @@ class Experiment:
         return fr"""{self.plot_params.panel} Single Compartment Level
     Network: [N={self.network_params.N}, $N_E={self.network_params.N_E}$, $N_I={self.network_params.N_I}$, $\gamma={self.network_params.gamma}$, $\epsilon={self.network_params.epsilon}$]
     Input: [$\nu_T={self.nu_thr}$, $\frac{{\nu_E}}{{\nu_T}}={self.nu_ext_over_nu_thr:.2f}$, $\nu_E={self.nu_ext:.2f}$ Hz]
-    Neuron: [$C={self.neuron_params.C * cm ** 2}$, $g_L={self.neuron_params.g_L * cm ** 2}$, $\theta={self.neuron_params.theta}$, $V_R={self.neuron_params.V_r}$, $E_L={self.neuron_params.E_leak}$, $\tau_M={self.neuron_params.tau}$, $\tau_{{\mathrm{{ref}}}}={self.neuron_params.tau_rp}$]
-    Synapse: [$g_{{\mathrm{{AMPA}}}}={self.synaptic_params.g_ampa * cm ** 2:.2f}$, $g_{{\mathrm{{GABA}}}}={self.synaptic_params.g_gaba * cm ** 2:.2f}$, $g={self.network_params.g}$]"""
+    Neuron: [$C={self.neuron_params.C}$, $g_L={self.neuron_params.g_L}$, $\theta={self.neuron_params.theta}$, $V_R={self.neuron_params.V_r}$, $E_L={self.neuron_params.E_leak}$, $\tau_M={self.neuron_params.tau}$, $\tau_{{\mathrm{{ref}}}}={self.neuron_params.tau_rp}$]
+    Synapse: [$g_{{\mathrm{{AMPA}}}}={self.synaptic_params.g_ampa:.2f}$, $g_{{\mathrm{{GABA}}}}={self.synaptic_params.g_gaba:.2f}$, $g={self.network_params.g}$]"""
 
 
 # Richardson Synaptic Shot Noise and Conductance Fluctuations Affect the Membrane Voltage with Equal Significance, 2005
@@ -492,4 +492,4 @@ class EffectiveTimeConstantEstimation:
         logger.debug("Is diffusion approximation valid? sigma_i / g_i0 ={} << 1? {}", sigma_i_over_g_i_0, sigma_i_over_g_i_0 < 0.01)
 
     def gen_plot_title(self):
-        return fr"$V_\mathrm{{eff, rev}}$ = {self.E_0() / mV: .2f} mV, $\sigma_v$ = {self.std_voltage() /mV : .2f} mV, $g_{{\mathrm{{0, AMPA}}}}={self.mean_excitatory_conductance() * (cm ** 2) / nS:.2f}\,n\mathrm{{S}}$, $g_{{\mathrm{{0, GABA}}}}={self.mean_inhibitory_conductance() * (cm ** 2) / nS:.2f}\,n\mathrm{{S}}$, Shunt Level = {self.shunt_level(): .2f}"
+        return fr"$V_\mathrm{{eff, rev}}$ = {self.E_0() / mV: .2f} mV, $\sigma_v$ = {self.std_voltage() /mV : .2f} mV, $g_{{\mathrm{{0, AMPA}}}}={self.mean_excitatory_conductance() / nS:.2f}\,n\mathrm{{S}}$, $g_{{\mathrm{{0, GABA}}}}={self.mean_inhibitory_conductance()/ nS:.2f}\,n\mathrm{{S}}$, Shunt Level = {self.shunt_level(): .2f}"

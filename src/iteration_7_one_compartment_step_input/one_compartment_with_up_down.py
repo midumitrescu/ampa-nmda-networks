@@ -62,7 +62,7 @@ class SimulationResults:
                 "t": np.array(currents_monitor.t / ms),
             }
             for current in self.experiment.plot_params.recorded_currents:
-                values[current] = np.array(currents_monitor.__getattr__(current) / uamp * cm ** 2)
+                values[current] = np.array(currents_monitor.__getattr__(current) / uamp)
             return ExtendedDict(values)
         else:
             return ExtendedDict({})
@@ -527,23 +527,23 @@ def generate_title(experiment: Experiment):
     return fr"""{experiment.plot_params.panel}
     Up State: [{experiment.network_params.up_state.gen_plot_title()}, {experiment.effective_time_constant_up_state.gen_plot_title()}]
     Down State: [{experiment.network_params.down_state.gen_plot_title()}, {experiment.effective_time_constant_down_state.gen_plot_title()}]    
-    Neuron: [$C={experiment.neuron_params.C * cm ** 2}$, $g_L={experiment.neuron_params.g_L * cm ** 2}$, $\theta={experiment.neuron_params.theta}$, $V_R={experiment.neuron_params.V_r}$, $E_L={experiment.neuron_params.E_leak}$, $\tau_M={experiment.neuron_params.tau}$, $\tau_{{\mathrm{{ref}}}}={experiment.neuron_params.tau_rp}$]
-    Synapse: [$g_{{\mathrm{{AMPA}}}}={experiment.synaptic_params.g_ampa * (cm ** 2):.2f}$, $g_{{\mathrm{{GABA}}}}={experiment.synaptic_params.g_gaba * (cm ** 2):.2f}$, $g={experiment.network_params.g}$, $g_{{\mathrm{{NMDA}}}}={experiment.synaptic_params.g_nmda * (cm ** 2):.2f}$]"""
+    Neuron: [$C={experiment.neuron_params.C}$, $g_L={experiment.neuron_params.g_L}$, $\theta={experiment.neuron_params.theta}$, $V_R={experiment.neuron_params.V_r}$, $E_L={experiment.neuron_params.E_leak}$, $\tau_M={experiment.neuron_params.tau}$, $\tau_{{\mathrm{{ref}}}}={experiment.neuron_params.tau_rp}$]
+    Synapse: [$g_{{\mathrm{{AMPA}}}}={experiment.synaptic_params.g_ampa:.2f}$, $g_{{\mathrm{{GABA}}}}={experiment.synaptic_params.g_gaba:.2f}$, $g={experiment.network_params.g}$, $g_{{\mathrm{{NMDA}}}}={experiment.synaptic_params.g_nmda:.2f}$]"""
 
 
 single_compartment_with_nmda = '''
 dv/dt = 1/C * (- I_L - I_ampa - I_gaba - I_nmda): volt (unless refractory)
 
-I_L = g_L * (v-E_leak): amp / meter ** 2
+I_L = g_L * (v-E_leak): amp
 
-I_ampa = g_e * (v - E_ampa): amp / meter ** 2
-I_gaba = g_i * (v - E_gaba): amp / meter ** 2
-I_nmda = g_nmda * (v - E_nmda): amp / meter** 2
+I_ampa = g_e * (v - E_ampa): amp
+I_gaba = g_i * (v - E_gaba): amp
+I_nmda = g_nmda * (v - E_nmda): amp
 
-dg_e/dt = -g_e / tau_ampa : siemens / meter**2
-dg_i/dt = -g_i / tau_gaba  : siemens / meter**2
+dg_e/dt = -g_e / tau_ampa : siemens
+dg_i/dt = -g_i / tau_gaba  : siemens
 
-g_nmda = g_nmda_max * sigmoid_v * s_nmda: siemens / meter**2
+g_nmda = g_nmda_max * sigmoid_v * s_nmda: siemens
 ds_nmda/dt = -s_nmda / tau_nmda_decay + alpha * x_nmda * (1 - s_nmda) : 1
 dx_nmda/dt = - x_nmda / tau_nmda_rise : 1
 
@@ -556,5 +556,5 @@ one_minus_s_nmda = 1 - s_nmda : 1
 alpha_x_t = alpha * x_nmda: Hz
 s_drive = alpha * x_nmda * (1 - s_nmda) : Hz
 v_minus_e_gaba = v-E_gaba : volt
-I_fast = I_ampa + I_gaba : amp / meter ** 2
+I_fast = I_ampa + I_gaba : amp
 '''

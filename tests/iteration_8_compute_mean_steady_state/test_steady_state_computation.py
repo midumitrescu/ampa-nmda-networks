@@ -50,15 +50,15 @@ config = {
 
 steady_model = """
 dv/dt = 1/C * (- I_L - I_ampa - I_gaba - I_nmda): volt
-I_L = g_L * (v-E_leak): amp / meter ** 2
-I_ampa = g_e * (v - E_ampa): amp / meter ** 2
-I_gaba = g_i * (v - E_gaba): amp / meter ** 2
-I_nmda = g_nmda * (v - E_nmda): amp / meter** 2
+I_L = g_L * (v-E_leak): amp
+I_ampa = g_e * (v - E_ampa): amp
+I_gaba = g_i * (v - E_gaba): amp
+I_nmda = g_nmda * (v - E_nmda): amp
 
-dg_e/dt = -g_e / tau_ampa + g_ampa * N_E * r_e : siemens / meter**2
-dg_i/dt = -g_i / tau_gaba + g_gaba * N_I * r_i : siemens / meter**2
+dg_e/dt = -g_e / tau_ampa + g_ampa * N_E * r_e : siemens
+dg_i/dt = -g_i / tau_gaba + g_gaba * N_I * r_i : siemens
 
-g_nmda = g_nmda_max * sigmoid_v * s_nmda: siemens / meter**2
+g_nmda = g_nmda_max * sigmoid_v * s_nmda: siemens
 ds_nmda/dt = -s_nmda / tau_nmda_decay + alpha * x_nmda * (1 - s_nmda) : 1
 dx_nmda/dt = - x_nmda / tau_nmda_rise + 1 * N_N * r_nmda: 1
 

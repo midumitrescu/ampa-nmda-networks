@@ -7,20 +7,22 @@ from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States im
 from iteration_7_one_compartment_step_input.one_compartment_with_up_down import \
     single_compartment_with_nmda_and_logged_variables
 from iteration_8_compute_mean_steady_state.test_wang_numbers import steady_model
+from iteration_9_simulation_via_noise_processes.grid_computations import \
+    sim_and_plot_experiment_grid_with_increasing_nmda_input_and_diffusion_process
 from iteration_9_simulation_via_noise_processes.one_compartment_with_difusion_process import \
     sim_and_plot_diffusion_process
 
 diffusion_model = """
 dv/dt = 1/C * (- I_L - I_ampa - I_gaba - I_nmda): volt
-I_L = g_L * (v-E_leak): amp / meter ** 2
-I_ampa = g_e * (v - E_ampa): amp / meter ** 2
-I_gaba = g_i * (v - E_gaba): amp / meter ** 2
-I_nmda = g_nmda * (v - E_nmda): amp / meter** 2
+I_L = g_L * (v-E_leak): amp
+I_ampa = g_e * (v - E_ampa): amp
+I_gaba = g_i * (v - E_gaba): amp
+I_nmda = g_nmda * (v - E_nmda): amp
 
-dg_e/dt = (-(g_e - g_e_0)) / tau_ampa: siemens / meter**2
-dg_i/dt = (-(g_i - g_i_0)) / tau_gaba: siemens / meter**2
+dg_e/dt = (-(g_e - g_e_0)) / tau_ampa: siemens
+dg_i/dt = (-(g_i - g_i_0)) / tau_gaba: siemens
 
-g_nmda = g_nmda_max * sigmoid_v * s_nmda: siemens / meter**2
+g_nmda = g_nmda_max * sigmoid_v * s_nmda: siemens
 dx_nmda/dt = (-(x_nmda - x_0))/ tau_nmda_rise: 1
 ds_nmda/dt = -s_nmda / tau_nmda_decay + alpha * x_nmda * (1 - s_nmda) : 1
 
@@ -29,15 +31,15 @@ sigmoid_v = 1/(1 + exp(-0.062 * (v/mvolt)) * (MG_C/mmole / 3.57)): 1
 
 diffusion_model_with_up_down = """
 dv/dt = 1/C * (- I_L - I_ampa - I_gaba - I_nmda): volt
-I_L = g_L * (v-E_leak): amp / meter ** 2
-I_ampa = g_e * (v - E_ampa): amp / meter ** 2
-I_gaba = g_i * (v - E_gaba): amp / meter ** 2
-I_nmda = g_nmda * (v - E_nmda): amp / meter** 2
+I_L = g_L * (v-E_leak): amp
+I_ampa = g_e * (v - E_ampa): amp
+I_gaba = g_i * (v - E_gaba): amp
+I_nmda = g_nmda * (v - E_nmda): amp
 
-dg_e/dt = (-(g_e - up*g_e_0_up - down*g_e_0_down)) / tau_ampa: siemens / meter**2
-dg_i/dt = (-(g_i - up*g_i_0_up - down*g_i_0_down)) / tau_gaba: siemens / meter**2
+dg_e/dt = (-(g_e - up*g_e_0_up - down*g_e_0_down)) / tau_ampa: siemens
+dg_i/dt = (-(g_i - up*g_i_0_up - down*g_i_0_down)) / tau_gaba: siemens
 
-g_nmda = g_nmda_max * sigmoid_v * s_nmda: siemens / meter**2
+g_nmda = g_nmda_max * sigmoid_v * s_nmda: siemens
 dx_nmda/dt = (-(x_nmda - up*x_0_up - down*x_0_down))/ tau_nmda_rise: 1
 ds_nmda/dt = -s_nmda / tau_nmda_decay + alpha * x_nmda * (1 - s_nmda) : 1
 
@@ -115,6 +117,13 @@ class DiffussionProcessTestCases(unittest.TestCase):
 
     def test_difussion_simulation_works(self):
         sim_and_plot_diffusion_process(Experiment(difussion_experiment_with_wang_numbers))
+        sim_and_plot_diffusion_process(Experiment(difussion_experiment_with_wang_numbers).with_property(NeuronModelParams.KEY_NEURON_THRESHOLD, -40))
+
+
+    def test_grid_diffusion_process_works(self):
+        increasing_nmda = np.array([0.5e-9, 1e-9, 1.5e-9, 3e-9])
+        sim_and_plot_experiment_grid_with_increasing_nmda_input_and_diffusion_process(Experiment(difussion_experiment_with_wang_numbers),
+                                                                                      "Diffusion Process", nmda_schedule=increasing_nmda)
 
 
 if __name__ == '__main__':

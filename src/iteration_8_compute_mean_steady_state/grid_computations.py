@@ -1,7 +1,7 @@
 from typing import Callable
 
 import matplotlib.pyplot as plt
-from brian2 import cm, uS
+from brian2 import cm
 from joblib import Parallel, delayed
 from matplotlib import gridspec
 
@@ -9,8 +9,6 @@ from Plotting import show_plots_non_blocking
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment
 from iteration_7_one_compartment_step_input.grid_computations import sim_and_plot_experiment_grid_with_lambda, \
     grid_title, parallelize
-
-from iteration_8_compute_mean_steady_state import one_compartment_with_up_down_and_steady
 from iteration_8_compute_mean_steady_state.one_compartment_with_up_down_and_steady import \
     simulate_with_up_and_down_state_and_nmda_and_steady_state, SimulationResultsWithSteadyState, plot_raster_and_rates, \
     plot_voltages_and_g_s, plot_currents, plot_simulation

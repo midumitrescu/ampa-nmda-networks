@@ -1,6 +1,10 @@
-from brian2 import *
+import numpy as np
+from brian2 import plt, mpl, StateMonitor, mV, siemens, start_scope, defaultclock, mmole, kHz, NeuronGroup, run, \
+    Network, second, stop, ms, nS
 from loguru import logger
 from matplotlib import gridspec
+from matplotlib.gridspec import SubplotSpec
+from mpl_toolkits.axes_grid1.mpl_axes import Axes
 
 from Plotting import show_plots_non_blocking
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment, State
@@ -16,9 +20,9 @@ class SteadyStateResults:
 
     def __init__(self,  steady_state_results: StateMonitor):
         self.v_steady = steady_state_results[0].v[-1] / mV
-        self.g_e_steady = steady_state_results[0].g_e[-1] / siemens * cm**2
-        self.g_i_steady = steady_state_results[0].g_i[-1] / siemens * cm**2
-        self.g_nmda_steady = steady_state_results[0].g_nmda[-1] / siemens * cm**2
+        self.g_e_steady = steady_state_results[0].g_e[-1] / siemens
+        self.g_i_steady = steady_state_results[0].g_i[-1] / siemens
+        self.g_nmda_steady = steady_state_results[0].g_nmda[-1] / siemens
         self.x_nmda_steady = steady_state_results[0].x_nmda[-1]
         self.s_nmda_steady = steady_state_results[0].s_nmda[-1]
 
@@ -108,7 +112,7 @@ def sim_steady_state(experiment: Experiment, state: State) -> SteadyStateResults
                           method="euler")
     neuron.v[:] = experiment.neuron_params.E_leak
     v_monitor = StateMonitor(source=neuron,
-                             variables=["v", "g_e", "g_i", "g_nmda", "x_nmda", "s_nmda"], record=True, dt=0.01 * ms)
+                             variables=["v", "g_e", "g_i", "g_nmda", "x_nmda", "s_nmda"], record=True)
 
     steady_state_network = Network([neuron, v_monitor])
 
@@ -171,12 +175,13 @@ def plot_currents(simulation_results: SimulationResultsWithSteadyState, time_ran
 
     ax_voltage.plot(simulation_results.voltages.t[time_start:time_end], simulation_results.voltages.v[0][time_start:time_end])
     ax_voltage.axhline(y=simulation_results.steady_up_results.v_steady, linestyle="--", linewidth=1.5,
-                       label="Mean V - UP State")
+                       label=f"Mean V={simulation_results.steady_up_results.v_steady :.3f}- UP State ")
 
     ax_voltage.axhline(y=simulation_results.steady_down_results.v_steady, linestyle="--", linewidth=1.5,
-                       label="Mean V - Down State")
+                       label=f"Mean V={simulation_results.steady_down_results.v_steady :.3f} - Down State")
 
     ax_voltage.legend()
+    ax_voltage.set_ylim(top=simulation_results.experiment.neuron_params.theta / mV + 3)
 
 
     for current_to_plot in simulation_results.experiment.plot_params.recorded_currents:
@@ -334,15 +339,15 @@ def plot_internal_states_in_one_time_range(simulation_results, time_range: tuple
         fig.suptitle(f"{generate_title(simulation_results.experiment)} \n {neurons_to_plot}")
         fig.tight_layout()
 
-        show_plots_non_blocking(show)
+        show_plots_non_blocking(True)
 
 
 def generate_title(experiment: Experiment):
     return fr"""{experiment.plot_params.panel}
     Up State: [{experiment.network_params.up_state.gen_plot_title()}, {experiment.effective_time_constant_up_state.gen_plot_title()}]
     Down State: [{experiment.network_params.down_state.gen_plot_title()}, {experiment.effective_time_constant_down_state.gen_plot_title()}]    
-    Neuron: [$C={experiment.neuron_params.C * cm ** 2}$, $g_L={experiment.neuron_params.g_L * cm ** 2}$, $\theta={experiment.neuron_params.theta}$, $V_R={experiment.neuron_params.V_r}$, $E_L={experiment.neuron_params.E_leak}$, $\tau_M={experiment.neuron_params.tau}$, $\tau_{{\mathrm{{ref}}}}={experiment.neuron_params.tau_rp}$]
-    Synapse: [$g_{{\mathrm{{AMPA}}}}={experiment.synaptic_params.g_ampa * (cm ** 2):.2f}$, $g_{{\mathrm{{GABA}}}}={experiment.synaptic_params.g_gaba * (cm ** 2) / nS:.2f}\,n\mathrm{{S}}$, $g={experiment.network_params.g}$, $g_{{\mathrm{{NMDA}}}}={experiment.synaptic_params.g_nmda * (cm ** 2) / nS:.2f}\,n\mathrm{{S}}$]"""
+    Neuron: [$C={experiment.neuron_params.C}$, $g_L={experiment.neuron_params.g_L}$, $\theta={experiment.neuron_params.theta}$, $V_R={experiment.neuron_params.V_r}$, $E_L={experiment.neuron_params.E_leak}$, $\tau_M={experiment.neuron_params.tau}$, $\tau_{{\mathrm{{ref}}}}={experiment.neuron_params.tau_rp}$]
+    Synapse: [$g_{{\mathrm{{AMPA}}}}={experiment.synaptic_params.g_ampa:.2f}$, $g_{{\mathrm{{GABA}}}}={experiment.synaptic_params.g_gaba/ nS:.2f}\,n\mathrm{{S}}$, $g={experiment.network_params.g}$, $g_{{\mathrm{{NMDA}}}}={experiment.synaptic_params.g_nmda / nS:.2f}\,n\mathrm{{S}}$]"""
 
 
 single_compartment_with_nmda = '''
