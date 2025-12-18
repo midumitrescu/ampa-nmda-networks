@@ -2,7 +2,7 @@ import copy
 import enum
 
 import numpy as np
-from brian2 import ufarad, siemens, mV, ms, uS, Hz, nS
+from brian2 import ufarad, siemens, mV, ms, Hz, nS, usiemens, nsiemens
 from loguru import logger
 
 
@@ -78,6 +78,8 @@ class State:
 
     KEY_GAMMA = "gamma"
 
+    KEY_X_VAR_MULT = "x_var_mult"
+
     def __init__(self, params: dict):
 
         self.gamma = params.get(State.KEY_GAMMA, 0.25)
@@ -101,6 +103,8 @@ class State:
         self.nu_nmda = params.get(State.KEY_NU_NMDA, 0) * Hz
 
         self.effective_timeconstant_estimation: EffectiveTimeConstantEstimation = None
+
+        self.x_var_mult = params.get(State.KEY_X_VAR_MULT, 1)
 
     def gen_plot_title(self):
         return fr"$N_E={self.N_E}$, $N_I={self.N_I}$, $N_\mathrm{{NMDA}}={self.N_NMDA}$,  $\nu={self.nu}$, $\nu_\mathrm{{NMDA}}={self.nu_nmda}$, $\gamma={self.gamma}$"
@@ -216,7 +220,8 @@ class PlotParams:
         },
         AvailableHiddenVariables.g_nmda.value: {
             "title": "Total NMDA conductance",
-            "y_label": r'$g_\mathrm{NMDA}$''\n'r'[$\frac{{nS}}{{\mathrm{{cm}}^2}}]$'
+            "y_label": r'$g_\mathrm{NMDA}$''\n'r'[nS]',
+            "scaling": nsiemens
         },
         AvailableHiddenVariables.I_nmda.value: {
             "title": "NMDA current",
@@ -338,6 +343,12 @@ def check_plot_times_inside_sim_time(plot_params: PlotParams, sim_time):
                 raise ValueError(f"Sim time was only {sim_time}. We can not plot unit {t_range[1]}.")
     elif plot_params.t_range[0] > sim_time / ms or plot_params.t_range[1] > sim_time / ms:
         raise ValueError(f"Sim time was only {sim_time}. We can not plot unit {plot_params.t_range}.")
+
+class DiffusionProcess:
+    KEY_X_VARIANCE_MULTIPLICATION = "x_noise_multiplier"
+
+    def __init__(self, params: dict):
+        self.x_variance_mult = params.get(DiffusionProcess.KEY_X_VARIANCE_MULTIPLICATION, 0)
 
 
 class Experiment:
@@ -461,6 +472,11 @@ class EffectiveTimeConstantEstimation:
     def std_inhibitory_conductance(self):
         return self.config.synaptic_params.g_gaba * np.sqrt(
             1 / 2 * self.config.synaptic_params.tau_gaba * self.state.N_I * self.state.nu
+        )
+
+    def std_nmda(self):
+        return 1 * np.sqrt(
+            1 / 2 * self.config.synaptic_params.tau_nmda_rise * self.state.N_NMDA * self.state.nu_nmda
         )
 
     # 2.19

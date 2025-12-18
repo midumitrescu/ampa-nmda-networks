@@ -1,6 +1,12 @@
 import brian2.devices.device
-from brian2 import *
+import matplotlib.pyplot as plt
+import numpy as np
+from brian2 import PopulationRateMonitor, SpikeMonitor, StateMonitor, Hz, ms, nsiemens, uamp, seed, mpl, start_scope, \
+    defaultclock, kHz, mmole, NeuronGroup, PoissonGroup, Synapses, network_operation, second, mV, run
+from loguru import logger
 from matplotlib import gridspec
+from matplotlib.gridspec import SubplotSpec
+from mpl_toolkits.axes_grid1.mpl_axes import Axes
 
 from Plotting import show_plots_non_blocking
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment
@@ -22,7 +28,7 @@ class SimulationResults:
         self.g_s = self.__extract_g_s__(g_monitor)
         self.currents = self.__extract_currents__(currents_monitor)
 
-        self.internal_states_monitor = internal_states_monitor
+        self.internal_states_monitor = self.__extract_internal_states_monitor(internal_states_monitor)
 
     def __extract_rates__(self, rate_monitor: PopulationRateMonitor):
         rates_to_extract = rate_monitor.smooth_rate(width=self.experiment.plot_params.smoothened_rate_width) / Hz \
@@ -50,7 +56,7 @@ class SimulationResults:
             "t": np.array(g_monitor.t / ms),
         }
         for recorded_g in self.experiment.plot_params.recorded_g_s:
-            values[recorded_g] = np.array(g_monitor.__getattr__(recorded_g) / siemens * cm**2)
+            values[recorded_g] = np.array(g_monitor.__getattr__(recorded_g) / nsiemens)
         return ExtendedDict(values)
 
     '''
@@ -72,6 +78,21 @@ class SimulationResults:
 
     def rate_monitor_rates(self):
         return self.rates[1]
+
+    def __extract_internal_states_monitor(self, internal_states_monitor: StateMonitor):
+
+        if len(self.experiment.plot_params.recorded_hidden_variables) > 0:
+            values = {
+                "t": np.array(internal_states_monitor.t / ms),
+            }
+            for variable in self.experiment.plot_params.recorded_hidden_variables:
+                if variable == "g_nmda":
+                    values[variable] = np.array(internal_states_monitor.__getattr__(variable) / nsiemens)
+                else:
+                    values[variable] = np.array(internal_states_monitor.__getattr__(variable))
+            return ExtendedDict(values)
+        else:
+            return ExtendedDict({})
 
 def sim_and_plot(experiment: Experiment) -> SimulationResults:
     simulation_results = simulate_with_up_and_down_state_and_nmda(experiment)
@@ -463,8 +484,7 @@ def plot_voltages_and_g_s(simulation_results: SimulationResults, time_range, gri
     ax_g_s.legend(loc="best")
 
 
-def plot_v_line(simulation_results,
-                i: int, ax_voltages: Axes) -> None:
+def plot_v_line(simulation_results, i: int, ax_voltages: Axes) -> None:
     lines = ax_voltages.plot(simulation_results.voltages.t, simulation_results.voltages.v[i], lw=1)
     color = lines[0].get_color()
     #spike_times_current_neuron = simulation_results.spike_monitor.all_values()['t'][i] / ms Keep This in mind
@@ -520,7 +540,7 @@ def plot_internal_states_in_one_time_range(simulation_results, time_range: tuple
         fig.suptitle(f"{generate_title(simulation_results.experiment)} \n {neurons_to_plot}")
         fig.tight_layout()
 
-        show_plots_non_blocking(show)
+        show_plots_non_blocking(True)
 
 
 def generate_title(experiment: Experiment):

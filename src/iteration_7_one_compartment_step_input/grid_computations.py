@@ -63,10 +63,10 @@ def parallelize(experiments: list[Experiment],
                 function_simulate_one_experiment: Callable[[Experiment], SimulationResults]):
     def sim_unpickled(experiment: Experiment):
         simulation_results = function_simulate_one_experiment(experiment)
-        simulation_results.internal_states_monitor = None
+        #simulation_results.internal_states_monitor = None
         return simulation_results
 
-    return Parallel(n_jobs=16)(
+    return Parallel(n_jobs=1)(
         delayed(sim_unpickled)(current_experiment) for current_experiment in experiments
     )
 

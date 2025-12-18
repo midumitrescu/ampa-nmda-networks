@@ -59,9 +59,23 @@ def __sim_diffusion_process_with_up_down(experiment: Experiment) -> SimulationRe
     g_i_0_up = experiment.network_params.up_state.effective_timeconstant_estimation.mean_inhibitory_conductance()
     x_0_up =  experiment.network_params.up_state.effective_timeconstant_estimation.mean_nmda_activation()
 
+    #sigma_e_up = 0.0000000005 * siemens * msecond ** 0.5
+    #sigma_e_up = sqrt(2) * experiment.network_params.up_state.effective_timeconstant_estimation.std_excitatory_conductance() * msecond ** 0.5
+    #sigma_i_up = sqrt(2) * experiment.network_params.up_state.effective_timeconstant_estimation.std_inhibitory_conductance() * msecond ** 0.5
+
     g_e_0_down = experiment.network_params.down_state.effective_timeconstant_estimation.mean_excitatory_conductance()
     g_i_0_down = experiment.network_params.down_state.effective_timeconstant_estimation.mean_inhibitory_conductance()
     x_0_down = experiment.network_params.down_state.effective_timeconstant_estimation.mean_nmda_activation()
+
+    sigma_e_up = 0 * siemens * msecond ** 0.5
+    sigma_i_up = 0 * siemens * msecond ** 0.5
+    sigma_e_down = 0 * siemens * msecond ** 0.5
+    sigma_i_down = 0 * siemens * msecond ** 0.5
+
+    #sigma_x_up = 0.0005 * msecond ** 0.5
+    sigma_x_up = experiment.network_params.up_state.x_var_mult * sqrt(2) * experiment.network_params.up_state.effective_timeconstant_estimation.std_nmda() * msecond ** 0.5
+    #sigma_x_down = experiment.network_params.down_state.x_var_mult * sqrt(2) * experiment.network_params.down_state.effective_timeconstant_estimation.std_nmda() * msecond ** 0.5
+    sigma_x_down = experiment.network_params.up_state.x_var_mult * sqrt(2) * experiment.network_params.down_state.effective_timeconstant_estimation.std_nmda() * msecond ** 0.5
 
     single_neuron = NeuronGroup(1,
                                     model=experiment.diffusion_model,
