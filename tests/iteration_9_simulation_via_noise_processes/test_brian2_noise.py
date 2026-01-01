@@ -6,7 +6,7 @@ from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States im
     NeuronModelParams, SynapticParams
 from iteration_7_one_compartment_step_input.one_compartment_with_up_down import \
     single_compartment_with_nmda_and_logged_variables
-from iteration_8_compute_mean_steady_state.one_compartment_with_up_down_and_steady import sim_and_plot_up_down
+from iteration_8_compute_mean_steady_state.one_compartment_with_up_down_and_steady import sim_and_plot_with_weak_meanfield
 from iteration_8_compute_mean_steady_state.test_wang_numbers import steady_model
 from iteration_9_simulation_via_noise_processes.grid_computations import \
     sim_and_plot_experiment_grid_with_increasing_nmda_input_and_diffusion_process, \
@@ -151,7 +151,7 @@ class DiffusionProcessTestCases(unittest.TestCase):
 
     def test_compare_poisson_process_vs_diffusion_process(self):
         sim_and_plot_diffusion_process(Experiment(difussion_experiment_with_wang_numbers).with_property("panel", "Diffusion Process Simulation").with_property("theta", -40))
-        sim_and_plot_up_down(Experiment(difussion_experiment_with_wang_numbers).with_property("panel", "Poisson Process Simulation").with_property("theta", -40))
+        sim_and_plot_with_weak_meanfield(Experiment(difussion_experiment_with_wang_numbers).with_property("panel", "Poisson Process Simulation").with_property("theta", -40))
 
     def test_single_state(self):
         sim_and_plot_diffusion_process(Experiment(difussion_experiment_with_wang_numbers).with_property("up_state", {

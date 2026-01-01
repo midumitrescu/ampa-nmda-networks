@@ -37,7 +37,6 @@ wang_recurrent_config = {
     NeuronModelParams.KEY_NEURON_C: 0.5e-3,
     # Wang: Cm = 0.5 nF for pyramidal cells. We are using microFahrad / cm^2 => we need the extra e-3.
     # check tau membrane to be 20 ms!
-    "g": 1,
     # ␶tau m = Cm/gL = 20 ms for excitatory cells
 
     # VL = -70 mV, the firing threshold Vth = - 50 mV, a reset potential Vreset = -55 mV
@@ -51,7 +50,7 @@ wang_recurrent_config = {
     # for pyramidal cells: gext,AMPA = 2.1, g recurrent,AMPA = 0.05, grecurrent, NMDA = 0.165, and g recurrent, GABA = 1.3
     # NOTE: weirdly, this is how Wang compensates for the need of more inhibition than excitation in the balance
     SynapticParams.KEY_G_AMPA: 0.05e-9,
-    SynapticParams.KEY_G_GABA: 1.3e-9,
+    SynapticParams.KEY_G_GABA: 0.04e-9,
     SynapticParams.KEY_G_NMDA: 0.165e-9,
 
     # ␶where the decay time constant of GABA currents is taken to be tau GABA = 5 ms
@@ -62,8 +61,7 @@ wang_recurrent_config = {
     SynapticParams.KEY_TAU_NMDA_DECAY: 100,
 
     "up_state": {
-        "N_E": 1200,
-        "N_I": 1000,
+        "N": 2000,
         "nu": 100,
 
         "N_nmda": 10,
@@ -90,29 +88,54 @@ wang_recurrent_config = {
                                         PlotParams.AvailablePlots.CURRENTS]
 }
 
+
 class MyTestCase(unittest.TestCase):
+
+    def test_wang_configuration_is_correctly_applied(self):
+        object_under_test = Experiment(wang_recurrent_config)
+        self.assertEqual(2000, object_under_test.network_params.up_state.N)
+        self.assertEqual(1600, object_under_test.network_params.up_state.N_E)
+        self.assertEqual(400, object_under_test.network_params.up_state.N_I)
 
     def test_up_down_with_wang_numbers(self):
         sim_and_plot_up_down(Experiment(wang_recurrent_config))
 
+    '''
+    Model starts firing between 80Hz input -> 0 Hz output, 90 Hz -> 20-40 Hz
+    '''
+    def test_only_up_with_wang_numbers(self):
+        various_nu_ext = np.arange(0, 100, step=10)
+        for nu_ext in various_nu_ext:
+            same_state = {
+                "N": 2000,
+                "nu": nu_ext,
+                "N_nmda": 10,
+                "nu_nmda": 10,
+            }
+            experiment = Experiment(wang_recurrent_config).with_property("up_state", same_state).with_property(
+                "down_state", same_state)
+            sim_and_plot_up_down(experiment)
+
     def test_grid_increasing_N_E_vs_increasing_g_nmda(self):
         increasing_nmda = np.array([0, 0.165e-9, 0.3e-9, 0.5e-9])
         increasing_nmda = np.array([0.5e-9, 1e-9, 1.5e-9, 3e-9])
-        #increasing_N_E = [500, 1000, 1500, 2000] -> here, 1000 no firing, 1500 firing a lot
-        #increasing_N_E = [1100, 1200, 1300, 1400] -> 1100, 1200 no firing. 1300 -> 0.05 Hz. 1400 Too much => 1300 is the right number of excitatory N
+        # increasing_N_E = [500, 1000, 1500, 2000] -> here, 1000 no firing, 1500 firing a lot
+        # increasing_N_E = [1100, 1200, 1300, 1400] -> 1100, 1200 no firing. 1300 -> 0.05 Hz. 1400 Too much => 1300 is the right number of excitatory N
         increasing_N_E = [1300]
         for n_e in increasing_N_E:
             current_experiment = (Experiment(wang_recurrent_config).with_property(PlotParams.KEY_WHAT_PLOTS_TO_SHOW,
-                                                            [PlotParams.AvailablePlots.RASTER_AND_RATE])
-            .with_property("up_state", {
-                    "N_E": n_e,
-                    "N_I": 1000,
-                    "nu": 100,
+                                                                                  [PlotParams.AvailablePlots.RASTER_AND_RATE])
+                                  .with_property("up_state", {
+                "N_E": n_e,
+                "N_I": 1000,
+                "nu": 100,
 
-                    "N_nmda": 10,
-                    "nu_nmda": 10,
-                }))
-            sim_and_plot_experiment_grid_with_increasing_nmda_input_and_steady_state(current_experiment, "Look for Palmer firing rates", increasing_nmda)
+                "N_nmda": 10,
+                "nu_nmda": 10,
+            }))
+            sim_and_plot_experiment_grid_with_increasing_nmda_input_and_steady_state(current_experiment,
+                                                                                     "Look for Palmer firing rates",
+                                                                                     increasing_nmda)
 
 
 if __name__ == '__main__':

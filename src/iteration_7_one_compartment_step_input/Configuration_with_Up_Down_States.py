@@ -30,11 +30,11 @@ class SynapticParams:
         self.D = params.get(SynapticParams.KEY_SYNAPTIC_DELAY, 1.5 * ms)
 
         self.g_ampa = params.get(SynapticParams.KEY_G_AMPA, 0) * siemens
-        if g is not None:
+        if g > 0:
             self.g_gaba = g * self.g_ampa
             self.g = g
         else:
-            self.g_gaba = params.get(SynapticParams.KEY_G_GABA, 0)
+            self.g_gaba = params.get(SynapticParams.KEY_G_GABA, 0) * siemens
             self.g = self.g_gaba / self.g_ampa
 
 

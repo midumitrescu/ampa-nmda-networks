@@ -355,6 +355,7 @@ class MyTestCase(unittest.TestCase):
 
             PlotParams.KEY_PLOT_SMOOTH_WIDTH: 10,
             Experiment.KEY_SELECTED_MODEL: single_compartment_with_nmda_and_logged_variables,
+            Experiment.KEY_STEADY_MODEL: steady_model,
             Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD: ["x_nmda", "v_minus_e_gaba"],
 
             Experiment.KEY_CURRENTS_TO_RECORD: ["I_L", "I_nmda", "I_fast"],

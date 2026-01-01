@@ -12,7 +12,7 @@ from iteration_7_one_compartment_step_input.one_compartment_with_up_down import 
     single_compartment_with_nmda_and_logged_variables
 from iteration_8_compute_mean_steady_state.grid_computations import \
     sim_and_plot_experiment_grid_with_increasing_nmda_input_and_steady_state
-from iteration_8_compute_mean_steady_state.one_compartment_with_up_down_and_steady import sim_and_plot_up_down
+from iteration_8_compute_mean_steady_state.one_compartment_with_up_down_and_steady import sim_and_plot_with_weak_meanfield
 
 wang_recurrent_config = {
 

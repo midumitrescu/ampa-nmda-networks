@@ -15,12 +15,20 @@ from utils import ExtendedDict
 plt.rcParams.update(mpl.rcParamsDefault)
 plt.rcParams['text.usetex'] = True
 
+class MeanField:
+
+    def __init__(self, g_ampa, g_gaba, g_x, N, N_reference):
+        self.g_ampa = g_ampa
+        self.g_gaba = g_gaba
+        self.g_x = g_x
+        self.N = N
+        self.N_reference = N_reference
 
 class SimulationResults:
 
     def __init__(self, experiment: Experiment, rate_monitor: PopulationRateMonitor, spike_monitor: SpikeMonitor,
                  v_monitor: StateMonitor, g_monitor: StateMonitor, internal_states_monitor: StateMonitor,
-                 currents_monitor: StateMonitor):
+                 currents_monitor: StateMonitor, mean_field_values=None):
         self.experiment = experiment
         self.rates = self.__extract_rates__(rate_monitor)
         self.spikes = self.__extract_spikes__(spike_monitor)
@@ -29,6 +37,7 @@ class SimulationResults:
         self.currents = self.__extract_currents__(currents_monitor)
 
         self.internal_states_monitor = self.__extract_internal_states_monitor(internal_states_monitor)
+        self.mean_field_values = mean_field_values
 
     def __extract_rates__(self, rate_monitor: PopulationRateMonitor):
         rates_to_extract = rate_monitor.smooth_rate(width=self.experiment.plot_params.smoothened_rate_width) / Hz \

@@ -45,6 +45,8 @@ class SimulationResultsWithSteadyState(SimulationResults):
         self.currents = simulation_results.currents
         self.internal_states_monitor = simulation_results.internal_states_monitor
 
+        self.mean_field_values = simulation_results.mean_field_values
+
         self.steady_up_results = steady_up_state_results
         self.steady_down_results = steady_down_state_results
 
