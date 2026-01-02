@@ -1,10 +1,10 @@
 import numpy as np
 from brian2 import plt, mpl, StateMonitor, mV, start_scope, defaultclock, mmole, kHz, NeuronGroup, run, \
     second, devices as brian2devices, seed, PoissonGroup, Synapses, \
-    PopulationRateMonitor, SpikeMonitor
+    PopulationRateMonitor, SpikeMonitor, siemens, Hz
 from loguru import logger
 
-from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment
+from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment, SynapticParams
 from iteration_7_one_compartment_step_input.one_compartment_with_up_down import \
     SimulationResults, MeanField
 from iteration_8_compute_mean_steady_state.one_compartment_with_up_down_and_steady import \
@@ -14,6 +14,31 @@ from iteration_8_compute_mean_steady_state.one_compartment_with_up_down_and_stea
 plt.rcParams.update(mpl.rcParamsDefault)
 plt.rcParams['text.usetex'] = True
 
+def weak_mean_field(conductance, N, N_reference):
+    return conductance * N_reference / N
+
+'''
+g_ampa = weak_mean_field(experiment.synaptic_params.g_ampa, experiment, 2000)
+g_gaba = weak_mean_field(experiment.synaptic_params.g_gaba, experiment, 2000)
+g_x = weak_mean_field(1, experiment, 2000)
+'''
+def prepare_mean_field(experiment: Experiment, N=2000, N_reference=2000):
+    state = {
+        "N": N,
+        "nu": experiment.network_params.up_state.nu / Hz,
+        "N_nmda": experiment.network_params.up_state.N_NMDA,
+        "nu_nmda": experiment.network_params.up_state.nu_nmda / Hz
+    }
+
+    result = experiment.with_properties(
+        {
+            SynapticParams.KEY_G_AMPA: weak_mean_field(experiment.synaptic_params.g_ampa / siemens, N, N_reference),
+            SynapticParams.KEY_G_GABA: weak_mean_field(experiment.synaptic_params.g_gaba / siemens, N, N_reference),
+            SynapticParams.KEY_X_NMDA: weak_mean_field(experiment.synaptic_params.x_nmda, N, N_reference),
+            "up_state": state,
+            "down_state": state
+        })
+    return result
 
 def sim_and_plot_meanfield_with_upstate_and_steady_state(experiment: Experiment) -> SimulationResultsWithSteadyState:
     simulation_results = simulate_meanfield_with_up_state_and_steady_state(experiment)
@@ -72,9 +97,9 @@ def simulate_one_state_with_meanfield(experiment: Experiment):
     E_leak = experiment.neuron_params.E_leak
     V_r = experiment.neuron_params.V_r
 
-    g_ampa = weak_mean_field(experiment.synaptic_params.g_ampa, experiment, 2000)
-    g_gaba = weak_mean_field(experiment.synaptic_params.g_gaba, experiment, 2000)
-    g_x = weak_mean_field(1, experiment, 2000)
+    g_ampa = experiment.synaptic_params.g_ampa
+    g_gaba = experiment.synaptic_params.g_gaba
+    g_x = experiment.synaptic_params.x_nmda
     g_nmda_max = experiment.synaptic_params.g_nmda
 
     E_ampa = experiment.synaptic_params.e_ampa
@@ -138,5 +163,5 @@ def simulate_one_state_with_meanfield(experiment: Experiment):
                                                                            N_reference=2000))
 
 
-def weak_mean_field(conductance, experiment, N_reference):
+def __weak_mean_field(conductance, experiment, N_reference):
     return conductance * N_reference / experiment.network_params.up_state.N

@@ -13,6 +13,7 @@ class SynapticParams:
     KEY_G_AMPA = "g_ampa"
     KEY_G_GABA = "g_gaba"
     KEY_G_NMDA = "g_nmda"
+    KEY_X_NMDA = "x_nmda"
 
     KEY_TAU_AMPA = "tau_ampa_ms"
     KEY_TAU_GABA = "tau_gaba_ms"
@@ -37,6 +38,7 @@ class SynapticParams:
             self.g_gaba = params.get(SynapticParams.KEY_G_GABA, 0) * siemens
             self.g = self.g_gaba / self.g_ampa
 
+        self.x_nmda = params.get(SynapticParams.KEY_X_NMDA, 1)
 
         self.g_nmda = params.get(SynapticParams.KEY_G_NMDA, 0) * siemens
 
@@ -203,6 +205,8 @@ class PlotParams:
         I_nmda = "I_nmda"
         one_minus_s_nmda = "one_minus_s_nmda"
 
+        g_e = "g_e"
+
         s_drive = "s_drive"
         alpha_x_t = "alpha_x_t"
         g_nmda_max = "g_nmda_max"
@@ -261,6 +265,12 @@ class PlotParams:
             "title": r'$v-E_\mathrm{GABA}$',
             "y_label": r"$[mV]$",
             "scaling": mV
+        },
+
+        AvailableHiddenVariables.g_e.value: {
+            "title": r'$g_\mathrm{AMPA}$',
+            "y_label": r"$[nSiemens]$",
+            "scaling": nsiemens
         }
     }
 
@@ -407,8 +417,12 @@ class Experiment:
         logger.debug("Effective Reversal Down State with included Poisson Rate {}", self.effective_time_constant_down_state.E_0())
 
     def with_property(self, key: str, value: object):
+        return self.with_properties({key: value})
+
+    def with_properties(self, values: dict[str, object]):
         new_params = copy.deepcopy(self.params)
-        new_params[key] = value
+        for key, value in values.items():
+            new_params[key] = value
         return Experiment(new_params)
 
     def __extract_simulation_time__(self, params):
