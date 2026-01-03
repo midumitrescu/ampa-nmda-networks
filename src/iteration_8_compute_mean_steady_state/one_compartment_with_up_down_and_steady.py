@@ -1,6 +1,6 @@
 import numpy as np
-from brian2 import plt, mpl, StateMonitor, mV, siemens, start_scope, defaultclock, mmole, kHz, NeuronGroup, run, \
-    Network, second, stop, ms, nS, usiemens, nsiemens
+from brian2 import plt, mpl, StateMonitor, mV, start_scope, defaultclock, mmole, kHz, NeuronGroup, run, \
+    Network, second, stop, ms, nS, nsiemens
 from loguru import logger
 from matplotlib import gridspec
 from matplotlib.gridspec import SubplotSpec
@@ -98,6 +98,7 @@ def sim_steady_state(experiment: Experiment, state: State) -> SteadyStateResults
     g_ampa = experiment.synaptic_params.g_ampa
     g_gaba = experiment.synaptic_params.g_gaba
     g_nmda_max = experiment.synaptic_params.g_nmda
+    g_x = experiment.synaptic_params.x_nmda
 
     E_ampa = experiment.synaptic_params.e_ampa
     E_gaba = experiment.synaptic_params.e_gaba
@@ -189,11 +190,13 @@ def plot_currents(simulation_results: SimulationResultsWithSteadyState, time_ran
 
     ax_voltage.plot(simulation_results.voltages.t[time_start:time_end],
                     simulation_results.voltages.v[0][time_start:time_end])
-    ax_voltage.axhline(y=simulation_results.steady_up_results.v_steady, linestyle="--", linewidth=1.5,
-                       label=f"Mean V={simulation_results.steady_up_results.v_steady :.3f}- UP State ")
 
-    ax_voltage.axhline(y=simulation_results.steady_down_results.v_steady, linestyle="--", linewidth=1.5,
-                       label=f"Mean V={simulation_results.steady_down_results.v_steady :.3f} - Down State")
+    if simulation_results.steady_up_results is not None:
+        ax_voltage.axhline(y=simulation_results.steady_up_results.v_steady, linestyle="--", linewidth=1.5,
+                           label=f"Mean V={simulation_results.steady_up_results.v_steady :.3f} - UP State ")
+    if simulation_results.steady_down_results is not None:
+        ax_voltage.axhline(y=simulation_results.steady_down_results.v_steady, linestyle="--", linewidth=1.5,
+                           label=f"Mean V={simulation_results.steady_down_results.v_steady :.3f} - Down State")
 
     ax_voltage.axhline(y=simulation_results.experiment.neuron_params.theta / mV, linewidth=1.5, alpha=0.6,
                        color="black",
@@ -243,7 +246,6 @@ def determine_start_and_end_recorded_indexes(experiment, time_range):
     time_end = int(time_range[1] * ms / experiment.sim_clock)
     return time_end, time_start
 
-
 def plot_voltages_and_g_s(simulation_results: SimulationResultsWithSteadyState, time_range, grid_spec_mother):
     voltage_and_g_s_examples = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=grid_spec_mother, hspace=0.8)
     ax_voltages, ax_g_s = voltage_and_g_s_examples.subplots(sharex="col")
@@ -256,8 +258,11 @@ def plot_voltages_and_g_s(simulation_results: SimulationResultsWithSteadyState, 
     for ax in [ax_voltages, ax_g_s]:
         ax.set_xlim(*time_range)
 
+    def fmt_v(state):
+        return f"{state.v_steady:.3f} mV" if state is not None else "N/A"
+
     ax_voltages.set_title(
-        rf"Membrane voltage. $V_\mathrm{{M, Up}}$ ={simulation_results.steady_up_results.v_steady: .3f} mV, $V_\mathrm{{M, Down}}$ ={simulation_results.steady_down_results.v_steady: .3f} mV")
+        rf"Membrane voltage. $V_\mathrm{{M, Up}}$ ={fmt_v(simulation_results.steady_up_results)}, $V_\mathrm{{M, Down}}$ ={fmt_v(simulation_results.steady_down_results)}")
     ax_voltages.legend(loc="right")
     ax_voltages.set_xlabel("t [ms]")
     ax_voltages.set_ylabel("v [mV]")
@@ -271,25 +276,27 @@ def plot_voltages_and_g_s(simulation_results: SimulationResultsWithSteadyState, 
     g_nmda_lines = ax_g_s.plot(simulation_results.g_s.t / ms, simulation_results.g_s.g_nmda[i],
                                label=rf"$g_\mathrm{{nmda}}$[{i}]", alpha=0.5)
 
-    ax_g_s.axhline(y=simulation_results.steady_up_results.g_e_steady, linestyle="--", linewidth=2,
-                   color=g_e_lines[0].get_color(),
-                   label="UP $g_e$ steady", alpha=0.6)
-    ax_g_s.axhline(y=simulation_results.steady_up_results.g_i_steady, linestyle="--", linewidth=2,
-                   color=g_i_lines[0].get_color(),
-                   label="UP $g_i$ steady", alpha=0.6)
-    ax_g_s.axhline(y=simulation_results.steady_up_results.g_nmda_steady, linestyle="--", linewidth=2,
-                   color=g_nmda_lines[0].get_color(),
-                   label=r"UP $g_\mathrm{nmda}$", alpha=0.6)
+    if simulation_results.steady_up_results is not None:
+        ax_g_s.axhline(y=simulation_results.steady_up_results.g_e_steady, linestyle="--", linewidth=2,
+                       color=g_e_lines[0].get_color(),
+                       label="UP $g_e$ steady", alpha=0.6)
+        ax_g_s.axhline(y=simulation_results.steady_up_results.g_i_steady, linestyle="--", linewidth=2,
+                       color=g_i_lines[0].get_color(),
+                       label="UP $g_i$ steady", alpha=0.6)
+        ax_g_s.axhline(y=simulation_results.steady_up_results.g_nmda_steady, linestyle="--", linewidth=2,
+                       color=g_nmda_lines[0].get_color(),
+                       label=r"UP $g_\mathrm{nmda}$", alpha=0.6)
 
-    ax_g_s.axhline(y=simulation_results.steady_down_results.g_e_steady, linestyle="dotted", linewidth=2,
-                   color=g_e_lines[0].get_color(),
-                   label="Down $g_e$ steady", alpha=0.6)
-    ax_g_s.axhline(y=simulation_results.steady_down_results.g_i_steady, linestyle="dotted", linewidth=2,
-                   color=g_i_lines[0].get_color(),
-                   label="Down $g_i$ steady", alpha=0.6)
-    ax_g_s.axhline(y=simulation_results.steady_down_results.g_nmda_steady, linestyle="dotted", linewidth=2,
-                   color=g_nmda_lines[0].get_color(),
-                   label=r"Down $g_\mathrm{nmda}$", alpha=0.6)
+    if simulation_results.steady_down_results is not None:
+        ax_g_s.axhline(y=simulation_results.steady_down_results.g_e_steady, linestyle="dotted", linewidth=2,
+                       color=g_e_lines[0].get_color(),
+                       label="Down $g_e$ steady", alpha=0.6)
+        ax_g_s.axhline(y=simulation_results.steady_down_results.g_i_steady, linestyle="dotted", linewidth=2,
+                       color=g_i_lines[0].get_color(),
+                       label="Down $g_i$ steady", alpha=0.6)
+        ax_g_s.axhline(y=simulation_results.steady_down_results.g_nmda_steady, linestyle="dotted", linewidth=2,
+                       color=g_nmda_lines[0].get_color(),
+                       label=r"Down $g_\mathrm{nmda}$", alpha=0.6)
 
     ax_g_s.set_ylabel("conductance \n" + r"[$\frac{\mathrm{siemens}}{\mathrm{cm}^2}$]")
     ax_g_s.legend(loc="right")
@@ -307,11 +314,13 @@ def plot_v_line(simulation_results,
 
     ax_voltages.vlines(x=spike_times_current_neuron, ymin=-70, ymax=-35, color=color, linestyle="-.",
                        label=f"Neuron {i} Spike Time", lw=0.8)
-    ax_voltages.axhline(y=simulation_results.steady_up_results.v_steady, color=color, linestyle="--", linewidth=1.5,
-                        label="Mean V - UP State")
 
-    ax_voltages.axhline(y=simulation_results.steady_down_results.v_steady, color=color, linestyle="--", linewidth=1.5,
-                        label="Mean V - Down State")
+    if simulation_results.steady_up_results is not None:
+        ax_voltages.axhline(y=simulation_results.steady_up_results.v_steady, color=color, linestyle="--", linewidth=1.5,
+                            label="Mean V - UP State")
+    if simulation_results.steady_down_results is not None:
+        ax_voltages.axhline(y=simulation_results.steady_down_results.v_steady, color=color, linestyle="--", linewidth=1.5,
+                            label="Mean V - Down State")
 
 
 def plot_internal_states_in_one_time_range(simulation_results: SimulationResultsWithSteadyState, time_range: tuple[int, int]):
@@ -327,6 +336,7 @@ def plot_internal_states_in_one_time_range(simulation_results: SimulationResults
             for hidden_var_name, hidden_var_plot_details in simulation_results.experiment.plot_params.create_hidden_variables_plots_grid().items():
                 try:
                     index = hidden_var_plot_details['index']
+                    #scaling = hidden_var_plot_details['scaling'] if 'scaling' in hidden_var_plot_details else 1
                     curve_to_plot = simulation_results.internal_states_monitor[hidden_var_name][neuron_i]
                     start_index = int(time_range[0] / simulation_results.experiment.sim_clock * ms)
                     end_index = int(time_range[1] / simulation_results.experiment.sim_clock * ms)
@@ -356,25 +366,53 @@ def plot_internal_states_in_one_time_range(simulation_results: SimulationResults
             ax[index].set_ylabel(y_label)
 
             if hidden_var_name == "x_nmda":
-                ax[index].axhline(y=simulation_results.steady_up_results.x_nmda_steady, linestyle="--", linewidth=1.5,
-                        label=r"$[X]_\mathrm{UP}=$" + f"{simulation_results.steady_up_results.x_nmda_steady : .3f}")
-                ax[index].axhline(y=simulation_results.steady_down_results.x_nmda_steady, linestyle="--", linewidth=1.5,
-                                  label=r"$[X]_\mathrm{D}=$" + f"{simulation_results.steady_down_results.x_nmda_steady : .3f}")
+                if simulation_results.steady_up_results is not None:
+                    ax[index].axhline(y=simulation_results.steady_up_results.x_nmda_steady, linestyle="--", linewidth=1.5,
+                            label=r"$[X]_\mathrm{UP}=$" + f"{simulation_results.steady_up_results.x_nmda_steady : .3f}")
+                if simulation_results.steady_down_results is not None:
+                    ax[index].axhline(y=simulation_results.steady_down_results.x_nmda_steady, linestyle="--", linewidth=1.5,
+                                      label=r"$[X]_\mathrm{D}=$" + f"{simulation_results.steady_down_results.x_nmda_steady : .3f}")
 
                 ax[index].legend()
             elif hidden_var_name == "s_nmda":
-                ax[index].axhline(y=simulation_results.steady_up_results.s_nmda_steady, linestyle="--", linewidth=1.5,
-                                  label=r"$[S]_\mathrm{UP}=$" + f"{simulation_results.steady_up_results.s_nmda_steady : .3f}")
-                ax[index].axhline(y=simulation_results.steady_down_results.s_nmda_steady, linestyle="--", linewidth=1.5,
-                                  label=r"$[S]_\mathrm{D}=$" + f"{simulation_results.steady_down_results.s_nmda_steady : .3f}")
+                if simulation_results.steady_up_results is not None:
+                    ax[index].axhline(y=simulation_results.steady_up_results.s_nmda_steady, linestyle="--", linewidth=1.5,
+                                      label=r"$[S]_\mathrm{UP}=$" + f"{simulation_results.steady_up_results.s_nmda_steady : .3f}")
+                if simulation_results.steady_down_results is not None:
+                    ax[index].axhline(y=simulation_results.steady_down_results.s_nmda_steady, linestyle="--", linewidth=1.5,
+                                      label=r"$[S]_\mathrm{D}=$" + f"{simulation_results.steady_down_results.s_nmda_steady : .3f}")
 
                 ax[index].legend()
             elif hidden_var_name == "g_nmda":
-                ax[index].axhline(y=simulation_results.steady_up_results.g_nmda_steady, linestyle="--", linewidth=1.5,
-                                  label=r"$[G]_\mathrm{nmda, UP}=$" + f"{simulation_results.steady_up_results.g_nmda_steady : .3f}")
-                ax[index].axhline(y=simulation_results.steady_down_results.g_nmda_steady, linestyle="--", linewidth=1.5,
-                                  label=r"$[S]_\mathrm{nmda, D}=$" + f"{simulation_results.steady_down_results.g_nmda_steady : .3f}")
+                if simulation_results.steady_up_results is not None:
+                    ax[index].axhline(y=simulation_results.steady_up_results.g_nmda_steady, linestyle="--", linewidth=1.5,
+                                      label=r"$[G]_\mathrm{nmda, UP}=$" + f"{simulation_results.steady_up_results.g_nmda_steady : .3f}")
+                if simulation_results.steady_down_results is not None:
+                    ax[index].axhline(y=simulation_results.steady_down_results.g_nmda_steady, linestyle="--", linewidth=1.5,
+                                      label=r"$[G]_\mathrm{nmda, D}=$" + f"{simulation_results.steady_down_results.g_nmda_steady : .3f}")
 
+                ax[index].legend()
+            elif hidden_var_name == "g_e":
+                if simulation_results.steady_up_results is not None:
+                    ax[index].axhline(y=simulation_results.steady_up_results.g_e_steady, linestyle="--",
+                                      linewidth=1.5,
+                                      label=r"$[g]_\mathrm{AMPA, UP}=$" + f"{simulation_results.steady_up_results.g_e_steady : .3f}")
+
+                if simulation_results.steady_down_results is not None:
+                    ax[index].axhline(y=simulation_results.steady_down_results.g_e_steady, linestyle="--",
+                                      linewidth=1.5,
+                                      label=r"$[g]_\mathrm{AMPA, D}=$" + f"{simulation_results.steady_down_results.g_e_steady : .3f}")
+                ax[index].legend()
+            elif hidden_var_name == "g_i":
+                if simulation_results.steady_up_results is not None:
+                    ax[index].axhline(y=simulation_results.steady_up_results.g_i_steady, linestyle="--",
+                                      linewidth=1.5,
+                                      label=r"$[g]_\mathrm{GABA, UP}=$" + f"{simulation_results.steady_up_results.g_i_steady : .3f}")
+
+                if simulation_results.steady_down_results is not None:
+                    ax[index].axhline(y=simulation_results.steady_down_results.g_i_steady, linestyle="--",
+                                      linewidth=1.5,
+                                      label=r"$[g]_\mathrm{GABA, D}=$" + f"{simulation_results.steady_down_results.g_i_steady : .3f}")
                 ax[index].legend()
 
 

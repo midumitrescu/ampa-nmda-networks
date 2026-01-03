@@ -95,7 +95,7 @@ class SimulationResults:
                 "t": np.array(internal_states_monitor.t / ms),
             }
             for variable in self.experiment.plot_params.recorded_hidden_variables:
-                if variable == "g_nmda":
+                if variable == "g_nmda" or variable == "g_e" or variable == "g_i":
                     values[variable] = np.array(internal_states_monitor.__getattr__(variable) / nsiemens)
                 else:
                     values[variable] = np.array(internal_states_monitor.__getattr__(variable))
@@ -576,7 +576,7 @@ g_nmda = g_nmda_max * sigmoid_v * s_nmda: siemens
 ds_nmda/dt = -s_nmda / tau_nmda_decay + alpha * x_nmda * (1 - s_nmda) : 1
 dx_nmda/dt = - x_nmda / tau_nmda_rise : 1
 
-sigmoid_v = 1/(1 + exp(-0.062 * (v/mvolt + 43)) * (MG_C/mmole / 3.57)): 1
+sigmoid_v = 1: 1
 '''
 
 single_compartment_with_nmda_and_logged_variables = f'''{single_compartment_with_nmda}

@@ -4,6 +4,7 @@ import enum
 import numpy as np
 from brian2 import ufarad, siemens, mV, ms, Hz, nS, usiemens, nsiemens
 from loguru import logger
+from sympy.physics.quantum.sho1d import omega
 
 
 class SynapticParams:
@@ -79,12 +80,14 @@ class State:
     KEY_NU_NMDA = "nu_nmda"
 
     KEY_GAMMA = "gamma"
+    KEY_OMEGA = "omega"
 
     KEY_X_VAR_MULT = "x_var_mult"
 
     def __init__(self, params: dict):
 
         self.gamma = params.get(State.KEY_GAMMA, 0.25)
+        self.omega = params.get(State.KEY_OMEGA, 0.005)
 
 
         if self.KEY_N in params and self.KEY_N_E in params:
@@ -94,12 +97,12 @@ class State:
             self.N = params.get(State.KEY_N)
             self.N_I = round(self.gamma / (1 + self.gamma) * self.N)
             self.N_E = self.N - self.N_I
+            self.N_NMDA = int(self.omega * self.N)
         else:
             self.N_E = params.get(State.KEY_N_E, 10_000)
             self.N_I = round(self.gamma * self.N_E)
+            self.N_NMDA = params.get(State.KEY_N_NMDA, 0)
             self.N = self.N_E + self.N_I
-
-        self.N_NMDA = params.get(State.KEY_N_NMDA, 0)
 
         self.nu = params.get(State.KEY_NU, 0) * Hz
         self.nu_nmda = params.get(State.KEY_NU_NMDA, 0) * Hz
@@ -210,7 +213,6 @@ class PlotParams:
         s_drive = "s_drive"
         alpha_x_t = "alpha_x_t"
         g_nmda_max = "g_nmda_max"
-        bla_bla_bar = "bla_bla_bar"
         v_minus_e_gaba = "v_minus_e_gaba"
 
     hidden_variable_plot_details = {
@@ -256,11 +258,6 @@ class PlotParams:
             "y_label": r"$[\frac{\mathrm{siemens}}{m^2}]$"
         },
 
-        AvailableHiddenVariables.bla_bla_bar.value: {
-            "title": r'Bla bla',
-            "y_label": r"$[\frac{\mathrm{siemens}}{m^2}]$"
-        },
-
         AvailableHiddenVariables.v_minus_e_gaba.value: {
             "title": r'$v-E_\mathrm{GABA}$',
             "y_label": r"$[mV]$",
@@ -269,7 +266,7 @@ class PlotParams:
 
         AvailableHiddenVariables.g_e.value: {
             "title": r'$g_\mathrm{AMPA}$',
-            "y_label": r"$[nSiemens]$",
+            "y_label": "[nS]",
             "scaling": nsiemens
         }
     }

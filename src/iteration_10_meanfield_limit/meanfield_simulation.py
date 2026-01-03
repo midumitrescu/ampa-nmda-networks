@@ -1,6 +1,6 @@
 import numpy as np
 from brian2 import plt, mpl, StateMonitor, mV, start_scope, defaultclock, mmole, kHz, NeuronGroup, run, \
-    second, devices as brian2devices, seed, PoissonGroup, Synapses, \
+    second, devices as brian2devices, seed, PoissonInput, Synapses, \
     PopulationRateMonitor, SpikeMonitor, siemens, Hz
 from loguru import logger
 
@@ -15,7 +15,8 @@ plt.rcParams.update(mpl.rcParamsDefault)
 plt.rcParams['text.usetex'] = True
 
 def weak_mean_field(conductance, N, N_reference):
-    return conductance * N_reference / N
+    res = conductance * N_reference / N
+    return res
 
 '''
 g_ampa = weak_mean_field(experiment.synaptic_params.g_ampa, experiment, 2000)
@@ -52,7 +53,7 @@ def simulate_meanfield_with_up_state_and_steady_state(experiment: Experiment):
     logger.debug("Steady state simulation for {} done! Results are Up State = {}", experiment,
                  steady_up_state_results)
     simulation_results = simulate_one_state_with_meanfield(experiment)
-    return SimulationResultsWithSteadyState(simulation_results, steady_up_state_results, steady_up_state_results)
+    return SimulationResultsWithSteadyState(simulation_results, None, steady_up_state_results)
 
 
 def plot_simulation(simulation_results: SimulationResultsWithSteadyState):
@@ -126,22 +127,18 @@ def simulate_one_state_with_meanfield(experiment: Experiment):
 
     order = [0, 1, 2, 3, 4, 5] if experiment.in_testing else [0] * 5
 
-    P_upstate_exc = PoissonGroup(experiment.network_params.up_state.N_E, rates=experiment.network_params.up_state.nu,
-                                 order=order[0])
-    P_upstate_inh = PoissonGroup(experiment.network_params.up_state.N_I, rates=experiment.network_params.up_state.nu,
-                                 order=order[1])
-    P_upstate_nmda = PoissonGroup(N=experiment.network_params.up_state.N_NMDA,
-                                  rates=experiment.network_params.up_state.nu_nmda, order=order[4])
-    S_upstate_exc = Synapses(P_upstate_exc, single_neuron, model="on: 1", on_pre='g_e += g_ampa',
-                             method=experiment.integration_method)
-    S_upstate_inh = Synapses(P_upstate_inh, single_neuron, model="on: 1", on_pre='g_i += g_gaba',
-                             method=experiment.integration_method)
-    S_upstate_nmda = Synapses(P_upstate_nmda, single_neuron, model="on: 1", on_pre="x_nmda += g_x",
-                              method=experiment.integration_method)
+    P_upstate_exc = PoissonInput(target=single_neuron, target_var="g_e", N=experiment.network_params.up_state.N_E, rate=experiment.network_params.up_state.nu,
+                                 weight=g_ampa, order=order[0])
+    P_upstate_inh = PoissonInput(target=single_neuron, target_var="g_i", N=experiment.network_params.up_state.N_I, rate=experiment.network_params.up_state.nu,
+                                 weight=g_gaba, order=order[1])
+    P_upstate_nmda = PoissonInput(target=single_neuron, target_var="x_nmda", N=experiment.network_params.up_state.N_NMDA,
+                                  rate=experiment.network_params.up_state.nu_nmda, weight=g_x, order=order[4])
 
-    S_upstate_exc.connect(p=1)
-    S_upstate_inh.connect(p=1)
-    S_upstate_nmda.connect(p=1)
+    logger.debug("Poisson Input AMPA {}, Poisson Input GABA {}, Poisson Input NMDA {}",
+                 (experiment.network_params.up_state.N_E, experiment.network_params.up_state.nu, g_ampa),
+                 (experiment.network_params.up_state.N_I, experiment.network_params.up_state.nu, g_gaba),
+                 (experiment.network_params.up_state.N_NMDA, experiment.network_params.up_state.nu_nmda, g_x))
+
     rate_monitor = PopulationRateMonitor(single_neuron)
     spike_monitor = SpikeMonitor(single_neuron)
     v_monitor = StateMonitor(source=single_neuron,
