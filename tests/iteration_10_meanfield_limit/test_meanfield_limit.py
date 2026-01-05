@@ -188,6 +188,17 @@ class MyTestCase(unittest.TestCase):
             meanfield_experiment = prepare_mean_field(only_nmda, N=scaling * 2000, N_reference=2000)
             sim_and_plot_meanfield_with_upstate_and_steady_state(meanfield_experiment)
 
+    def test_try_very_steep_meanfield_progression(self):
+        for scaling in 10**np.array(range(10)):
+            sim_and_plot_meanfield_with_upstate_and_steady_state(
+                prepare_mean_field(Experiment(meanfield_config),
+                                   N=scaling.item() * 2000, N_reference=2000))
+
+    def test_understand_why_meanfield_estimation_makes_wrong_g_nmda_prediction(self):
+        sim_and_plot_meanfield_with_upstate_and_steady_state(
+            prepare_mean_field(Experiment(meanfield_config),
+                               N=10**10 * 2000, N_reference=2000))
+
 
 if __name__ == '__main__':
     unittest.main()

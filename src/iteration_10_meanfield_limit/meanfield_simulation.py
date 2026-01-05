@@ -53,7 +53,7 @@ def simulate_meanfield_with_up_state_and_steady_state(experiment: Experiment):
     logger.debug("Steady state simulation for {} done! Results are Up State = {}", experiment,
                  steady_up_state_results)
     simulation_results = simulate_one_state_with_meanfield(experiment)
-    return SimulationResultsWithSteadyState(simulation_results, None, steady_up_state_results)
+    return SimulationResultsWithSteadyState(simulation_results, steady_up_state_results, None)
 
 
 def plot_simulation(simulation_results: SimulationResultsWithSteadyState):

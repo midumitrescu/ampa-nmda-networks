@@ -24,7 +24,7 @@ g_nmda = g_nmda_max * sigmoid_v * s_nmda: siemens
 ds_nmda/dt = -s_nmda / tau_nmda_decay + alpha * x_nmda * (1 - s_nmda) : 1
 dx_nmda/dt = - x_nmda / tau_nmda_rise + g_x * N_N * r_nmda: 1
 
-sigmoid_v = 1/(1 + exp(-0.062 * (v/mvolt)) * (MG_C/mmole / 3.57)): 1
+sigmoid_v = 1/(1 + (MG_C/mmole)/3.57 * exp(-0.062*(v/mvolt))): 1
 """
 wang_recurrent_config = {
 

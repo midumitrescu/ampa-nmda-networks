@@ -129,9 +129,11 @@ def sim_steady_state(experiment: Experiment, state: State) -> SteadyStateResults
 
     steady_state_network = Network([neuron, v_monitor])
 
-    run(1 * second, report="text", report_period=1 * second)
+    run(10 * second, report="text", report_period=1 * second)
     result = SteadyStateResults(v_monitor)
     stop()
+
+
     return result
 
 
