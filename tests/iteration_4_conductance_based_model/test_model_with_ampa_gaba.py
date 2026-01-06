@@ -3,14 +3,12 @@ import unittest
 
 import matplotlib.pyplot as plt
 import numpy as np
-from brian2 import ms, siemens, cm, second, Hz
-from fontTools.unicodedata import block
-
-from BinarySeach import binary_search_for_target_value
-from Configuration import Experiment, SynapticParams, NetworkParams, PlotParams
-from Plotting import show_plots_non_blocking
-from iteration_4_conductance_based_model.conductance_based_model import sim_and_plot, sim
+from brian2 import ms, siemens, cm, Hz
 from loguru import logger
+
+from Configuration import Experiment
+from iteration_4_conductance_based_model.conductance_based_model import sim_and_plot, sim
+
 
 def compute_rate_for_nu_ext_over_nu_thr(nu_ext_over_nu_thr, g = 1, wait_for=4_000):
     conductance_based_simulation = {
