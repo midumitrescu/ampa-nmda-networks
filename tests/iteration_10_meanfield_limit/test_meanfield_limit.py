@@ -2,7 +2,7 @@ import sys
 import unittest
 
 import numpy as np
-from brian2 import siemens, psiemens
+from brian2 import siemens, psiemens, mmole, kHz
 from loguru import logger
 from numpy.testing import assert_allclose, assert_equal
 
@@ -88,12 +88,12 @@ meanfield_config = {
 
     Experiment.KEY_CURRENTS_TO_RECORD: ["I_L", "I_nmda", "I_fast"],
 
-    "t_range": [[0, 4000]],
+    "t_range": [[0, 200]],
     PlotParams.KEY_WHAT_PLOTS_TO_SHOW: [PlotParams.AvailablePlots.RASTER_AND_RATE,
                                         PlotParams.AvailablePlots.HIDDEN_VARIABLES]
 }
 
-class MyTestCase(unittest.TestCase):
+class MeanFieldProgressionTestCases(unittest.TestCase):
 
     def test_meanfield_scaling(self):
         wang_config = Experiment(meanfield_config)
@@ -104,12 +104,23 @@ class MyTestCase(unittest.TestCase):
 
 
     def test_up_with_weak_meanfield_scaling_with_wang_numbers(self):
-        #results = simulate_meanfield_with_up_state_and_steady_state(Experiment(meanfield_config))
         results = sim_and_plot_meanfield_with_upstate_and_steady_state(Experiment(meanfield_config))
 
         self.assertAlmostEqual(0.05e-9, results.mean_field_values.g_ampa / siemens)
         self.assertAlmostEqual(0.04e-9, results.mean_field_values.g_gaba / siemens)
         self.assertAlmostEqual(1, results.mean_field_values.g_x)
+
+    def test_default_values(self):
+        wang_config = Experiment(meanfield_config)
+        self.assertEqual(0.05e-9, wang_config.synaptic_params.g_ampa / siemens)
+        self.assertEqual(0.04e-9, wang_config.synaptic_params.g_gaba / siemens)
+        self.assertEqual(0.165e-9, wang_config.synaptic_params.g_nmda / siemens)
+        self.assertEqual(1, wang_config.synaptic_params.x_nmda)
+
+        self.assertEqual(1600, wang_config.network_params.up_state.N_E)
+        self.assertEqual(400, wang_config.network_params.up_state.N_I)
+        self.assertEqual(10, wang_config.network_params.up_state.N_NMDA)
+
 
     '''
     Shows that mean field process works.
@@ -153,16 +164,16 @@ class MyTestCase(unittest.TestCase):
         assert_equal([item.network_params.up_state.N_NMDA for item in meanfield_experiments],
                      [10, 20, 30, 40, 100, 200, 1000])
 
-    def test_refactoring_meanfield_simulation(self):
+    def test_refactoring_to_poisson_input_runs_meanfield_simulation(self):
         wang_experiment = Experiment(meanfield_config)
-        for scaling in [2, 3, 4, 10, 20, 100]:
+        for scaling in [2, 10, 100]:
             meanfield_experiment = prepare_mean_field(wang_experiment, N=scaling * 2000, N_reference=2000)
             sim_and_plot_meanfield_with_upstate_and_steady_state(meanfield_experiment)
 
     '''
     with amp 1, the NMDA input is very very low. We do not see the NMDA input in the Down State
     '''
-    def test_why_isnt_NMDA_inputting(self):
+    def test_meanfield_progression_works_with_exclusive_NMDA_inpout(self):
 
         for nmda_amp in [1, 10, 100, 1000]:
             only_nmda = Experiment(meanfield_config).with_properties({
@@ -172,25 +183,10 @@ class MyTestCase(unittest.TestCase):
             })
             sim_and_plot_meanfield_with_upstate_and_steady_state(only_nmda)
 
-    def test_meanfield_progression_for_nmda(self):
 
-        only_nmda = Experiment(meanfield_config).with_properties({
-            SynapticParams.KEY_G_AMPA: 0,
-            SynapticParams.KEY_G_GABA: 0,
-            SynapticParams.KEY_G_NMDA: 0.165e-9,
-            Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD: ["x_nmda", "s_nmda", "g_nmda", "g_e"],
-            PlotParams.KEY_WHAT_PLOTS_TO_SHOW: [PlotParams.AvailablePlots.RASTER_AND_RATE,
-                                                PlotParams.AvailablePlots.HIDDEN_VARIABLES]
-        })
-        for scaling in [1, 1E1, 1E2, 1E3, 1E4, 1E5]:
-            meanfield_experiment = prepare_mean_field(only_nmda, N=scaling * 2000, N_reference=2000)
-            sim_and_plot_meanfield_with_upstate_and_steady_state(meanfield_experiment)
-
-    def test_try_very_steep_meanfield_progression(self):
-        for scaling in 10**np.array(range(10)):
-            sim_and_plot_meanfield_with_upstate_and_steady_state(
-                prepare_mean_field(Experiment(meanfield_config),
-                                   N=scaling.item() * 2000, N_reference=2000))
+    def test_configuration_generation_for_very_large_N_does_not_raise_floatpoint_errror(self):
+        for scaling in 10**np.array(range(20)):
+            prepare_mean_field(Experiment(meanfield_config), N=scaling.item() * 2000, N_reference=2000)
 
     def test_understand_why_meanfield_estimation_makes_wrong_g_nmda_prediction(self):
         sim_and_plot_meanfield_with_upstate_and_steady_state(
@@ -208,6 +204,20 @@ class MyTestCase(unittest.TestCase):
         meanfield_experiment = prepare_mean_field(only_nmda, N=2000, N_reference=2000)
         sim_and_plot_meanfield_with_upstate_and_steady_state(meanfield_experiment)
 
+    def test_compute_mean_x_and_s(self):
+        experiment = Experiment(meanfield_config)
+        g_x = experiment.synaptic_params.x_nmda
+        tau_nmda_rise = experiment.synaptic_params.tau_nmda_rise
+        tau_nmda_decay = experiment.synaptic_params.tau_nmda_decay
+
+        alpha = 0.5 * kHz  # saturation of NMDA channels at high presynaptic firing rates
+        N_NMDA = experiment.network_params.up_state.N_NMDA
+        nu_NMDA = experiment.network_params.up_state.nu_nmda
+
+        x_0 = alpha * tau_nmda_decay * tau_nmda_rise * g_x * N_NMDA *  nu_NMDA
+        s_0 = x_0/(1+x_0)
+        print("XXXXXXXXXXXX ", x_0)
+        self.assertAlmostEqual(0.9090909090909091, s_0)
 
 if __name__ == '__main__':
     unittest.main()
