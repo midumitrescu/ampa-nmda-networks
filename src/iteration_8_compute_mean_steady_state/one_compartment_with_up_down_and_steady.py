@@ -275,7 +275,7 @@ def plot_voltages_and_g_s(simulation_results: SimulationResultsWithSteadyState, 
                             alpha=0.5)
     g_i_lines = ax_g_s.plot(simulation_results.g_s.t, simulation_results.g_s.g_i[i], label=r"$g_\mathrm{Inh}$",
                             alpha=0.5)
-    g_nmda_lines = ax_g_s.plot(simulation_results.g_s.t / ms, simulation_results.g_s.g_nmda[i],
+    g_nmda_lines = ax_g_s.plot(simulation_results.g_s.t, simulation_results.g_s.g_nmda[i],
                                label=rf"$g_\mathrm{{nmda}}$[{i}]", alpha=0.5)
 
     if simulation_results.steady_up_results is not None:
@@ -350,8 +350,8 @@ def plot_internal_states_in_one_time_range(simulation_results: SimulationResults
                     if max is not None and max > 0:
                         max = max * 1.1
 
-                    ax[index].plot(simulation_results.internal_states_monitor.t,
-                                   curve_to_plot,
+                    ax[index].plot(simulation_results.internal_states_monitor.t[start_index:end_index],
+                                   curve_to_plot[start_index:end_index],
                                    label=f"Neuron {neuron_i} - {label}", alpha=0.5)
 
                     if min is not None and not np.isnan(min) and max is not None and not np.isnan(max):

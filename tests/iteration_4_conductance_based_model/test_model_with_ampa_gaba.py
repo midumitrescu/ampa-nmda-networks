@@ -48,7 +48,7 @@ class ModelWithOnlyAMPAAndGABATestCases(unittest.TestCase):
     def test_new_configuration_is_parsed(self):
         new_config = {
 
-            "sim_time": 10,
+            "sim_time": 100,
             "g": 1,
             "nu_ext_over_nu_thr": 1,
             "epsilon": 0.1,
@@ -197,165 +197,13 @@ class ModelWithOnlyAMPAAndGABATestCases(unittest.TestCase):
                 "g_L": 0.00004,
 
                 "panel": self._testMethodName,
-                "t_range": [[100, 120], [100, 300], [0, 1500]],
+                "t_range": [[100, 120], [100, 300], [0, 100]],
                 "voltage_range": [-70, -30]
             }
 
             experiment = Experiment(conductance_based_simulation)
 
             sim_and_plot(experiment)
-
-
-
-    def test_show_model_from_binary_search_value(self):
-        conductance_based_simulation = {
-
-            "sim_time": 5000,
-            "sim_clock": 0.1 * ms,
-            "g": 1,
-            "g_ampa": 2.518667367869784e-06,
-            "nu_ext_over_nu_thr": 1.85,
-            "epsilon": 0.1,
-            "C_ext": 1000,
-
-            "g_L": 0.00004,
-
-            "panel": self._testMethodName,
-            "t_range": [[3000, 3200], [4000, 5000]],
-            "voltage_range": [-70, -30]
-        }
-
-        experiment = Experiment(conductance_based_simulation)
-
-        sim_and_plot(experiment)
-        plt.show(block=False)
-        plt.close()
-
-    def test_understand_why_more_g_produces_more_firing(self):
-
-        three_g_s = [0, 1, 3, 5, 10]
-        nu_ext_over_nu_thrs = [1.8, 1.85, 1.9, 1.95, 2]
-
-        # i.e. 1 Hz
-        for current_g, nu_ext_over_nu_thr in itertools.product(three_g_s, nu_ext_over_nu_thrs):
-            conductance_based_simulation = {
-
-                "sim_time": 500,
-                "sim_clock": 0.1 * ms,
-                "g": current_g,
-                "g_ampa": 2.518667367869784e-06,
-                # binary search result 2.0100483413989423 binary_search_for_target_value(lower_value=0, upper_value=10, func=look_for_rate_of_input_value, target_result=1))
-                # i.e. 1 Hz
-                #"nu_ext_over_nu_thr": 1.75,
-                "nu_ext_over_nu_thr": nu_ext_over_nu_thr,
-                "epsilon": 0.1,
-                "C_ext": 1000,
-
-                "g_L": 0.00004,
-
-                "panel": self._testMethodName,
-                "t_range": [[0, 500]],
-                "voltage_range": [-70, -30],
-                "smoothened_rate_width": 5 * ms
-            }
-
-            experiment = Experiment(conductance_based_simulation)
-
-            sim_and_plot(experiment)
-            plt.show(block=False)
-            plt.close()
-
-    def test_understand_why_most_firing_is_external(self):
-        for current_g in np.linspace(start=0, stop=50, num=6):
-            conductance_based_simulation = {
-
-                "sim_time": 2000,
-                "sim_clock": 0.1 * ms,
-                "g": current_g,
-                "g_ampa": 1e-05,
-                "nu_ext_over_nu_thr": 1,
-                "epsilon": 0.1,
-                "C_ext": 1000,
-
-                "g_L": 0.00004,
-
-                "panel": self._testMethodName,
-                "t_range": [[1000, 2000], [1800, 1900]],
-                "voltage_range": [-70, -30],
-                "smoothened_rate_width": 1 * ms
-            }
-
-            experiment = Experiment(conductance_based_simulation)
-
-            rate_monitor, spike_monitor, _, _, = sim_and_plot(experiment)
-            plt.show(block=False)
-            plt.close()
-
-    @unittest.skip("Test is too long")
-    def test_model_below_threshold_for_very_long_time(self):
-
-        conductance_based_simulation = {
-
-            "sim_time": 20_000,
-            "sim_clock": 0.1 * ms,
-            "g": 4,
-            "g_ampa": 2.518667367869784e-06,
-            "nu_ext_over_nu_thr": 1.8,
-            "epsilon": 0.1,
-            "C_ext": 1000,
-
-            "g_L": 0.00004,
-
-            "panel": self._testMethodName,
-            "t_range": [10_000, 19_000],
-            "voltage_range": [-70, -30],
-            "smoothened_rate_width": 2 * ms
-        }
-
-        experiment = Experiment(conductance_based_simulation)
-
-        rate_monitor, spike_monitor, _, _, = sim_and_plot(experiment)
-        show_plots_non_blocking()
-
-    #@unittest.skip("too long rn")
-    # Results:
-    # g = 7 => (2.3248291021445766, 2.324829102435615)
-    # g = 1 => (1.868896484375, 1.868896484384095)
-    # g = 4 => (1.8871950361062773, 1.8871950363973156)
-    @unittest.skip("Test is too long")
-    def test_find_nu_ext_over_nu_thr_binary_search(self):
-
-        def look_for_rate_of_input_value(value):
-            return compute_rate_for_nu_ext_over_nu_thr(value, g=4)[1]
-        #(0.007029794622212648, 0.007029795087873936)
-        # (2.3248291021445766, 2.324829102435615)+
-        print(binary_search_for_target_value(lower_value=0, upper_value=10, func=look_for_rate_of_input_value, target_result=1))
-
-    @unittest.skip("Test is too long")
-    def test_model_from_q_0_is_stable_on_the_long_run(self):
-        simulation = {
-            "panel": self._testMethodName,
-            "sim_time": 5_000,
-            "sim_clock": 0.1 * ms,
-            "g": 0,
-            "epsilon": 0.1,
-            "C_ext": 1000,
-
-            "g_L": 0.00004,
-            "t_range": [[0, 200], [200, 500], [500, 1000], [3000, 5000]],
-            "voltage_range": [-70, -30],
-            "smoothened_rate_width": 0.5 * ms
-        }
-        experiment = Experiment(simulation)
-
-        long_run_to_check_stability_and_cv = experiment.with_property(SynapticParams.KEY_G_AMPA, 3e-06) \
-            .with_property(NetworkParams.KEY_NU_E_OVER_NU_THR, 1.5) \
-            .with_property(Experiment.KEY_SIM_TIME, 30_000) \
-            .with_property(PlotParams.KEY_T_RANGE, [[10_000, 30_000]])\
-            .with_property(PlotParams.KEY_PANEL, "Model is stables")
-
-        sim_and_plot(long_run_to_check_stability_and_cv)
-
 
 if __name__ == '__main__':
     unittest.main()

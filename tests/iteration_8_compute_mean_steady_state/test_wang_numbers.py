@@ -20,11 +20,11 @@ I_nmda = g_nmda * (v - E_nmda): amp
 dg_e/dt = -g_e / tau_ampa + g_ampa * N_E * r_e : siemens
 dg_i/dt = -g_i / tau_gaba + g_gaba * N_I * r_i : siemens
 
-g_nmda = g_nmda_max * sigmoid_v * s_nmda: siemens
-ds_nmda/dt = -s_nmda / tau_nmda_decay + alpha * x_nmda * (1 - s_nmda) : 1
 dx_nmda/dt = - x_nmda / tau_nmda_rise + g_x * N_N * r_nmda: 1
-
+ds_nmda/dt = -s_nmda / tau_nmda_decay + alpha * x_nmda * (1 - s_nmda) : 1
 sigmoid_v = 1/(1 + (MG_C/mmole)/3.57 * exp(-0.062*(v/mvolt))): 1
+
+g_nmda = g_nmda_max * sigmoid_v * s_nmda: siemens
 """
 wang_recurrent_config = {
 

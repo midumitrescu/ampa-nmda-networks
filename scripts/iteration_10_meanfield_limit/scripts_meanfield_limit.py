@@ -93,7 +93,7 @@ meanfield_config = {
                                         PlotParams.AvailablePlots.HIDDEN_VARIABLES]
 }
 
-class MyTestCase(unittest.TestCase):
+class Scripts(unittest.TestCase):
 
     def test_meanfield_scaling(self):
         wang_config = Experiment(meanfield_config)
