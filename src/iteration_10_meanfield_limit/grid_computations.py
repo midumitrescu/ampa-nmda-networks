@@ -10,7 +10,7 @@ from iteration_9_simulation_via_noise_processes.one_compartment_with_difusion_pr
 
 
 def sim_and_plot_meanfield_limiting_process(experiment: Experiment, title, N_schedule: list[int]):
-    experiments = [experiment.with_property("g_nmda", nmda_strength) for nmda_strength in nmda_schedule]
+    experiments = [experiment.with_property("g_nmda", nmda_strength) for nmda_strength in N_schedule]
     title = grid_title(panel_title=title, experiment=experiment)
     return sim_and_plot_experiment_grid_with_lambda(experiments, title, run_simulate_diffusion_process_with_up_down)
 

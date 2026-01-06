@@ -2,7 +2,7 @@ import sys
 import unittest
 
 import numpy as np
-from brian2 import siemens, psiemens, mmole, kHz
+from brian2 import siemens, psiemens, kHz
 from loguru import logger
 from numpy.testing import assert_allclose, assert_equal
 
@@ -12,7 +12,7 @@ from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States im
     NeuronModelParams, SynapticParams
 from iteration_7_one_compartment_step_input.one_compartment_with_up_down import \
     single_compartment_with_nmda_and_logged_variables, MeanField
-from iteration_8_compute_mean_steady_state.test_wang_numbers import steady_model
+from iteration_8_compute_mean_steady_state.scripts_with_wang_numbers import steady_model
 
 # Remove the default logger
 logger.remove()

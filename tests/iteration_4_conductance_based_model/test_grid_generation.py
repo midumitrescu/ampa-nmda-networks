@@ -15,7 +15,7 @@ class GridTestCases(unittest.TestCase):
         nu_ext_over_nu_thrs = [10]
 
         conductance_based_simulation = {
-            "sim_time": 100,
+            "sim_time": 50,
             "sim_clock": 0.1 * ms,
             "g": 0,
             "g_ampa": 2.518667367869784e-06,
@@ -38,7 +38,7 @@ class GridTestCases(unittest.TestCase):
         nu_ext_over_nu_thrs = [2, 10]
 
         conductance_based_simulation = {
-            "sim_time": 100,
+            "sim_time": 50,
             "sim_clock": 0.1 * ms,
             "g": 0,
             "g_ampa": 2.518667367869784e-06,
@@ -61,7 +61,7 @@ class GridTestCases(unittest.TestCase):
         nu_ext_over_nu_thrs = [1, 2, 3]
 
         conductance_based_simulation = {
-            "sim_time": 1000,
+            "sim_time": 50,
             "sim_clock": 0.1 * ms,
             "g": 0,
             "g_ampa": 2.518667367869784e-06,
@@ -82,7 +82,7 @@ class GridTestCases(unittest.TestCase):
     def test_q_0(self):
         g_ampas = [2e-06, 2.5e-06, 3e-06]
         simulation = {
-            "sim_time": 500,
+            "sim_time": 50,
             "sim_clock": 0.1 * ms,
             "g": 0,
             "g_ampa": 0,

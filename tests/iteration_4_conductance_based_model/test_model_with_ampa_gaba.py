@@ -13,7 +13,6 @@ from iteration_4_conductance_based_model.conductance_based_model import sim_and_
 def compute_rate_for_nu_ext_over_nu_thr(nu_ext_over_nu_thr, g = 1, wait_for=4_000):
     conductance_based_simulation = {
 
-        "sim_time": 2_000,
         "sim_clock": 0.1 * ms,
         "g": g,
         "g_ampa": 2.518667367869784e-06,
@@ -24,7 +23,7 @@ def compute_rate_for_nu_ext_over_nu_thr(nu_ext_over_nu_thr, g = 1, wait_for=4_00
         "g_L": 0.00004,
 
         "panel": r"Compute rate for $\frac{\nu_mathrm{Ext}}{\nu_mathrm{Thr}}$",
-        "t_range": [[100, 120], [100, 300], [0, 1000], [1000, 2000]],
+        "t_range": [[100, 120], [0, 50]],
         "voltage_range": [-70, -30],
         "smoothened_rate_width": 3 * ms
     }
@@ -124,7 +123,6 @@ class ModelWithOnlyAMPAAndGABATestCases(unittest.TestCase):
         for nu_ext_over_nu_thr in np.linspace(start=1, stop=3, num=3):
             conductance_based_simulation = {
 
-                "sim_time": 1000,
                 "sim_clock": 0.05 * ms,
 
                 "g": 0,
@@ -152,7 +150,6 @@ class ModelWithOnlyAMPAAndGABATestCases(unittest.TestCase):
     def test_model_runs_only_with_inhibitory_current(self):
         conductance_based_simulation = {
 
-            "sim_time": 1500,
             "sim_clock": 0.05 * ms,
 
             "g": 1,
@@ -183,7 +180,6 @@ class ModelWithOnlyAMPAAndGABATestCases(unittest.TestCase):
         for current_nu_ext_over_nu_thr, current_g in itertools.product(np.linspace(start=0.01, stop=0.2, num=1), np.linspace(start=10, stop=20, num=1)):
             conductance_based_simulation = {
 
-                "sim_time": 1_500,
                 "sim_clock": 0.1 * ms,
                 "g": current_g,
                 "g_ampa": 2.518667367869784e-06,

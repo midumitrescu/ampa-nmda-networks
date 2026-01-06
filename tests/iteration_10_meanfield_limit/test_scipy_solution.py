@@ -8,7 +8,7 @@ from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States im
     NeuronModelParams, SynapticParams
 from iteration_7_one_compartment_step_input.one_compartment_with_up_down import \
     single_compartment_with_nmda_and_logged_variables
-from iteration_8_compute_mean_steady_state.test_wang_numbers import steady_model
+from iteration_8_compute_mean_steady_state.scripts_with_wang_numbers import steady_model
 
 meanfield_config = {
 

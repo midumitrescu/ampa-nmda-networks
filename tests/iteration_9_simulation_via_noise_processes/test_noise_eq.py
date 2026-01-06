@@ -2,17 +2,11 @@ import unittest
 
 from brian2 import msecond, siemens, cm
 
-from iteration_9_simulation_via_noise_processes.one_compartment_with_python_native_simulation import simulate_native, \
-    plot_simulation
-import numpy as np
-
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment, PlotParams, \
     NeuronModelParams, SynapticParams
 from iteration_7_one_compartment_step_input.one_compartment_with_up_down import \
     single_compartment_with_nmda_and_logged_variables
-from iteration_8_compute_mean_steady_state.grid_computations import \
-    sim_and_plot_experiment_grid_with_increasing_nmda_input_and_steady_state
-from iteration_8_compute_mean_steady_state.one_compartment_with_up_down_and_steady import sim_and_plot_with_weak_meanfield
+from iteration_9_simulation_via_noise_processes.one_compartment_with_python_native_simulation import simulate_native
 
 wang_recurrent_config = {
 
@@ -117,8 +111,6 @@ class MyTestCase(unittest.TestCase):
         self.assertEqual(20, experiment_config.neuron_params.tau / msecond)
 
         results = simulate_native(experiment_config)
-        plot_simulation(results)
-
         # tests for tau relaxation
         print("Look for g ampa at some very specific times w.r.t to tau ampa")
         dt = experiment_config.sim_clock / msecond
