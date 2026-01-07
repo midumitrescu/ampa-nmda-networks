@@ -1,5 +1,5 @@
 import numpy as np
-from brian2 import plt, mpl, StateMonitor, mV, start_scope, defaultclock, mmole, kHz, NeuronGroup, run, \
+from brian2 import plt, mpl, StateMonitor, mV, start_scope, defaultclock, kHz, NeuronGroup, run, \
     Network, second, stop, ms, nS, nsiemens
 from loguru import logger
 from matplotlib import gridspec
@@ -98,13 +98,13 @@ def sim_steady_state(experiment: Experiment, state: State) -> SteadyStateResults
     g_ampa = experiment.synaptic_params.g_ampa
     g_gaba = experiment.synaptic_params.g_gaba
     g_nmda_max = experiment.synaptic_params.g_nmda
-    g_x = experiment.synaptic_params.x_nmda
+    g_x = experiment.synaptic_params.g_x_nmda
 
     E_ampa = experiment.synaptic_params.e_ampa
     E_gaba = experiment.synaptic_params.e_gaba
     E_nmda = experiment.synaptic_params.e_ampa
 
-    MG_C = 1 * mmole  # extracellular magnesium concentration
+    MG_C = experiment.synaptic_params.MG_C
 
     tau_ampa = experiment.synaptic_params.tau_ampa
     tau_gaba = experiment.synaptic_params.tau_gaba
@@ -319,10 +319,10 @@ def plot_v_line(simulation_results,
 
     if simulation_results.steady_up_results is not None:
         ax_voltages.axhline(y=simulation_results.steady_up_results.v_steady, color=color, linestyle="--", linewidth=1.5,
-                            label="Mean V - UP State")
+                            label=r"$[V]_\mathrm{U}=$" + f"{simulation_results.steady_up_results.v_steady : .3f} mV")
     if simulation_results.steady_down_results is not None:
         ax_voltages.axhline(y=simulation_results.steady_down_results.v_steady, color=color, linestyle="--", linewidth=1.5,
-                            label="Mean V - Down State")
+                            label=r"$[V]_\mathrm{D}=$" + f"{simulation_results.steady_down_results.v_steady : .3f} mV")
 
 
 def plot_internal_states_in_one_time_range(simulation_results: SimulationResultsWithSteadyState, time_range: tuple[int, int]):

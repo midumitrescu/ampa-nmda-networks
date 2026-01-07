@@ -8,14 +8,43 @@ from iteration_7_one_compartment_step_input.grid_computations import \
     sim_and_plot_experiment_grid_with_increasing_nmda_input
 from iteration_7_one_compartment_step_input.one_compartment_with_up_down import \
     single_compartment_with_nmda_and_logged_variables, sim_and_plot
-from iteration_7_one_compartment_step_input.second_scripts import \
-    show_up_down_states_with_different_nmda_rates_up_vs_down_example_1
+from iteration_7_one_compartment_step_input.one_compartment_with_up_only import sim_and_plot_up_with_state_and_nmda
 
 plt.rcParams.update(mpl.rcParamsDefault)
 plt.rcParams['text.usetex'] = True
 
 
 class OneCompartmentUpDownStates(unittest.TestCase):
+
+    def test_experiment_can_be_created_with_only_up_state(self):
+        config = {
+            "up_state": {
+                "N_E": 1000,
+                "gamma": 1,
+                "nu": 100,
+
+                "N_NMDA": 10,
+                "nu_nmda": 10
+            },
+
+            "t_range": [0, 20],
+        }
+        Experiment(config)
+
+    def test_experiment_can_be_created_with_only_down_state(self):
+        config = {
+            "down_state": {
+                "N_E": 1000,
+                "gamma": 1,
+                "nu": 100,
+
+                "N_NMDA": 10,
+                "nu_nmda": 10
+            },
+
+            "t_range": [0, 20],
+        }
+        Experiment(config)
 
     def test_up_down_state_can_be_simulated_and_plotted(self):
         config = {
@@ -322,8 +351,40 @@ class OneCompartmentUpDownStates(unittest.TestCase):
                                                                 title="Up Down states with different NMDA rates in Up and Down states",
                                                                 nmda_schedule=[0, 2e-05, 4e-5, 5e-5])
 
-    def test_script_2(self):
-        show_up_down_states_with_different_nmda_rates_up_vs_down_example_1()
+    def test_only_up_state_works(self):
+        config = {
+
+            Experiment.KEY_IN_TESTING: True,
+            Experiment.KEY_SIMULATION_METHOD: "euler",
+            "panel": "NMDA input with NMDA rate depending on Up vs Down state",
+
+            Experiment.KEY_SIMULATION_CLOCK: 0.5,
+
+            "g": 1,
+            "g_ampa": 2.4e-06,
+            "g_gaba": 2.4e-06,
+            "g_nmda": 2e-05,
+
+            "up_state": {
+                "N_E": 1000,
+                "gamma": 1.2,
+                "nu": 100,
+
+                "N_nmda": 10,
+                "nu_nmda": 10,
+            },
+            PlotParams.KEY_PLOT_SMOOTH_WIDTH: 10,
+            Experiment.KEY_SELECTED_MODEL: single_compartment_with_nmda_and_logged_variables,
+            Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD: ["x_nmda", "v_minus_e_gaba"],
+
+            Experiment.KEY_CURRENTS_TO_RECORD: ["I_L", "I_nmda", "I_fast"],
+
+            "t_range": [[0, 100]],
+            PlotParams.KEY_WHAT_PLOTS_TO_SHOW: [PlotParams.AvailablePlots.RASTER_AND_RATE,
+                                                PlotParams.AvailablePlots.CURRENTS]
+        }
+
+        sim_and_plot_up_with_state_and_nmda(Experiment(config))
 
 
 if __name__ == '__main__':

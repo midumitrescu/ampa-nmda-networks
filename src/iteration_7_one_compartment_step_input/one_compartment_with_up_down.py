@@ -513,7 +513,7 @@ def plot_internal_states_in_one_time_range(simulation_results, time_range: tuple
 
             for hidden_var_name, hidden_var_plot_details in simulation_results.experiment.plot_params.create_hidden_variables_plots_grid().items():
                 index = hidden_var_plot_details['index']
-                curve_to_plot = simulation_results.internal_states_monitor[neuron_i].__getattr__(hidden_var_name) / \
+                curve_to_plot = simulation_results.internal_states_monitor[hidden_var_name][neuron_i] / \
                                 hidden_var_plot_details['scaling']
                 start_index = int(time_range[0] / simulation_results.experiment.sim_clock * ms)
                 end_index = int(time_range[1] / simulation_results.experiment.sim_clock * ms)
@@ -553,9 +553,15 @@ def plot_internal_states_in_one_time_range(simulation_results, time_range: tuple
 
 
 def generate_title(experiment: Experiment):
-    return fr"""{experiment.plot_params.panel}
-    Up State: [{experiment.network_params.up_state.gen_plot_title()}, {experiment.effective_time_constant_up_state.gen_plot_title()}]
-    Down State: [{experiment.network_params.down_state.gen_plot_title()}, {experiment.effective_time_constant_down_state.gen_plot_title()}]    
+
+    up_state_title = f"Up State: [{experiment.network_params.up_state.gen_plot_title()}, {experiment.effective_time_constant_up_state.gen_plot_title()}]" \
+        if experiment.network_params.up_state is not None else ""
+    down_state_title = f"Down State: [{experiment.network_params.down_state.gen_plot_title()}, {experiment.effective_time_constant_down_state.gen_plot_title()}]" \
+        if experiment.network_params.down_state is not None else ""
+
+    return fr"""{experiment.plot_params.panel}  
+    {up_state_title}
+    {down_state_title}    
     Neuron: [$C={experiment.neuron_params.C}$, $g_L={experiment.neuron_params.g_L}$, $\theta={experiment.neuron_params.theta}$, $V_R={experiment.neuron_params.V_r}$, $E_L={experiment.neuron_params.E_leak}$, $\tau_M={experiment.neuron_params.tau}$, $\tau_{{\mathrm{{ref}}}}={experiment.neuron_params.tau_rp}$]
     Synapse: [$g_{{\mathrm{{AMPA}}}}={experiment.synaptic_params.g_ampa:.2f}$, $g_{{\mathrm{{GABA}}}}={experiment.synaptic_params.g_gaba:.2f}$, $g={experiment.network_params.g}$, $g_{{\mathrm{{NMDA}}}}={experiment.synaptic_params.g_nmda:.2f}$]"""
 
@@ -576,7 +582,7 @@ g_nmda = g_nmda_max * sigmoid_v * s_nmda: siemens
 ds_nmda/dt = -s_nmda / tau_nmda_decay + alpha * x_nmda * (1 - s_nmda) : 1
 dx_nmda/dt = - x_nmda / tau_nmda_rise : 1
 
-sigmoid_v = 1: 1
+sigmoid_v = 1/(1 + (MG_C/mmole)/3.57 * exp(-0.062*(v/mvolt))): 1
 '''
 
 single_compartment_with_nmda_and_logged_variables = f'''{single_compartment_with_nmda}

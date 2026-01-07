@@ -35,7 +35,7 @@ def prepare_mean_field(experiment: Experiment, N=2000, N_reference=2000):
         {
             SynapticParams.KEY_G_AMPA: weak_mean_field(experiment.synaptic_params.g_ampa / siemens, N, N_reference),
             SynapticParams.KEY_G_GABA: weak_mean_field(experiment.synaptic_params.g_gaba / siemens, N, N_reference),
-            SynapticParams.KEY_X_NMDA: weak_mean_field(experiment.synaptic_params.x_nmda, N, N_reference),
+            SynapticParams.KEY_X_NMDA: weak_mean_field(experiment.synaptic_params.g_x_nmda, N, N_reference),
             "up_state": state,
             "down_state": state
         })
@@ -100,7 +100,7 @@ def simulate_one_state_with_meanfield(experiment: Experiment):
 
     g_ampa = experiment.synaptic_params.g_ampa
     g_gaba = experiment.synaptic_params.g_gaba
-    g_x = experiment.synaptic_params.x_nmda
+    g_x = experiment.synaptic_params.g_x_nmda
     g_nmda_max = experiment.synaptic_params.g_nmda
 
     E_ampa = experiment.synaptic_params.e_ampa

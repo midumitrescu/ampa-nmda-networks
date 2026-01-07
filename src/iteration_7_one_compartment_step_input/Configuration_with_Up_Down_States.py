@@ -2,7 +2,7 @@ import copy
 import enum
 
 import numpy as np
-from brian2 import ufarad, siemens, mV, ms, Hz, nS, usiemens, nsiemens
+from brian2 import ufarad, siemens, mV, ms, Hz, nS, usiemens, nsiemens, mmole
 from loguru import logger
 from sympy.physics.quantum.sho1d import omega
 
@@ -25,6 +25,8 @@ class SynapticParams:
     KEY_E_AMPA = "E_ampa"
     KEY_E_GABA = "E_gaba"
 
+    KEY_MG_EXTRACELLULAR_CONCENTRATION = "MG_C"
+
     def __init__(self, params: dict, g: float):
 
 
@@ -39,7 +41,7 @@ class SynapticParams:
             self.g_gaba = params.get(SynapticParams.KEY_G_GABA, 0) * siemens
             self.g = self.g_gaba / self.g_ampa
 
-        self.x_nmda = params.get(SynapticParams.KEY_X_NMDA, 1)
+        self.g_x_nmda = params.get(SynapticParams.KEY_X_NMDA, 1)
 
         self.g_nmda = params.get(SynapticParams.KEY_G_NMDA, 0) * siemens
 
@@ -50,6 +52,9 @@ class SynapticParams:
         self.e_gaba = params.get(SynapticParams.KEY_E_AMPA, -80) * mV
         self.tau_nmda_rise = params.get(NeuronModelParams.KEY_TAU_NMDA_RISE, 2) * ms
         self.tau_nmda_decay = params.get(NeuronModelParams.KEY_TAU_NMDA_DECAY, 100) * ms
+
+        # extracellular magnesium concentration
+        self.MG_C = params.get(SynapticParams.KEY_MG_EXTRACELLULAR_CONCENTRATION, 1) * mmole  # extracellular magnesium concentration
 
     def __str__(self):
         return f"{self.__class__}(J={self.J}, D={self.D})"
@@ -87,8 +92,7 @@ class State:
     def __init__(self, params: dict):
 
         self.gamma = params.get(State.KEY_GAMMA, 0.25)
-        self.omega = params.get(State.KEY_OMEGA, 0.005)
-
+        self.omega = params.get(State.KEY_OMEGA, 0)
 
         if self.KEY_N in params and self.KEY_N_E in params:
             raise ValueError("Please provide only one of N and N_E. Gamma will set the proper ration")
@@ -97,12 +101,15 @@ class State:
             self.N = params.get(State.KEY_N)
             self.N_I = round(self.gamma / (1 + self.gamma) * self.N)
             self.N_E = self.N - self.N_I
-            self.N_NMDA = int(self.omega * self.N)
         else:
             self.N_E = params.get(State.KEY_N_E, 10_000)
             self.N_I = round(self.gamma * self.N_E)
-            self.N_NMDA = params.get(State.KEY_N_NMDA, 0)
             self.N = self.N_E + self.N_I
+
+        if self.KEY_N_NMDA in params:
+            self.N_NMDA = params.get(State.KEY_N_NMDA)
+        else:
+            self.N_NMDA = int(self.omega * self.N)
 
         self.nu = params.get(State.KEY_NU, 0) * Hz
         self.nu_nmda = params.get(State.KEY_NU_NMDA, 0) * Hz
@@ -137,8 +144,8 @@ class NetworkParams:
 
         self.epsilon = params.get(NetworkParams.KEY_EPSILON, 0.1)
 
-        self.up_state = State(params[State.KEY_STATE_UP])
-        self.down_state = State(params[State.KEY_STATE_DOWN])
+        self.up_state = State(params[State.KEY_STATE_UP]) if State.KEY_STATE_UP in params else None
+        self.down_state = State(params[State.KEY_STATE_DOWN]) if State.KEY_STATE_DOWN in params else None
 
     def __str__(self):
         return f"{self.__class__}({self.KEY_G}={self.g}, {self.KEY_GAMMA}={self.gamma}, {self.KEY_EPSILON}={self.epsilon}, {self.KEY_N_E}={self.N_E}, {self.KEY_N_I}={self.N_I}, \
@@ -167,7 +174,10 @@ class NeuronModelParams:
         self.tau_rp = params.get(NeuronModelParams.KEY_TAU_REF, 2) * ms
 
         self.tau = self.C / self.g_L
-        self.nu_thr = (self.theta - self.E_leak) / (self.synaptic_params.J * network_params.up_state.N_E * self.tau)
+        if network_params.up_state is not None:
+            self.nu_thr = (self.theta - self.E_leak) / (self.synaptic_params.J * network_params.up_state.N_E * self.tau)
+        else:
+            self.nu_thr = (self.theta - self.E_leak) / (self.synaptic_params.J * network_params.down_state.N_E * self.tau)
 
         logger.debug("Computed tau membrane = {}, nu threshold = {}", self.tau, self.nu_thr)
 
@@ -394,8 +404,8 @@ class Experiment:
         self.nu_thr = self.neuron_params.nu_thr
         self.nu_ext = self.nu_ext_over_nu_thr * self.nu_thr
 
-        self.mean_excitatory_input = self.synaptic_params.J * self.neuron_params.tau * self.network_params.up_state.N_E * self.nu_ext
-        self.mean_inhibitory_input = - self.network_params.g * self.synaptic_params.J * self.neuron_params.tau * self.network_params.up_state.N_E * self.nu_ext
+        #self.mean_excitatory_input = self.synaptic_params.J * self.neuron_params.tau * self.network_params.up_state.N_E * self.nu_ext
+        #self.mean_inhibitory_input = - self.network_params.g * self.synaptic_params.J * self.neuron_params.tau * self.network_params.up_state.N_E * self.nu_ext
 
         self.nmda_params = NMDAParams(params)
 
@@ -407,11 +417,10 @@ class Experiment:
 
         self.in_testing = params.get(Experiment.KEY_IN_TESTING, False)
 
-        self.effective_time_constant_up_state = EffectiveTimeConstantEstimation(self, self.network_params.up_state)
-        self.effective_time_constant_down_state = EffectiveTimeConstantEstimation(self, self.network_params.down_state)
-
-        logger.debug("Effective Reversal Up State with included Poisson Rate {}", self.effective_time_constant_up_state.E_0())
-        logger.debug("Effective Reversal Down State with included Poisson Rate {}", self.effective_time_constant_down_state.E_0())
+        self.effective_time_constant_up_state = EffectiveTimeConstantEstimation(self, self.network_params.up_state, label="Up") \
+            if self.network_params.up_state is not None else None
+        self.effective_time_constant_down_state = EffectiveTimeConstantEstimation(self, self.network_params.down_state, label="Down") \
+            if self.network_params.down_state is not None else None
 
     def with_property(self, key: str, value: object):
         return self.with_properties({key: value})
@@ -442,12 +451,14 @@ class Experiment:
 # Richardson Synaptic Shot Noise and Conductance Fluctuations Affect the Membrane Voltage with Equal Significance, 2005
 class EffectiveTimeConstantEstimation:
 
-    def __init__(self, config: Experiment, state: State):
+    def __init__(self, config: Experiment, state: State, label="Up"):
         self.config = config
         self.state = state
         self.__check_is_diffusion_approximation_valid__()
 
         self.state.effective_timeconstant_estimation = self
+
+        logger.debug("Effective Reversal {} State with included Poisson Rate {}", label, self.E_0())
 
     def E_0(self):
         effective_reversal = (self.config.neuron_params.g_L * self.config.neuron_params.E_leak +

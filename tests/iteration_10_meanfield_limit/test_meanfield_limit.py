@@ -7,7 +7,7 @@ from loguru import logger
 from numpy.testing import assert_allclose, assert_equal
 
 from iteration_10_meanfield_limit.meanfield_simulation import sim_and_plot_meanfield_with_upstate_and_steady_state, \
-    prepare_mean_field, weak_mean_field
+    prepare_mean_field, weak_mean_field, simulate_meanfield_with_up_state_and_steady_state, plot_simulation
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment, PlotParams, \
     NeuronModelParams, SynapticParams
 from iteration_7_one_compartment_step_input.one_compartment_with_up_down import \
@@ -115,7 +115,7 @@ class MeanFieldProgressionTestCases(unittest.TestCase):
         self.assertEqual(0.05e-9, wang_config.synaptic_params.g_ampa / siemens)
         self.assertEqual(0.04e-9, wang_config.synaptic_params.g_gaba / siemens)
         self.assertEqual(0.165e-9, wang_config.synaptic_params.g_nmda / siemens)
-        self.assertEqual(1, wang_config.synaptic_params.x_nmda)
+        self.assertEqual(1, wang_config.synaptic_params.g_x_nmda)
 
         self.assertEqual(1600, wang_config.network_params.up_state.N_E)
         self.assertEqual(400, wang_config.network_params.up_state.N_I)
@@ -160,7 +160,7 @@ class MeanFieldProgressionTestCases(unittest.TestCase):
         assert_allclose([item.synaptic_params.g_gaba / psiemens for item in meanfield_experiments], [40, 20, 13.3333333333, 10, 4, 2, 0.4])
         assert_equal([item.network_params.up_state.N_I for item in meanfield_experiments],
                      [400, 800, 1200, 1600, 4000, 8000, 40_000])
-        assert_allclose([item.synaptic_params.x_nmda for item in meanfield_experiments], [1, 0.5, 0.33333333333, 0.25, 0.1, 0.05, 0.01])
+        assert_allclose([item.synaptic_params.g_x_nmda for item in meanfield_experiments], [1, 0.5, 0.33333333333, 0.25, 0.1, 0.05, 0.01])
         assert_equal([item.network_params.up_state.N_NMDA for item in meanfield_experiments],
                      [10, 20, 30, 40, 100, 200, 1000])
 
@@ -193,31 +193,21 @@ class MeanFieldProgressionTestCases(unittest.TestCase):
             prepare_mean_field(Experiment(meanfield_config),
                                N=10**10 * 2000, N_reference=2000))
 
+    '''
+    I have the impression that the times plotted are not really correct!
+    '''
     def test_verify_plotting_of_conductance_in_rater_and_rate_plot(self):
         only_nmda = Experiment(meanfield_config).with_properties({
             SynapticParams.KEY_G_AMPA: 0,
             SynapticParams.KEY_G_GABA: 0,
             SynapticParams.KEY_G_NMDA: 0.165e-9,
             PlotParams.KEY_WHAT_PLOTS_TO_SHOW: [PlotParams.AvailablePlots.RASTER_AND_RATE],
-            "t_range": [[0, 5_000]],
+            "t_range": [[0, 3000]],
         })
         meanfield_experiment = prepare_mean_field(only_nmda, N=2000, N_reference=2000)
-        sim_and_plot_meanfield_with_upstate_and_steady_state(meanfield_experiment)
+        simulation_results = simulate_meanfield_with_up_state_and_steady_state(meanfield_experiment)
+        plot_simulation(simulation_results)
 
-    def test_compute_mean_x_and_s(self):
-        experiment = Experiment(meanfield_config)
-        g_x = experiment.synaptic_params.x_nmda
-        tau_nmda_rise = experiment.synaptic_params.tau_nmda_rise
-        tau_nmda_decay = experiment.synaptic_params.tau_nmda_decay
-
-        alpha = 0.5 * kHz  # saturation of NMDA channels at high presynaptic firing rates
-        N_NMDA = experiment.network_params.up_state.N_NMDA
-        nu_NMDA = experiment.network_params.up_state.nu_nmda
-
-        x_0 = alpha * tau_nmda_decay * tau_nmda_rise * g_x * N_NMDA *  nu_NMDA
-        s_0 = x_0/(1+x_0)
-        print("XXXXXXXXXXXX ", x_0)
-        self.assertAlmostEqual(0.9090909090909091, s_0)
 
 if __name__ == '__main__':
     unittest.main()

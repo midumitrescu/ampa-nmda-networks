@@ -1,11 +1,15 @@
 import unittest
 
 import numpy as np
+from brian2 import mV, mmole, second, ms, Hz
 
+from BinarySeach import binary_search_for_target_value
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment, PlotParams, \
     NeuronModelParams, SynapticParams
 from iteration_7_one_compartment_step_input.one_compartment_with_up_down import \
     single_compartment_with_nmda_and_logged_variables
+from iteration_7_one_compartment_step_input.one_compartment_with_up_only import simulate_with_up_state_and_nmda, \
+    sim_and_plot_up_with_state_and_nmda
 from iteration_8_compute_mean_steady_state.grid_computations import \
     sim_and_plot_experiment_grid_with_increasing_nmda_input_and_steady_state
 from iteration_8_compute_mean_steady_state.one_compartment_with_up_down_and_steady import sim_and_plot_up_down
@@ -88,6 +92,32 @@ wang_recurrent_config = {
                                         PlotParams.AvailablePlots.CURRENTS]
 }
 
+palmer_config_0_1_Hz_with_NMDA_block = Experiment(wang_recurrent_config).with_properties(
+    {
+        SynapticParams.KEY_G_NMDA: 0,
+        "up_state": {
+            "N": 2000,
+            "nu": 82,
+            "N_nmda": 0,
+            "nu_nmda": 5,
+        }})
+
+
+def sigmoid_v(experiment, v):
+    MG_C = experiment.synaptic_params.MG_C
+    return 1 / (1 + (MG_C / mmole) / 3.57 * np.exp(-0.062 * (v / mV)))
+
+
+def run_with_NMDA_and_obtain_firing_rate(experiment, g_nmda_max, sim_time=10 * second):
+    experiment_with_nmda = experiment.with_properties({
+        Experiment.KEY_SIM_TIME: sim_time / ms,
+        SynapticParams.KEY_G_NMDA: g_nmda_max})
+    results_with_nmda = simulate_with_up_state_and_nmda(experiment_with_nmda)
+
+    rate = len(results_with_nmda.spikes['all_values']['t'][0]) / experiment_with_nmda.sim_time
+
+    return rate / Hz
+
 
 class MyTestCase(unittest.TestCase):
 
@@ -97,6 +127,7 @@ class MyTestCase(unittest.TestCase):
     '''
     Model starts firing between 80Hz input -> 0 Hz output, 90 Hz -> 20-40 Hz
     '''
+
     def test_only_up_with_wang_numbers(self):
         various_nu_ext = np.arange(0, 100, step=10)
         for nu_ext in various_nu_ext:
@@ -131,6 +162,66 @@ class MyTestCase(unittest.TestCase):
                                                                                      "Look for Palmer firing rates",
                                                                                      increasing_nmda)
 
+    '''
+    Looking for No NMDA -> 0.05 Hz and NMDA -> 0.3 Hz
+    Search for these values using binary search
+    '''
 
-if __name__ == '__main__':
-    unittest.main()
+    def test_run_palmer_rates(self):
+        palmer_experiment = (Experiment(wang_recurrent_config).with_property(PlotParams.KEY_WHAT_PLOTS_TO_SHOW,
+                                                                             [PlotParams.AvailablePlots.RASTER_AND_RATE])
+                             .with_property("up_state",
+                                            {
+                                                "N": 2000,
+                                                "nu": 82,
+                                                "N_nmda": 0,
+                                                "nu_nmda": 10,
+                                            })).with_property("t_range", [[0, 1_000]])
+        # sim_and_plot_up_down(palmer_experiment)
+        results_with_nmda = sim_and_plot_up_down(palmer_experiment.with_property("up_state",
+                                                                                 {
+                                                                                     "N": 2000,
+                                                                                     "nu": 82,
+                                                                                     "N_nmda": 10,
+                                                                                     "nu_nmda": 5,
+                                                                                 }))
+
+        print(results_with_nmda)
+        number_of_spikes = len(results_with_nmda.spikes['all_values']['t'][0]) / palmer_experiment.sim_time
+
+    def test_search_for_nmda_palmer_rates(self):
+        palmer_experiment = (Experiment(wang_recurrent_config).with_property(PlotParams.KEY_WHAT_PLOTS_TO_SHOW,
+                                                                             [PlotParams.AvailablePlots.RASTER_AND_RATE])
+                             .with_property("up_state",
+                                            {
+                                                "N": 2000,
+                                                "nu": 82,
+                                                "N_nmda": 0,
+                                                "nu_nmda": 10,
+                                            })).with_property("t_range", [[0, 1_000]])
+
+        execute_palmer = lambda nmda_strength: run_with_NMDA_and_obtain_firing_rate(palmer_experiment, nmda_strength)
+        res = binary_search_for_target_value(lower_value=0, upper_value=1E-8, func=execute_palmer, target_result=0.3)
+        print(f"XXXXXXXXXXXXX {res}")
+        # (1.5625e-10, 3.125e-10)
+
+    def test_just_play_around_with_palmer_values(self):
+        palmer_experiment = (Experiment(wang_recurrent_config)
+        .with_properties({
+            SynapticParams.KEY_G_NMDA: 1E-8,
+            "up_state":
+                {
+                    "N": 2000,
+                    "nu": 82,
+                    "N_nmda": 0,
+                    "nu_nmda": 10,
+                },
+            "t_range": [[0, 10_000]],
+            PlotParams.KEY_WHAT_PLOTS_TO_SHOW:
+                [PlotParams.AvailablePlots.RASTER_AND_RATE]
+        }))
+
+        sim_and_plot_up_with_state_and_nmda(palmer_experiment)
+
+        if __name__ == '__main__':
+            unittest.main()

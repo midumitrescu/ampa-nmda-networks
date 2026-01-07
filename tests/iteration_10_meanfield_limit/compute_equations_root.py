@@ -23,7 +23,7 @@ def solve(experiment: Experiment, v0 = None):
 
     g_ampa = experiment.synaptic_params.g_ampa
     g_gaba = experiment.synaptic_params.g_gaba
-    g_x = experiment.synaptic_params.x_nmda
+    g_x = experiment.synaptic_params.g_x_nmda
     g_nmda_max = experiment.synaptic_params.g_nmda
 
     E_ampa = experiment.synaptic_params.e_ampa

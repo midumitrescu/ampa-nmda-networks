@@ -61,8 +61,8 @@ class ConfigurationWithUpStateTestCases(unittest.TestCase):
         self.assertEqual(100, object_under_test.network_params.down_state.N_I)
 
         self.assertEqual(-65, object_under_test.effective_time_constant_up_state.E_0() / mV)
-        self.assertEqual(0, object_under_test.effective_time_constant_up_state.mean_excitatory_conductance() / siemens * cm**2)
-        self.assertEqual(0, object_under_test.effective_time_constant_up_state.mean_inhibitory_conductance() / siemens * cm**2)
+        self.assertEqual(0, object_under_test.effective_time_constant_up_state.mean_excitatory_conductance() / siemens)
+        self.assertEqual(0, object_under_test.effective_time_constant_up_state.mean_inhibitory_conductance() / siemens)
 
     def test_effective_time_constant_up_and_down_state(self):
         config = {
@@ -91,12 +91,12 @@ class ConfigurationWithUpStateTestCases(unittest.TestCase):
 
         self.assertAlmostEqual(-40.01041233, object_under_test.effective_time_constant_up_state.E_0() / mV)
 
-        self.assertAlmostEqual(4.8E-2, object_under_test.effective_time_constant_up_state.mean_excitatory_conductance() / siemens * cm**2)
-        self.assertAlmostEqual(4.8E-2, object_under_test.effective_time_constant_up_state.mean_inhibitory_conductance() / siemens * cm**2)
+        self.assertAlmostEqual(4.8E-2, object_under_test.effective_time_constant_up_state.mean_excitatory_conductance() / siemens)
+        self.assertAlmostEqual(4.8E-2, object_under_test.effective_time_constant_up_state.mean_inhibitory_conductance() / siemens)
         self.assertAlmostEqual(7.58947E-04,
-                               object_under_test.effective_time_constant_up_state.std_excitatory_conductance() / siemens * cm ** 2)
+                               object_under_test.effective_time_constant_up_state.std_excitatory_conductance() / siemens)
         self.assertAlmostEqual(7.58947E-04,
-                               object_under_test.effective_time_constant_up_state.std_inhibitory_conductance() / siemens * cm ** 2)
+                               object_under_test.effective_time_constant_up_state.std_inhibitory_conductance() / siemens)
         self.assertAlmostEqual(0.4458682244,
                                object_under_test.effective_time_constant_up_state.std_voltage() / mV)
 
@@ -108,15 +108,90 @@ class ConfigurationWithUpStateTestCases(unittest.TestCase):
         self.assertAlmostEqual(-4.73529412E+01, object_under_test.effective_time_constant_down_state.E_0() / mV)
 
         self.assertAlmostEqual(4.8E-5,
-                               object_under_test.effective_time_constant_down_state.mean_excitatory_conductance() / siemens * cm ** 2)
+                               object_under_test.effective_time_constant_down_state.mean_excitatory_conductance() / siemens)
         self.assertAlmostEqual(4.8E-5,
-                               object_under_test.effective_time_constant_down_state.mean_inhibitory_conductance() / siemens * cm ** 2)
+                               object_under_test.effective_time_constant_down_state.mean_inhibitory_conductance() / siemens)
         self.assertAlmostEqual(2.40E-05,
-                               object_under_test.effective_time_constant_down_state.std_excitatory_conductance() / siemens * cm ** 2)
+                               object_under_test.effective_time_constant_down_state.std_excitatory_conductance() / siemens)
         self.assertAlmostEqual(2.40E-05,
-                               object_under_test.effective_time_constant_down_state.std_inhibitory_conductance() / siemens * cm ** 2)
+                               object_under_test.effective_time_constant_down_state.std_inhibitory_conductance() / siemens)
         self.assertAlmostEqual(4.693584178,
                                object_under_test.effective_time_constant_down_state.std_voltage() / mV)
+
+class ParsingOfNNmdaTestCases(unittest.TestCase):
+
+    def test_no_nmda(self):
+        config = {
+            "t_range": [[0, 10]],
+            "up_state": {
+                "N_E": 10_000,
+                "gamma": 1,
+                "nu": 100,
+            },
+            "down_state": {
+                "N_E": 100,
+                "gamma": 1,
+                "nu": 10,
+            }
+        }
+        object_under_test = Experiment(config)
+
+        self.assertEqual(0, object_under_test.network_params.up_state.N_NMDA)
+        self.assertEqual(0, object_under_test.network_params.down_state.N_NMDA)
+
+    def test_nmda_read_directly_from_state_config(self):
+        config = {
+            "t_range": [0, 10],
+            "up_state": {
+                "N_nmda": 10,
+            }
+        }
+        object_under_test = Experiment(config)
+
+        self.assertEqual(10, object_under_test.network_params.up_state.N_NMDA)
+        self.assertIsNone(object_under_test.network_params.down_state)
+
+    def test_nmda_upstate_read_from_omega(self):
+        config = {
+            "t_range": [0, 10],
+            "up_state": {
+                "N": 10,
+                State.KEY_OMEGA: 0.1,
+            }
+        }
+        object_under_test = Experiment(config)
+
+        self.assertEqual(1, object_under_test.network_params.up_state.N_NMDA)
+        self.assertIsNone(object_under_test.network_params.down_state)
+
+    def test_nmda_downstate_read_from_omega(self):
+        config = {
+            "t_range": [0, 10],
+            "down_state": {
+                "N": 10,
+                State.KEY_OMEGA: 0.1,
+            }
+        }
+        object_under_test = Experiment(config)
+
+        self.assertEqual(1, object_under_test.network_params.down_state.N_NMDA)
+        self.assertIsNone(object_under_test.network_params.up_state)
+
+    def test_N_nmda_has_priority_over_omega(self):
+        config = {
+            "t_range": [0, 10],
+
+            "up_state": {
+                "N": 10,
+                State.KEY_N_NMDA: 10,
+                State.KEY_OMEGA: 0.1,
+            }
+        }
+        object_under_test = Experiment(config)
+
+        self.assertEqual(10, object_under_test.network_params.up_state.N_NMDA)
+        self.assertIsNone(object_under_test.network_params.down_state)
+
 
 if __name__ == '__main__':
     unittest.main()

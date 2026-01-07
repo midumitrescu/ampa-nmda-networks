@@ -66,7 +66,7 @@ def parallelize(experiments: list[Experiment],
         #simulation_results.internal_states_monitor = None
         return simulation_results
 
-    return Parallel(n_jobs=1)(
+    return Parallel(n_jobs=16)(
         delayed(sim_unpickled)(current_experiment) for current_experiment in experiments
     )
 

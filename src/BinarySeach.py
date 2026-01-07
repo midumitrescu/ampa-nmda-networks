@@ -19,12 +19,7 @@ def binary_search_for_target_value(lower_value, upper_value,
         f"Lower value: {lower_value} should produce a result < {target_result}. However, result was {lower_result}")
     if upper_result < target_result: raise ValueError(
         f"Upper value: {upper_value} should produce a result > {target_result}. However, result was {upper_result}")
-    '''
-    if lower_result >= target_result:
-        return 0, 0
-    if upper_result <= target_result:
-        return 0, 0
-    '''
+
     for i in range(max_iters):
         middle_value = 0.5 * (lower_value + upper_value)
         if not floats_allowed:
