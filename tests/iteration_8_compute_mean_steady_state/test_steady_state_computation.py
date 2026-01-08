@@ -118,7 +118,7 @@ class MyTestCase(unittest.TestCase):
         ax[1].plot(v_monitor.t / ms, v_monitor[0].g_nmda  / siemens * cm**2)
         ax[1].legend()
 
-        ax[2].plot(v_monitor.t / ms, v_monitor[0].g_x_nmda)
+        ax[2].plot(v_monitor.t / ms, v_monitor[0].x_nmda)
         ax[3].plot(v_monitor.t / ms, v_monitor[0].s_nmda)
         ax[4].plot(v_monitor.t / ms, v_monitor[0].I_nmda)
 

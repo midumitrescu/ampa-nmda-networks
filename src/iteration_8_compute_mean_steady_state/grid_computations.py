@@ -20,14 +20,14 @@ def convert_to_experiment_matrix(experiment: Experiment, nmda_schedule):
     if type(nmda_schedule[0]) is list:
         return [convert_to_experiment_list(experiment, row) for row in nmda_schedule]
     else:
-        return convert_to_experiment_list(experiment, nmda_schedule)
+        return [convert_to_experiment_list(experiment, nmda_schedule)]
 
 
 import numpy as np
 def sim_and_plot_experiment_grid_with_increasing_nmda_input_and_steady_state(experiment: Experiment, title, nmda_schedule: list[float], show_individual_plots=True):
     experiments = convert_to_experiment_matrix(experiment, nmda_schedule)
     title = grid_title(panel_title=title, experiment=experiment)
-    return sim_and_plot_experiment_grid_with_lambda(experiments, title, run_simulate_with_steady_state)
+    return sim_and_plot_experiment_grid_with_lambda(experiments, title, run_simulate_with_steady_state, show_individual_plots=show_individual_plots)
 
 def run_simulate_with_steady_state(experiments: list[Experiment]):
     return parallelize(experiments, simulate_with_up_and_down_state_and_nmda_and_steady_state)
@@ -47,9 +47,9 @@ def sim_and_plot_experiment_grid_with_lambda(experiments, title, obtain_results_
 
         if isinstance(params_t_range[0], list):
             for time_slot in params_t_range:
-                plot_results_grid(results, time_slot, title=title)
+                plot_results_grid(results_in_matrix_form, time_slot, title=title)
         else:
-            plot_results_grid(results, t_range, title=title)
+            plot_results_grid(results_in_matrix_form, t_range, title=title)
     if show_individual_plots:
         for result in results:
             plot_simulation(result)
@@ -75,18 +75,19 @@ def plot_results_grid(results: np.ndarray[SimulationResultsWithSteadyState, np.d
 
 
 def plot_grid_raster_population_and_g_s(results: np.ndarray[SimulationResultsWithSteadyState, np.dtype[SimulationResultsWithSteadyState]], time_range: tuple[int, int], title: str):
-    if not results[0].experiment.plot_params.show_raster_and_rate():
+    if not results.flatten()[0].experiment.plot_params.show_raster_and_rate():
         return
 
     fig = plt.figure(figsize=(35, 25))
     fig.suptitle(title, size=25)
 
-    outer = gridspec.GridSpec(2, len(results), figure=fig, hspace=0.2,
-                              wspace=0.1)
+    rows, cols = results.shape
+    outer = gridspec.GridSpec(2*rows, cols, figure=fig, hspace=0.2, wspace=0.1)
 
-    for index, result in enumerate(results):
-        ax_spikes, _ = plot_raster_and_rates(result, time_range, outer[0, index])
-        plot_voltages_and_g_s(result, time_range, outer[1, index])
+    for idx, result in np.ndenumerate(results):
+        row, column = idx
+        ax_spikes, _ = plot_raster_and_rates(result, time_range, outer[2*row, column])
+        plot_voltages_and_g_s(result, time_range, outer[2*row + 1, column])
 
         ax_spikes.set_title(f"{gen_raster_and_rates_grid_subtitle(result)} \n {ax_spikes.get_title()}")
 
@@ -99,16 +100,19 @@ def gen_raster_and_rates_grid_subtitle(results: SimulationResultsWithSteadyState
 
 
 def plot_grid_currents(results: np.ndarray[SimulationResultsWithSteadyState, np.dtype[SimulationResultsWithSteadyState]], time_range, title: str):
-    if not results[0].experiment.plot_params.show_currents_plots():
+    if not results.flatten()[0].experiment.plot_params.show_currents_plots():
         return
 
     fig = plt.figure(figsize=(35, 25))
     fig.suptitle(title, size=25)
 
-    outer = gridspec.GridSpec(1, len(results), figure=fig, hspace=0.2,
-                              wspace=0.1)
+    rows, cols = results.shape
+    outer = gridspec.GridSpec(rows, cols, figure=fig, hspace=0.2, wspace=0.1)
 
-    for index, result in enumerate(results):
-        plot_currents(result, time_range, outer[index])
+    for idx, result in np.ndenumerate(results):
+        print(idx)
+
+    for idx, result in np.ndenumerate(results):
+        plot_currents(result, time_range, outer[idx])
 
     show_plots_non_blocking()

@@ -9,7 +9,6 @@ from scripts.iteration_8_compute_mean_steady_state.scripts_with_wang_numbers imp
 
 wang_recurrent_config = Experiment(wang_recurrent_config).with_property("t_range", [[0, 100]]).params
 
-
 class GridComputationTestCases(unittest.TestCase):
 
     def test_experiment_generation_from_list(self):
@@ -20,9 +19,9 @@ class GridComputationTestCases(unittest.TestCase):
 
     def test_experiment_generation_from_matrix_0(self):
         object_under_test = convert_to_experiment_matrix(Experiment(wang_recurrent_config), [0, 1, 2])
-        self.assertEqual(0, object_under_test[0].synaptic_params.g_nmda / siemens)
-        self.assertEqual(1, object_under_test[1].synaptic_params.g_nmda / siemens)
-        self.assertEqual(2, object_under_test[2].synaptic_params.g_nmda / siemens)
+        self.assertEqual(0, object_under_test[0][0].synaptic_params.g_nmda / siemens)
+        self.assertEqual(1, object_under_test[0][1].synaptic_params.g_nmda / siemens)
+        self.assertEqual(2, object_under_test[0][2].synaptic_params.g_nmda / siemens)
 
     def test_experiment_generation_from_matrix_1(self):
         object_under_test = convert_to_experiment_matrix(Experiment(wang_recurrent_config), [[0, 1, 2]])
@@ -50,4 +49,4 @@ class GridComputationTestCases(unittest.TestCase):
             [
                 [1E-10, 1E-9, 1.35E-9],
                 [1.5E-9, 2E-9, 3E-9]
-            ])
+            ], show_individual_plots=False)
