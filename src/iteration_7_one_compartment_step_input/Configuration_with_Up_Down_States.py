@@ -2,9 +2,8 @@ import copy
 import enum
 
 import numpy as np
-from brian2 import ufarad, siemens, mV, ms, Hz, nS, usiemens, nsiemens, mmole
+from brian2 import ufarad, siemens, mV, ms, Hz, nS, nsiemens, mmole
 from loguru import logger
-from sympy.physics.quantum.sho1d import omega
 
 
 class SynapticParams:

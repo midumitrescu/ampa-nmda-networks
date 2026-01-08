@@ -1,5 +1,5 @@
-from loguru import logger
 import numpy as np
+from loguru import logger
 
 def binary_search_for_target_value(lower_value, upper_value,
                                    func,
@@ -26,7 +26,7 @@ def binary_search_for_target_value(lower_value, upper_value,
             middle_value = int(np.round(middle_value))
         current_result = func(middle_value)
 
-        #logger.debug(f"Current value: {middle_value} -> {current_result}")
+        logger.debug(f"Current value: {middle_value} -> {current_result}")
         if current_result > target_result:
             delta = upper_value - middle_value
             upper_value = middle_value

@@ -13,21 +13,35 @@ from iteration_8_compute_mean_steady_state.one_compartment_with_up_down_and_stea
     simulate_with_up_and_down_state_and_nmda_and_steady_state, SimulationResultsWithSteadyState, plot_raster_and_rates, \
     plot_voltages_and_g_s, plot_currents, plot_simulation
 
+def convert_to_experiment_list(experiment: Experiment, nmda_schedule: list[float]) -> list[Experiment]:
+    return [experiment.with_property("g_nmda", nmda_strength) for nmda_strength in nmda_schedule]
 
-def sim_and_plot_experiment_grid_with_increasing_nmda_input_and_steady_state(experiment: Experiment, title, nmda_schedule: list[float]):
-    experiments = [experiment.with_property("g_nmda", nmda_strength) for nmda_strength in nmda_schedule]
+def convert_to_experiment_matrix(experiment: Experiment, nmda_schedule):
+    if type(nmda_schedule[0]) is list:
+        return [convert_to_experiment_list(experiment, row) for row in nmda_schedule]
+    else:
+        return convert_to_experiment_list(experiment, nmda_schedule)
+
+
+import numpy as np
+def sim_and_plot_experiment_grid_with_increasing_nmda_input_and_steady_state(experiment: Experiment, title, nmda_schedule: list[float], show_individual_plots=True):
+    experiments = convert_to_experiment_matrix(experiment, nmda_schedule)
     title = grid_title(panel_title=title, experiment=experiment)
     return sim_and_plot_experiment_grid_with_lambda(experiments, title, run_simulate_with_steady_state)
 
 def run_simulate_with_steady_state(experiments: list[Experiment]):
     return parallelize(experiments, simulate_with_up_and_down_state_and_nmda_and_steady_state)
 
-def sim_and_plot_experiment_grid_with_lambda(experiments: list[Experiment], title,
-                                             obtain_results_function: Callable[
-                                                 [list[Experiment]], list[SimulationResultsWithSteadyState]]):
-    results = obtain_results_function(experiments)
+def sim_and_plot_experiment_grid_with_lambda(experiments, title, obtain_results_function: Callable[
+                                                 [list[Experiment]], list[SimulationResultsWithSteadyState]], show_individual_plots=True):
 
-    t_range = experiments[0].plot_params.t_range
+    experiments_as_numpy_array = np.array(experiments)
+    experiments_shape = experiments_as_numpy_array.shape
+
+    results = obtain_results_function(experiments_as_numpy_array.flatten())
+    results_in_matrix_form = np.array(results).reshape(experiments_shape)
+
+    t_range = experiments_as_numpy_array.flatten()[0].plot_params.t_range
     if t_range:
         params_t_range = t_range
 
@@ -36,10 +50,10 @@ def sim_and_plot_experiment_grid_with_lambda(experiments: list[Experiment], titl
                 plot_results_grid(results, time_slot, title=title)
         else:
             plot_results_grid(results, t_range, title=title)
-
-    for result in results:
-        plot_simulation(result)
-        show_plots_non_blocking()
+    if show_individual_plots:
+        for result in results:
+            plot_simulation(result)
+            show_plots_non_blocking()
 
     return results
 
@@ -55,12 +69,12 @@ def parallelize(experiments: list[Experiment],
     )
 
 
-def plot_results_grid(results: list[SimulationResultsWithSteadyState], time_range: tuple[int, int], title: str):
+def plot_results_grid(results: np.ndarray[SimulationResultsWithSteadyState, np.dtype[SimulationResultsWithSteadyState]], time_range: tuple[int, int], title: str):
     plot_grid_raster_population_and_g_s(results, time_range, title=title)
     plot_grid_currents(results, time_range, title=title)
 
 
-def plot_grid_raster_population_and_g_s(results: list[SimulationResultsWithSteadyState], time_range: tuple[int, int], title: str):
+def plot_grid_raster_population_and_g_s(results: np.ndarray[SimulationResultsWithSteadyState, np.dtype[SimulationResultsWithSteadyState]], time_range: tuple[int, int], title: str):
     if not results[0].experiment.plot_params.show_raster_and_rate():
         return
 
@@ -84,7 +98,7 @@ def gen_raster_and_rates_grid_subtitle(results: SimulationResultsWithSteadyState
     return fr"""Synapse: [$g_{{\mathrm{{AMPA}}}}={experiment.synaptic_params.g_ampa * (cm ** 2):.2f}$, $g_{{\mathrm{{GABA}}}}={experiment.synaptic_params.g_gaba * cm ** 2:.2f}$, $g={experiment.network_params.g}$, $g_{{\mathrm{{NMDA}}}}={experiment.synaptic_params.g_nmda * cm ** 2:.2f}$]"""
 
 
-def plot_grid_currents(results, time_range, title: str):
+def plot_grid_currents(results: np.ndarray[SimulationResultsWithSteadyState, np.dtype[SimulationResultsWithSteadyState]], time_range, title: str):
     if not results[0].experiment.plot_params.show_currents_plots():
         return
 

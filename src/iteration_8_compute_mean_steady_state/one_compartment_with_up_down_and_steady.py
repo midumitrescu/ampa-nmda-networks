@@ -158,7 +158,7 @@ def plot_raster_and_g_s_in_one_time_range(simulation_results: SimulationResultsW
         fig = plt.figure(figsize=(14, 12))
         fig.suptitle(generate_title(simulation_results.experiment))
 
-        height_ratios = [1, 1]
+        height_ratios = [1, 3]
         outer = gridspec.GridSpec(2, 1, figure=fig, height_ratios=height_ratios)
         plot_raster_and_rates(simulation_results, time_range, outer[0])
         plot_voltages_and_g_s(simulation_results, time_range, outer[1])
@@ -219,7 +219,7 @@ def plot_currents(simulation_results: SimulationResultsWithSteadyState, time_ran
 
 
 def plot_raster_and_rates(simulation_results: SimulationResultsWithSteadyState, time_range, grid_spec_mother):
-    raster_and_population = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=grid_spec_mother, height_ratios=[2, 1],
+    raster_and_population = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=grid_spec_mother, height_ratios=[1, 1],
                                                              hspace=0)
 
     ax_spikes, ax_rates = raster_and_population.subplots(sharex="col")

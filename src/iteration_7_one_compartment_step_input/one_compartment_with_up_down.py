@@ -103,6 +103,9 @@ class SimulationResults:
         else:
             return ExtendedDict({})
 
+    def total_spike_counts(self):
+        return len(self.spikes['all_values']['t'][0])
+
 def sim_and_plot(experiment: Experiment) -> SimulationResults:
     simulation_results = simulate_with_up_and_down_state_and_nmda(experiment)
     plot_simulation(simulation_results)
