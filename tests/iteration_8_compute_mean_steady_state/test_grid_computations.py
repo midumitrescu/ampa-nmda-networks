@@ -2,12 +2,13 @@ import unittest
 
 from brian2 import siemens
 
-from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment
+from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment, PlotParams
 from iteration_8_compute_mean_steady_state.grid_computations import convert_to_experiment_matrix, \
     convert_to_experiment_list, sim_and_plot_experiment_grid_with_increasing_nmda_input_and_steady_state
 from scripts.iteration_8_compute_mean_steady_state.scripts_with_wang_numbers import wang_recurrent_config
 
-wang_recurrent_config = Experiment(wang_recurrent_config).with_property("t_range", [[0, 100]]).params
+wang_experiment_short = Experiment(wang_recurrent_config).with_property("t_range", [[0, 100]])
+wang_recurrent_config = wang_experiment_short.params
 
 class GridComputationTestCases(unittest.TestCase):
 
@@ -30,8 +31,7 @@ class GridComputationTestCases(unittest.TestCase):
         self.assertEqual(2, object_under_test[0][2].synaptic_params.g_nmda / siemens)
 
     def test_experiment_grid_generation_for_list_input(self):
-        short_wang_config = Experiment(wang_recurrent_config).with_property("t_range", [[0, 100]])
-        sim_and_plot_experiment_grid_with_increasing_nmda_input_and_steady_state(short_wang_config,
+        sim_and_plot_experiment_grid_with_increasing_nmda_input_and_steady_state(wang_experiment_short,
                                                                                  "Testing Palmer",
                                                                                  [1E-10, 1E-9, 1.35E-9])
 
@@ -43,8 +43,28 @@ class GridComputationTestCases(unittest.TestCase):
 
     def test_experiment_grid_generation_for_2_rows_matrix_input(self):
         short_wang_config = Experiment(wang_recurrent_config).with_property("t_range", [[0, 100]])
-        sim_and_plot_experiment_grid_with_increasing_nmda_input_and_steady_state(
+        results = sim_and_plot_experiment_grid_with_increasing_nmda_input_and_steady_state(
             short_wang_config,
+            "Testing Palmer",
+            [
+                [1E-10, 1E-9, 1.35E-9],
+                [1.5E-9, 2E-9, 3E-9]
+            ], show_individual_plots=False)
+
+        self.assertEqual(1E-10, results[0, 0].experiment.synaptic_params.g_nmda / siemens)
+        self.assertEqual(1E-9, results[0, 1].experiment.synaptic_params.g_nmda / siemens)
+        self.assertEqual(1.35E-9, results[0, 2].experiment.synaptic_params.g_nmda / siemens)
+        self.assertEqual(1.5E-9, results[1, 0].experiment.synaptic_params.g_nmda / siemens)
+        self.assertEqual(2E-9, results[1, 1].experiment.synaptic_params.g_nmda / siemens)
+        self.assertEqual(3E-9, results[1, 2].experiment.synaptic_params.g_nmda / siemens)
+
+    def test_matrix_computation_works_with_all_plots(self):
+        experiment_with_all_plots = (Experiment(wang_recurrent_config)
+         .with_property("t_range", [[0, 100]])
+         .with_property(PlotParams.KEY_WHAT_PLOTS_TO_SHOW, [PlotParams.AvailablePlots.RASTER_AND_RATE, PlotParams.AvailablePlots.CURRENTS, PlotParams.AvailablePlots.HIDDEN_VARIABLES]))
+
+        sim_and_plot_experiment_grid_with_increasing_nmda_input_and_steady_state(
+            experiment_with_all_plots,
             "Testing Palmer",
             [
                 [1E-10, 1E-9, 1.35E-9],

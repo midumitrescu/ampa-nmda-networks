@@ -88,8 +88,7 @@ wang_recurrent_config = {
     Experiment.KEY_CURRENTS_TO_RECORD: ["I_L", "I_nmda", "I_fast"],
 
     "t_range": [[0, 4000]],
-    PlotParams.KEY_WHAT_PLOTS_TO_SHOW: [PlotParams.AvailablePlots.RASTER_AND_RATE,
-                                        PlotParams.AvailablePlots.CURRENTS]
+    PlotParams.KEY_WHAT_PLOTS_TO_SHOW: [PlotParams.AvailablePlots.RASTER_AND_RATE, PlotParams.AvailablePlots.CURRENTS]
 }
 
 palmer_config_0_1_Hz_with_NMDA_block = Experiment(wang_recurrent_config).with_properties(

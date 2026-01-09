@@ -200,7 +200,7 @@ def plot_currents(simulation_results: SimulationResultsWithSteadyState, time_ran
         ax_voltage.axhline(y=simulation_results.steady_down_results.v_steady, linestyle="--", linewidth=1.5,
                            label=f"Mean V={simulation_results.steady_down_results.v_steady :.3f} - Down State")
 
-    ax_voltage.axhline(y=simulation_results.experiment.neuron_params.theta / mV, linewidth=1.5, alpha=0.6,
+    ax_voltage.axhline(y=simulation_results.experiment.neuron_params.theta / mV, linewidth=1.5, alpha=0.6, linestyle="-.",
                        color="black",
                        label=r"$\theta$")
 
@@ -251,7 +251,7 @@ def determine_start_and_end_recorded_indexes(experiment, time_range):
 def plot_voltages_and_g_s(simulation_results: SimulationResultsWithSteadyState, time_range, grid_spec_mother):
     voltage_and_g_s_examples = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=grid_spec_mother, hspace=0.8)
     ax_voltages, ax_g_s = voltage_and_g_s_examples.subplots(sharex="col")
-    ax_voltages.axhline(y=simulation_results.experiment.neuron_params.theta / ms, linestyle="dotted", linewidth="0.3",
+    ax_voltages.axhline(y=simulation_results.experiment.neuron_params.theta / ms, linestyle="-.", linewidth=1.5, alpha=0.6,
                         color="k",
                         label="$\\theta$")
 

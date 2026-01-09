@@ -55,7 +55,7 @@ def sim_and_plot_experiment_grid_with_lambda(experiments, title, obtain_results_
             plot_simulation(result)
             show_plots_non_blocking()
 
-    return results
+    return results_in_matrix_form
 
 def parallelize(experiments: list[Experiment],
                 function_simulate_one_experiment: Callable[[Experiment], SimulationResultsWithSteadyState]):
@@ -108,9 +108,6 @@ def plot_grid_currents(results: np.ndarray[SimulationResultsWithSteadyState, np.
 
     rows, cols = results.shape
     outer = gridspec.GridSpec(rows, cols, figure=fig, hspace=0.2, wspace=0.1)
-
-    for idx, result in np.ndenumerate(results):
-        print(idx)
 
     for idx, result in np.ndenumerate(results):
         plot_currents(result, time_range, outer[idx])
