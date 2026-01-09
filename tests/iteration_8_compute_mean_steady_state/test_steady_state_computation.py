@@ -4,12 +4,12 @@ import matplotlib.pyplot as plt
 from brian2 import ms, second, run, Equations, StateMonitor, defaultclock, NeuronGroup, mmole, kHz, cm, mV, siemens
 
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment, PlotParams
-from iteration_7_one_compartment_step_input.one_compartment_with_up_down import \
-    single_compartment_with_nmda_and_logged_variables
+from iteration_7_one_compartment_step_input.models_and_configs import single_compartment_with_nmda_and_logged_variables
 from iteration_8_compute_mean_steady_state.grid_computations import \
     sim_and_plot_experiment_grid_with_increasing_nmda_input_and_steady_state
 from iteration_8_compute_mean_steady_state.one_compartment_with_up_down_and_steady import sim_and_plot_up_down, \
     SteadyStateResults, sim_and_plot_down_up
+from iteration_8_compute_mean_steady_state.scripts_and_computations_steady_state import steady_model
 
 config = {
 
@@ -42,25 +42,6 @@ config = {
         "nu_nmda": 10
     }
 }
-
-
-steady_model = """
-dv/dt = 1/C * (- I_L - I_ampa - I_gaba - I_nmda): volt
-I_L = g_L * (v-E_leak): amp
-I_ampa = g_e * (v - E_ampa): amp
-I_gaba = g_i * (v - E_gaba): amp
-I_nmda = g_nmda * (v - E_nmda): amp
-
-dg_e/dt = -g_e / tau_ampa + g_ampa * N_E * r_e : siemens
-dg_i/dt = -g_i / tau_gaba + g_gaba * N_I * r_i : siemens
-
-g_nmda = g_nmda_max * sigmoid_v * s_nmda: siemens
-ds_nmda/dt = -s_nmda / tau_nmda_decay + alpha * x_nmda * (1 - s_nmda) : 1
-dx_nmda/dt = - x_nmda / tau_nmda_rise + 1 * N_N * r_nmda: 1
-
-sigmoid_v = 1/(1 + exp(-0.062 * (v/mvolt)) * (MG_C/mmole / 3.57)): 1
-"""
-
 
 class MyTestCase(unittest.TestCase):
     def test_steady_state_model_runs(self):

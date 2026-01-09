@@ -9,10 +9,10 @@ from numpy.testing import assert_allclose, assert_equal
 from iteration_10_meanfield_limit.meanfield_simulation import sim_and_plot_meanfield_with_upstate_and_steady_state, \
     prepare_mean_field, weak_mean_field, simulate_meanfield_with_up_state_and_steady_state, plot_simulation
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment, PlotParams, \
-    NeuronModelParams, SynapticParams
-from iteration_7_one_compartment_step_input.one_compartment_with_up_down import \
-    single_compartment_with_nmda_and_logged_variables, MeanField
-from iteration_8_compute_mean_steady_state.scripts_with_wang_numbers import steady_model
+    NeuronModelParams, SynapticParams, State
+from iteration_7_one_compartment_step_input.models_and_configs import single_compartment_with_nmda_and_logged_variables
+from iteration_7_one_compartment_step_input.one_compartment_with_up_down import  MeanField
+from iteration_8_compute_mean_steady_state.models_and_configs import steady_model
 
 # Remove the default logger
 logger.remove()
@@ -69,8 +69,9 @@ meanfield_config = {
         "N": 2000,
         "nu": 100,
 
-        "N_nmda": 10,
         "nu_nmda": 10,
+        State.KEY_GAMMA: 0.25,
+        State.KEY_OMEGA: 0.005,
     },
     "down_state": {
         "N": 2000,
@@ -121,6 +122,18 @@ class MeanFieldProgressionTestCases(unittest.TestCase):
         self.assertEqual(400, wang_config.network_params.up_state.N_I)
         self.assertEqual(10, wang_config.network_params.up_state.N_NMDA)
 
+    def test_10_times_default_N(self):
+        object_under_test = prepare_mean_field(Experiment(meanfield_config), N=10 * 2000, N_reference=2000)
+
+        self.assertAlmostEqual(0.05e-10, object_under_test.synaptic_params.g_ampa / siemens)
+        self.assertAlmostEqual(0.04e-10, object_under_test.synaptic_params.g_gaba / siemens)
+        self.assertAlmostEqual(0.165e-10, object_under_test.synaptic_params.g_nmda / siemens)
+        self.assertAlmostEqual(0.1, object_under_test.synaptic_params.g_x_nmda)
+
+        self.assertEqual(16000, object_under_test.network_params.up_state.N_E)
+        self.assertEqual(4000, object_under_test.network_params.up_state.N_I)
+        self.assertEqual(100, object_under_test.network_params.up_state.N_NMDA)
+
 
     '''
     Shows that mean field process works.
@@ -136,9 +149,8 @@ class MeanFieldProgressionTestCases(unittest.TestCase):
     def test_mean_field_progression(self):
         meanfield_results: list[MeanField] = []
         for scaling in [2, 3, 4, 10, 20, 100]:
-            result = sim_and_plot_meanfield_with_upstate_and_steady_state(
-                prepare_mean_field(Experiment(meanfield_config),
-                                   N=scaling * 2000, N_reference=2000))
+            field = prepare_mean_field(Experiment(meanfield_config), N=scaling * 2000, N_reference=2000)
+            result = sim_and_plot_meanfield_with_upstate_and_steady_state(field)
             meanfield_results.append(result.mean_field_values)
 
         assert_allclose([item.g_ampa / psiemens for item in meanfield_results], [25, 16.6666666666, 12.5, 5, 2.5, 0.5])

@@ -8,9 +8,8 @@ from iteration_10_meanfield_limit.meanfield_simulation import sim_and_plot_meanf
     prepare_mean_field
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment, PlotParams, \
     NeuronModelParams, SynapticParams
-from iteration_7_one_compartment_step_input.one_compartment_with_up_down import \
-    single_compartment_with_nmda_and_logged_variables
-from iteration_8_compute_mean_steady_state.scripts_with_wang_numbers import steady_model
+from iteration_7_one_compartment_step_input.models_and_configs import single_compartment_with_nmda_and_logged_variables
+from iteration_8_compute_mean_steady_state.models_and_configs import steady_model
 
 # Remove the default logger
 logger.remove()
@@ -92,19 +91,6 @@ meanfield_config = {
 }
 
 class ScriptsMeanField(unittest.TestCase):
-
-    '''
-    with amp 1, the NMDA input is very very low. We do not see the NMDA input in the Down State
-    '''
-    def test_why_isnt_NMDA_inputting(self):
-
-        for nmda_amp in [1, 10, 100, 1000]:
-            only_nmda = Experiment(meanfield_config).with_properties({
-                SynapticParams.KEY_G_AMPA: 0,
-                SynapticParams.KEY_G_GABA: 0,
-                SynapticParams.KEY_G_NMDA: nmda_amp * 0.165e-9,
-            })
-            sim_and_plot_meanfield_with_upstate_and_steady_state(only_nmda)
 
     def test_meanfield_progression_for_nmda(self):
 

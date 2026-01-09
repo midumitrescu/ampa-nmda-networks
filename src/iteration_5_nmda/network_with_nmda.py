@@ -1,8 +1,5 @@
 import brian2.devices.device
-import matplotlib.pyplot as plt
 from brian2 import *
-from brian2 import seed
-from loguru import logger
 from matplotlib import gridspec
 
 from Configuration import Experiment
@@ -17,8 +14,8 @@ wang_model = """
     dv/dt = 1/C * (-g_L * (v-E_leak) - g_e * (v-E_ampa) - g_i * (v-E_gaba) - g_nmda * sigmoid_v * (v-E_nmda)): volt (unless refractory)  
     dg_e/dt = -g_e / tau_ampa : siemens / meter**2
     dg_i/dt = -g_i / tau_gaba  : siemens / meter**2
-    dg_nmda/dt = -g_nmda / tau_nmda_decay + alpha * x * (1- g_nmda/siemens * meter**2): siemens / meter**2
-    dx/dt = - x / tau_nmda_rise :  siemens / meter**2
+    dg_nmda/dt = -g_nmda / tau_nmda_decay + alpha * x_nmda * (1- g_nmda/siemens * meter**2): siemens / meter**2
+    dx_nmda/dt = - x_nmda / tau_nmda_rise :  siemens / meter**2
     sigmoid_v = 1/(1 + exp(-0.062 * v/mvolt) * (MG_C/mmole / 3.57)): 1
 """
 
@@ -32,8 +29,8 @@ translated_model = """
     dv/dt = 1/C * (-g_L * (v-E_leak) - g_e * (v-E_ampa) - g_i * (v-E_gaba) - g_nmda * sigmoid_v * (v-E_nmda)): volt (unless refractory)  
     dg_e/dt = -g_e / tau_ampa : siemens / meter**2
     dg_i/dt = -g_i / tau_gaba  : siemens / meter**2
-    dg_nmda/dt = -g_nmda / tau_nmda_decay + alpha * x * (1- g_nmda/siemens * meter**2): siemens / meter**2
-    dx/dt = - x / tau_nmda_rise :  siemens / meter**2
+    dg_nmda/dt = -g_nmda / tau_nmda_decay + alpha * x_nmda * (1- g_nmda/siemens * meter**2): siemens / meter**2
+    dx_nmda/dt = - x_nmda / tau_nmda_rise :  siemens / meter**2
     sigmoid_v = 1/(1 + exp(-0.062 * (v/mvolt + 34)) * (MG_C/mmole / 3.57)): 1
 """
 
@@ -129,7 +126,7 @@ def sim(experiment: Experiment, in_testing=True, eq=wang_model_with_extra_variab
     inhib_synapses.connect(p=experiment.network_params.epsilon)
 
     #nmda_synapses = Synapses(excitatory_neurons, excitatory_neurons, on_pre='x += w', method="euler")
-    nmda_synapses = Synapses(neurons, neurons, on_pre='x += w', method="euler")
+    nmda_synapses = Synapses(neurons, neurons, on_pre='x_nmda += w', method="euler")
     nmda_synapses.connect(p=experiment.network_params.epsilon)
 
     external_poisson_input = PoissonInput(

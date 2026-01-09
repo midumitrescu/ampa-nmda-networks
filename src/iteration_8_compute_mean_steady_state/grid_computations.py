@@ -1,6 +1,7 @@
 from typing import Callable
 
 import matplotlib.pyplot as plt
+import numpy as np
 from brian2 import cm
 from joblib import Parallel, delayed
 from matplotlib import gridspec
@@ -23,7 +24,6 @@ def convert_to_experiment_matrix(experiment: Experiment, nmda_schedule):
         return [convert_to_experiment_list(experiment, nmda_schedule)]
 
 
-import numpy as np
 def sim_and_plot_experiment_grid_with_increasing_nmda_input_and_steady_state(experiment: Experiment, title, nmda_schedule: list[float], show_individual_plots=True):
     experiments = convert_to_experiment_matrix(experiment, nmda_schedule)
     title = grid_title(panel_title=title, experiment=experiment)
@@ -67,7 +67,6 @@ def parallelize(experiments: list[Experiment],
     return Parallel(n_jobs=16)(
         delayed(sim_unpickled)(current_experiment) for current_experiment in experiments
     )
-
 
 def plot_results_grid(results: np.ndarray[SimulationResultsWithSteadyState, np.dtype[SimulationResultsWithSteadyState]], time_range: tuple[int, int], title: str):
     plot_grid_raster_population_and_g_s(results, time_range, title=title)

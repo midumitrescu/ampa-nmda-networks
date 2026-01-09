@@ -1,8 +1,11 @@
 import unittest
+import numpy as np
 
 import brian2.devices.device
-from brian2 import *
+from brian2 import plt, mpl, start_scope, defaultclock, mmole, ms, kHz, NeuronGroup, mV, PoissonInput, \
+    PopulationRateMonitor, SpikeMonitor, StateMonitor, run, second, Hz, uS
 from matplotlib import gridspec
+from mpl_toolkits.axes_grid1.mpl_axes import Axes
 
 from Configuration import Experiment, NetworkParams, PlotParams
 from Plotting import show_plots_non_blocking
@@ -93,7 +96,6 @@ def sim_and_plot(experiment: Experiment):
 
 def plot_simulation_in_one_time_range(experiment, rate_monitor, spike_monitor, v_monitor, g_monitor, time_range):
     if experiment.plot_params.show_raster_and_rate():
-        rate_tick_step = experiment.plot_params.rate_tick_step
         fig = plt.figure(figsize=(10, 12))
         fig.suptitle(generate_title(experiment))
 
@@ -148,7 +150,7 @@ def plot_internal_states(experiment: Experiment, internal_states_monitor, time_r
         fig.suptitle(f"{generate_title(experiment)} \n {neurons_to_plot}")
         fig.tight_layout()
 
-        show_plots_non_blocking(show)
+        show_plots_non_blocking()
 
 def plot_raster_and_rates(experiment, grid_spec_mother, rate_monitor, spike_monitor, time_range):
     raster_and_population = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=grid_spec_mother, height_ratios=[4, 1],

@@ -4,7 +4,7 @@ from brian2 import plt, mpl, StateMonitor, mV, start_scope, defaultclock, mmole,
     PopulationRateMonitor, SpikeMonitor, siemens, Hz
 from loguru import logger
 
-from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment, SynapticParams
+from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment, SynapticParams, State
 from iteration_7_one_compartment_step_input.one_compartment_with_up_down import \
     SimulationResults, MeanField
 from iteration_8_compute_mean_steady_state.one_compartment_with_up_down_and_steady import \
@@ -27,8 +27,10 @@ def prepare_mean_field(experiment: Experiment, N=2000, N_reference=2000):
     state = {
         "N": N,
         "nu": experiment.network_params.up_state.nu / Hz,
-        "N_nmda": experiment.network_params.up_state.N_NMDA,
-        "nu_nmda": experiment.network_params.up_state.nu_nmda / Hz
+        "nu_nmda": experiment.network_params.up_state.nu_nmda / Hz,
+
+        State.KEY_GAMMA: experiment.network_params.up_state.gamma,
+        State.KEY_OMEGA: experiment.network_params.up_state.omega,
     }
 
     result = experiment.with_properties(

@@ -162,6 +162,7 @@ class ParsingOfNNmdaTestCases(unittest.TestCase):
         object_under_test = Experiment(config)
 
         self.assertEqual(1, object_under_test.network_params.up_state.N_NMDA)
+        self.assertAlmostEqual(0.1, object_under_test.network_params.up_state.omega)
         self.assertIsNone(object_under_test.network_params.down_state)
 
     def test_nmda_downstate_read_from_omega(self):
@@ -175,6 +176,7 @@ class ParsingOfNNmdaTestCases(unittest.TestCase):
         object_under_test = Experiment(config)
 
         self.assertEqual(1, object_under_test.network_params.down_state.N_NMDA)
+        self.assertAlmostEqual(0.1, object_under_test.network_params.down_state.omega)
         self.assertIsNone(object_under_test.network_params.up_state)
 
     def test_N_nmda_has_priority_over_omega(self):
@@ -190,6 +192,7 @@ class ParsingOfNNmdaTestCases(unittest.TestCase):
         object_under_test = Experiment(config)
 
         self.assertEqual(10, object_under_test.network_params.up_state.N_NMDA)
+        self.assertAlmostEqual(1, object_under_test.network_params.up_state.omega)
         self.assertIsNone(object_under_test.network_params.down_state)
 
 

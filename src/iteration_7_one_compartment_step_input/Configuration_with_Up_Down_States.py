@@ -107,6 +107,7 @@ class State:
 
         if self.KEY_N_NMDA in params:
             self.N_NMDA = params.get(State.KEY_N_NMDA)
+            self.omega = self.N_NMDA / self.N
         else:
             self.N_NMDA = int(self.omega * self.N)
 

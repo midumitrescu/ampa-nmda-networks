@@ -4,10 +4,9 @@ from brian2 import *
 from numpy.testing import assert_allclose
 
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment, PlotParams
-from iteration_7_one_compartment_step_input.one_compartment_with_up_down import \
-    single_compartment_with_nmda_and_logged_variables, sim_and_plot, simulate_with_up_and_down_state_and_nmda
-
-from loguru import logger
+from iteration_7_one_compartment_step_input.models_and_configs import single_compartment_with_nmda_and_logged_variables
+from iteration_7_one_compartment_step_input.one_compartment_with_up_down import sim_and_plot, \
+    simulate_with_up_and_down_state_and_nmda
 
 plt.rcParams.update(mpl.rcParamsDefault)
 plt.rcParams['text.usetex'] = True

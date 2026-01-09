@@ -4,9 +4,8 @@ import numpy as np
 
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment, PlotParams, \
     NeuronModelParams, SynapticParams
-from iteration_7_one_compartment_step_input.one_compartment_with_up_down import \
-    single_compartment_with_nmda_and_logged_variables
-from iteration_8_compute_mean_steady_state.scripts_with_wang_numbers import steady_model
+from iteration_7_one_compartment_step_input.models_and_configs import single_compartment_with_nmda_and_logged_variables
+from iteration_8_compute_mean_steady_state.models_and_configs import steady_model
 from iteration_9_simulation_via_noise_processes.grid_computations import \
     sim_and_plot_experiment_grid_with_increasing_nmda_input_and_diffusion_process, \
     sim_and_plot_experiment_grid_with_increasing_nmda_noise
@@ -124,7 +123,7 @@ class DiffusionProcessTestCases(unittest.TestCase):
                                                                              -40))
 
     def test_grid_diffusion_process_works(self):
-        increasing_nmda = np.array([0.5e-9, 1e-9, 1.5e-9, 3e-9])
+        increasing_nmda = [0.5e-9, 1e-9, 1.5e-9, 3e-9]
         sim_and_plot_experiment_grid_with_increasing_nmda_input_and_diffusion_process(
             Experiment(difussion_experiment_with_wang_numbers),
             "Diffusion Process", nmda_schedule=increasing_nmda)

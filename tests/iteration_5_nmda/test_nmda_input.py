@@ -4,14 +4,15 @@ from brian2 import ms
 
 from Configuration import Experiment
 from iteration_5_nmda import developing_network_with_nmda
-from iteration_5_nmda.network_with_nmda import sim_and_plot, sim, wang_model, translated_model, wang_model_with_extra_variables, \
+from iteration_5_nmda.network_with_nmda import sim_and_plot, sim, wang_model, translated_model, \
+    wang_model_with_extra_variables, \
     translated_model_with_extra_variables
 
 
-class MyTestCase(unittest.TestCase):
+class NMDAModelTestCases(unittest.TestCase):
     def test_nmda_configuration_is_parsed(self):
         new_config = {
-            "sim_time": 10,
+            "sim_time": 100,
             "record_N": 1,
         }
 
@@ -21,7 +22,7 @@ class MyTestCase(unittest.TestCase):
 
     def test_sensible_defaults_for_new_parameters(self):
         new_config = {
-            "sim_time": 10,
+            "sim_time": 100,
         }
 
         object_under_test = Experiment(new_config)
@@ -74,7 +75,7 @@ class MyTestCase(unittest.TestCase):
 
     def test_wang_model_runs_successfully(self):
         new_config = {
-            "sim_time": 10,
+            "sim_time": 100,
             "model": wang_model_with_extra_variables
         }
 
@@ -167,11 +168,11 @@ class MyTestCase(unittest.TestCase):
             "record_N": 1,
 
             "g_L": 0.00004,
-            "hidden_variables_to_record": ["sigmoid_v", "x", "g_nmda"],
+            "hidden_variables_to_record": ["sigmoid_v", "x_nmda", "g_nmda"],
             "panel": self._testMethodName,
         }
         experiment = Experiment(nmda_based_simulation)
-
+        # TODO: Models are completely wrong. X should be unitless.
         for model in [wang_model, translated_model]:
             current = experiment.with_property(Experiment.KEY_SELECTED_MODEL, model)
             sim(current)

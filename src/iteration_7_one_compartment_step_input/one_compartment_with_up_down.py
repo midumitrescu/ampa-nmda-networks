@@ -1,8 +1,9 @@
 import brian2.devices.device
 import matplotlib.pyplot as plt
 import numpy as np
-from brian2 import PopulationRateMonitor, SpikeMonitor, StateMonitor, Hz, ms, nsiemens, uamp, seed, mpl, start_scope, \
+from brian2 import PopulationRateMonitor, SpikeMonitor, StateMonitor, Hz, ms, nsiemens, seed, mpl, start_scope, \
     defaultclock, kHz, mmole, NeuronGroup, PoissonGroup, Synapses, network_operation, second, mV, run
+from brian2.units.allunits import nampere
 from loguru import logger
 from matplotlib import gridspec
 from matplotlib.gridspec import SubplotSpec
@@ -69,7 +70,7 @@ class SimulationResults:
         return ExtendedDict(values)
 
     '''
-    Units micro Ampere / cm^2 suggested in Neuronal Dynamics, page 83, Fig 4.1 b
+    Units namp
     '''
     def __extract_currents__(self, currents_monitor: StateMonitor):
         if len(self.experiment.plot_params.recorded_currents) > 0:
@@ -77,7 +78,7 @@ class SimulationResults:
                 "t": np.array(currents_monitor.t / ms),
             }
             for current in self.experiment.plot_params.recorded_currents:
-                values[current] = np.array(currents_monitor.__getattr__(current) / uamp)
+                values[current] = np.array(currents_monitor.__getattr__(current) / nampere)
             return ExtendedDict(values)
         else:
             return ExtendedDict({})
@@ -567,32 +568,3 @@ def generate_title(experiment: Experiment):
     {down_state_title}    
     Neuron: [$C={experiment.neuron_params.C}$, $g_L={experiment.neuron_params.g_L}$, $\theta={experiment.neuron_params.theta}$, $V_R={experiment.neuron_params.V_r}$, $E_L={experiment.neuron_params.E_leak}$, $\tau_M={experiment.neuron_params.tau}$, $\tau_{{\mathrm{{ref}}}}={experiment.neuron_params.tau_rp}$]
     Synapse: [$g_{{\mathrm{{AMPA}}}}={experiment.synaptic_params.g_ampa:.2f}$, $g_{{\mathrm{{GABA}}}}={experiment.synaptic_params.g_gaba:.2f}$, $g={experiment.network_params.g}$, $g_{{\mathrm{{NMDA}}}}={experiment.synaptic_params.g_nmda:.2f}$]"""
-
-
-single_compartment_with_nmda = '''
-dv/dt = 1/C * (- I_L - I_ampa - I_gaba - I_nmda): volt (unless refractory)
-
-I_L = g_L * (v-E_leak): amp
-
-I_ampa = g_e * (v - E_ampa): amp
-I_gaba = g_i * (v - E_gaba): amp
-I_nmda = g_nmda * (v - E_nmda): amp
-
-dg_e/dt = -g_e / tau_ampa : siemens
-dg_i/dt = -g_i / tau_gaba  : siemens
-
-g_nmda = g_nmda_max * sigmoid_v * s_nmda: siemens
-ds_nmda/dt = -s_nmda / tau_nmda_decay + alpha * x_nmda * (1 - s_nmda) : 1
-dx_nmda/dt = - x_nmda / tau_nmda_rise : 1
-
-sigmoid_v = 1/(1 + (MG_C/mmole)/3.57 * exp(-0.062*(v/mvolt))): 1
-'''
-
-single_compartment_with_nmda_and_logged_variables = f'''{single_compartment_with_nmda}
-
-one_minus_s_nmda = 1 - s_nmda : 1
-alpha_x_t = alpha * x_nmda: Hz
-s_drive = alpha * x_nmda * (1 - s_nmda) : Hz
-v_minus_e_gaba = v-E_gaba : volt
-I_fast = I_ampa + I_gaba : amp
-'''
