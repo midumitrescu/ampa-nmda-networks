@@ -96,4 +96,7 @@ palmer_experiment_0_1_Hz_with_NMDA_block = Experiment(wang_recurrent_config).wit
             "nu": 82,
             "N_nmda": 0,
             "nu_nmda": 5,
-        }})
+        },
+        "panel": "\nPalmer run.  Figure 2 D, E rate for MK801"
+    }
+)

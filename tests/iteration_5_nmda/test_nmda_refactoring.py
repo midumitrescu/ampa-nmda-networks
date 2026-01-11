@@ -1,17 +1,15 @@
-import unittest
-import numpy as np
 import time
-import matplotlib.pyplot as plt
-from brian2 import ms
+import unittest
 
+import matplotlib.pyplot as plt
+import numpy as np
 from numpy.testing import assert_array_equal
 
 from Configuration import Experiment, NetworkParams, PlotParams
 from iteration_4_conductance_based_model.grid_computations_nmda_model import compare_g_nmda_vs_nu_ext_over_nu_thr
 from iteration_5_nmda_refactored.network_with_nmda import sim, sim_and_plot, create_connectivity_matrix, \
     sim_with_full_nmda_connections_and_plot
-from meeting_prof_schwalger_19_11 import network_under_nmda_automatically_bifurcating, network_without_nmda, \
-    network_showing_synchronous_regular
+from meeting_prof_schwalger_19_11 import network_showing_synchronous_regular
 from models import NMDAModels
 
 plt.rcParams['text.usetex'] = True
@@ -130,7 +128,7 @@ class RefactoredNMDAInput(unittest.TestCase):
                                              nu_ext_over_nu_thrs=[11], nmda_to_inh_neurons = True)
 
 
-    def test_bla(self):
+    def test_network_showing_synchronous_regular(self):
         network_showing_synchronous_regular()
 
     def test_sim_and_plot_with_external_input_and_lower_clock(self):

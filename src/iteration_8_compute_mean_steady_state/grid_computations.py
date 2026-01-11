@@ -77,7 +77,7 @@ def plot_grid_raster_population_and_g_s(results: np.ndarray[SimulationResultsWit
     if not results.flatten()[0].experiment.plot_params.show_raster_and_rate():
         return
 
-    fig = plt.figure(figsize=(35, 25))
+    fig = plt.figure(figsize=(40, 30))
     fig.suptitle(title, size=25)
 
     rows, cols = results.shape
@@ -95,14 +95,14 @@ def plot_grid_raster_population_and_g_s(results: np.ndarray[SimulationResultsWit
 
 def gen_raster_and_rates_grid_subtitle(results: SimulationResultsWithSteadyState):
     experiment = results.experiment
-    return fr"""Synapse: [$g_{{\mathrm{{AMPA}}}}={experiment.synaptic_params.g_ampa * (cm ** 2):.2f}$, $g_{{\mathrm{{GABA}}}}={experiment.synaptic_params.g_gaba * cm ** 2:.2f}$, $g={experiment.network_params.g}$, $g_{{\mathrm{{NMDA}}}}={experiment.synaptic_params.g_nmda * cm ** 2:.2f}$]"""
+    return fr"""Synapse: [$g_{{\mathrm{{AMPA}}}}={experiment.synaptic_params.g_ampa:.2f}$, $g_{{\mathrm{{GABA}}}}={experiment.synaptic_params.g_gaba:.2f}$, $g={experiment.network_params.g}$, $g_{{\mathrm{{NMDA}}}}={experiment.synaptic_params.g_nmda:.2f}$]"""
 
 
 def plot_grid_currents(results: np.ndarray[SimulationResultsWithSteadyState, np.dtype[SimulationResultsWithSteadyState]], time_range, title: str):
     if not results.flatten()[0].experiment.plot_params.show_currents_plots():
         return
 
-    fig = plt.figure(figsize=(35, 25))
+    fig = plt.figure(figsize=(40, 30))
     fig.suptitle(title, size=25)
 
     rows, cols = results.shape

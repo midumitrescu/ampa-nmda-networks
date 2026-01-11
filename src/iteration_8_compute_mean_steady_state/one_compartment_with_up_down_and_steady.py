@@ -155,7 +155,7 @@ def plot_simulation(simulation_results: SimulationResultsWithSteadyState):
 
 def plot_raster_and_g_s_in_one_time_range(simulation_results: SimulationResultsWithSteadyState, time_range):
     if simulation_results.experiment.plot_params.show_raster_and_rate():
-        fig = plt.figure(figsize=(14, 12))
+        fig = plt.figure(figsize=(20, 12))
         fig.suptitle(generate_title(simulation_results.experiment))
 
         height_ratios = [1, 3]
@@ -163,6 +163,7 @@ def plot_raster_and_g_s_in_one_time_range(simulation_results: SimulationResultsW
         plot_raster_and_rates(simulation_results, time_range, outer[0])
         plot_voltages_and_g_s(simulation_results, time_range, outer[1])
 
+        fig.tight_layout()
         show_plots_non_blocking(show=True)
 
 
@@ -425,7 +426,7 @@ def generate_title(experiment: Experiment):
     Up State: [{experiment.network_params.up_state.gen_plot_title()}, {experiment.effective_time_constant_up_state.gen_plot_title()}]
     Down State: [{experiment.network_params.down_state.gen_plot_title()}, {experiment.effective_time_constant_down_state.gen_plot_title()}]    
     Neuron: [$C={experiment.neuron_params.C}$, $g_L={experiment.neuron_params.g_L}$, $\theta={experiment.neuron_params.theta}$, $V_R={experiment.neuron_params.V_r}$, $E_L={experiment.neuron_params.E_leak}$, $\tau_M={experiment.neuron_params.tau}$, $\tau_{{\mathrm{{ref}}}}={experiment.neuron_params.tau_rp}$]
-    Synapse: [$g_{{\mathrm{{AMPA}}}}={experiment.synaptic_params.g_ampa:.2f}$, $g_{{\mathrm{{GABA}}}}={experiment.synaptic_params.g_gaba / nS:.2f}\,n\mathrm{{S}}$, $g={experiment.network_params.g}$, $g_{{\mathrm{{NMDA}}}}={experiment.synaptic_params.g_nmda / nS:.2f}\,n\mathrm{{S}}$]"""
+    Synapse: [$g_{{\mathrm{{AMPA}}}}={experiment.synaptic_params.g_ampa / nS:.2f} nS$, $g_{{\mathrm{{GABA}}}}={experiment.synaptic_params.g_gaba / nS:.2f}, nS$, $g={experiment.network_params.g}$, $g_{{\mathrm{{NMDA}}}}={experiment.synaptic_params.g_nmda / nS:.2f} nS $]"""
 
 
 single_compartment_with_nmda = '''

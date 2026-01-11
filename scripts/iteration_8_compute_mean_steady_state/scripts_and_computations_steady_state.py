@@ -1,7 +1,8 @@
 import unittest
 
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment, PlotParams
-from iteration_7_one_compartment_step_input.models_and_configs import single_compartment_with_nmda_and_logged_variables
+from iteration_7_one_compartment_step_input.models_and_configs import single_compartment_with_nmda_and_logged_variables, \
+    single_compartment_without_nmda_deactivation_and_logged_variables
 from iteration_8_compute_mean_steady_state.grid_computations import \
     sim_and_plot_experiment_grid_with_increasing_nmda_input_and_steady_state
 from iteration_8_compute_mean_steady_state.models_and_configs import steady_model
@@ -172,7 +173,9 @@ class MyTestCase(unittest.TestCase):
         }
 
         sim_and_plot_up_down(Experiment(config))
+        sim_and_plot_up_down(Experiment(config).with_property(Experiment.KEY_SELECTED_MODEL, single_compartment_without_nmda_deactivation_and_logged_variables))
         sim_and_plot_down_up(Experiment(config))
+        sim_and_plot_down_up(Experiment(config).with_property(Experiment.KEY_SELECTED_MODEL, single_compartment_without_nmda_deactivation_and_logged_variables))
 
 
         sim_and_plot_up_down(Experiment(config_without_nmda_in_down_state))
@@ -222,9 +225,14 @@ class MyTestCase(unittest.TestCase):
                                                 PlotParams.AvailablePlots.CURRENTS]
         }
 
+        nmda_schedule = [0, 0.5E-5, 1E-5, 2E-05]
+        sim_and_plot_experiment_grid_with_increasing_nmda_input_and_steady_state(Experiment(config).with_property(Experiment.KEY_SELECTED_MODEL, single_compartment_without_nmda_deactivation_and_logged_variables),
+                                                                                 title="Up Down states with contant NDMA input without NMDA blocking!",
+                                                                                 nmda_schedule=nmda_schedule, show_individual_plots=False)
         sim_and_plot_experiment_grid_with_increasing_nmda_input_and_steady_state(Experiment(config),
-                                                                title="Up Down states with contant NDMA input. Can the Mg2+ block shut off NMDA input?",
-                                                                nmda_schedule=[0, 2e-05, 4e-5, 5e-5])
+                                                                                 title="Up Down states with contant NDMA input. Can the Mg2+ block shut off NMDA input?",
+                                                                                 nmda_schedule=nmda_schedule, show_individual_plots=False)
+
 
     def test_grid_up_down_state_with_nmda_N_depending_on_balanced_rate(self):
         config = {
@@ -264,7 +272,7 @@ class MyTestCase(unittest.TestCase):
 
             Experiment.KEY_CURRENTS_TO_RECORD: ["I_L", "I_nmda", "I_fast"],
 
-            "t_range": [[0, 3000]],
+            "t_range": [[0, 4_000]],
             PlotParams.KEY_WHAT_PLOTS_TO_SHOW: [PlotParams.AvailablePlots.RASTER_AND_RATE,
                                                 PlotParams.AvailablePlots.CURRENTS]
         }
@@ -272,6 +280,10 @@ class MyTestCase(unittest.TestCase):
         sim_and_plot_experiment_grid_with_increasing_nmda_input_and_steady_state(Experiment(config),
                                                                 title="Up Down states with different N NMDA in Up and Down states",
                                                                 nmda_schedule=[0, 2e-05, 4e-5, 5e-5])
+
+        sim_and_plot_experiment_grid_with_increasing_nmda_input_and_steady_state(Experiment(config).with_property(Experiment.KEY_SELECTED_MODEL, single_compartment_without_nmda_deactivation_and_logged_variables),
+                                                                                 title="Up Down states with different N NMDA in Up and Down states",
+                                                                                 nmda_schedule=[0, 2e-05, 4e-5, 5e-5])
 
 
 if __name__ == '__main__':

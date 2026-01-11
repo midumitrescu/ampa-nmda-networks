@@ -145,6 +145,43 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
         print(f"XXXXXXXXXXXXX {res}")
         # (1.5625e-10, 3.125e-10)
 
+    '''
+    What I wanted to do, is produce a trace with NMDA block that produces rate of 0.1 Hz. I.e. 1 spike in 10 s.
+    (for 0.05 Hz, which is actually what we require, but for this, we would need 20s of simulation showing 1 spike).
+    
+    However, I forgot to set the downstate also do N=0, i.e. in the downstate there is in the simulation some NMDA input.
+    
+    When the model transitions from down to up state, the S variable is still active from previous input (down state) 
+    and sigma(v) transitions to its value in the upstate "instantaneously".i.e. the NMDA input in the down state becomes
+    relevant, although there were no gates "available" in the down state (the counting process is not really correctly modelled).
+    '''
+    def test_(self):
+        palmer_experiment = (Experiment(wang_recurrent_config)
+        .with_properties({
+            "up_state":
+                {
+                    "N": 2000,
+                    "nu": 82,
+                    "N_nmda": 0,
+                },
+            "t_range": [[0, 10_000]],
+            Experiment.KEY_CURRENTS_TO_RECORD: ["I_nmda"],
+            PlotParams.KEY_WHAT_PLOTS_TO_SHOW: [PlotParams.AvailablePlots.RASTER_AND_RATE,
+                                                PlotParams.AvailablePlots.CURRENTS,
+                                                PlotParams.AvailablePlots.HIDDEN_VARIABLES],
+            Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD: ["x_nmda", "s_nmda", "v_minus_e_gaba", "sigmoid_v"],
+
+
+        }))
+        sim_and_plot_up_down(palmer_experiment)
+        sim_and_plot_up_down(palmer_experiment.with_property("down_state", {
+                "N_E": 100,
+                "gamma": 4,
+                "nu": 10,
+                "N_nmda": 0,
+                "nu_nmda": 2,
+             }))
+
 
 class ScriptsPalmerResultsWithoutNMDA(unittest.TestCase):
 
@@ -158,13 +195,18 @@ class ScriptsPalmerResultsWithoutNMDA(unittest.TestCase):
                     "nu": 82,
                     "N_nmda": 0,
                 },
-            "t_range": [[0, 10_000]],
-            PlotParams.KEY_WHAT_PLOTS_TO_SHOW:
-                [PlotParams.AvailablePlots.RASTER_AND_RATE]
-        }))
+            #"down_state": {
+            #    "N_E": 100,
+            #    "gamma": 4,
+            #    "nu": 10,
 
-        sim_and_plot_up_with_state_and_nmda(palmer_experiment)
+            #    "N_nmda": 0,
+            #    "nu_nmda": 2,
+            #},
+            "t_range": [[0, 10_000]]
+        }))
         sim_and_plot_up_down(palmer_experiment)
+        #sim_and_plot_up_down(palmer_experiment.with_property(Experiment.KEY_CURRENTS_TO_RECORD, ["I_nmda"]))
 
     # produces rate 0.05 Hz with up/down
     def test_example_2(self):
@@ -246,9 +288,15 @@ class ScriptsMeetingsWeek12to16January2026(unittest.TestCase):
     def test_exemplify_model_with_up_and_down_state(self):
         # sim_and_plot_up_down(palmer_experiment_0_1_Hz_with_NMDA_block)
         # sim_and_plot_up_down(palmer_experiment_0_1_Hz_with_NMDA_block.with_property(Experiment.KEY_CURRENTS_TO_RECORD, ["I_nmda"]))
-        experiment = palmer_experiment.with_property( "t_range", [0, 10_000])
+        experiment = palmer_experiment_0_1_Hz_with_NMDA_block.with_properties({
+            "panel": "\nPalmer run.  Figure 2 D, E rate for MK801",
+            "t_range": [0, 10_000]
+        })
         sim_and_plot_up_down(experiment)
         sim_and_plot_up_down(experiment.with_property(Experiment.KEY_CURRENTS_TO_RECORD, ["I_nmda"]))
+
+    def test_compare_models_normal_nmda_and_full_activation(self):
+        experiment = palmer_experiment.with_property( "t_range", [0, 10_000])
 
     def test_compare_models_normal_nmda_and_full_activation(self):
         experiment = palmer_experiment.with_property( "t_range", [0, 10_000])
@@ -257,6 +305,8 @@ class ScriptsMeetingsWeek12to16January2026(unittest.TestCase):
             Experiment.KEY_SELECTED_MODEL: single_compartment_without_nmda_deactivation_and_logged_variables,
             "panel": r"Experiment with $\sigma(v) = 1 $ constant ",
         }))
+
+
 
 
 if __name__ == '__main__':
