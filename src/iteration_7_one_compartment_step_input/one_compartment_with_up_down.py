@@ -141,6 +141,7 @@ def simulate_with_up_and_down_state_and_nmda(experiment: Experiment):
     g_ampa = experiment.synaptic_params.g_ampa
     g_gaba = experiment.synaptic_params.g_gaba
     g_nmda_max = experiment.synaptic_params.g_nmda
+    g_x_nmda = experiment.synaptic_params.g_x_nmda
 
     E_ampa = experiment.synaptic_params.e_ampa
     E_gaba = experiment.synaptic_params.e_gaba
@@ -179,13 +180,13 @@ def simulate_with_up_and_down_state_and_nmda(experiment: Experiment):
                              method=experiment.integration_method)
     S_upstate_inh = Synapses(P_upstate_inh, single_neuron, model="on: 1", on_pre='g_i += on * g_gaba',
                              method=experiment.integration_method)
-    S_upstate_nmda = Synapses(P_upstate_nmda, single_neuron, model="on: 1", on_pre="x_nmda += on*1",
+    S_upstate_nmda = Synapses(P_upstate_nmda, single_neuron, model="on: 1", on_pre="x_nmda += on*g_x_nmda",
                                method=experiment.integration_method)
     S_downstate_exc = Synapses(P_downstate_exc, single_neuron, model="on: 1", on_pre='g_e += on * g_ampa',
                                method=experiment.integration_method)
     S_downstate_inh = Synapses(P_downstate_inh, single_neuron, model="on: 1", on_pre='g_i += on * g_gaba',
                                method=experiment.integration_method)
-    S_downstate_nmda = Synapses(P_downstate_nmda, single_neuron, model="on: 1", on_pre='x_nmda += on*1',
+    S_downstate_nmda = Synapses(P_downstate_nmda, single_neuron, model="on: 1", on_pre='x_nmda += on*g_x_nmda',
                                method=experiment.integration_method)
 
     S_upstate_exc.connect(p=1)

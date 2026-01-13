@@ -12,7 +12,7 @@ from iteration_7_one_compartment_step_input.grid_computations import sim_and_plo
     grid_title, parallelize
 from iteration_8_compute_mean_steady_state.one_compartment_with_up_down_and_steady import \
     simulate_with_up_and_down_state_and_nmda_and_steady_state, SimulationResultsWithSteadyState, plot_raster_and_rates, \
-    plot_voltages_and_g_s, plot_currents, plot_simulation
+    plot_voltages_and_g_s, plot_currents_graph, plot_simulation
 
 def convert_to_experiment_list(experiment: Experiment, nmda_schedule: list[float]) -> list[Experiment]:
     return [experiment.with_property("g_nmda", nmda_strength) for nmda_strength in nmda_schedule]
@@ -109,6 +109,6 @@ def plot_grid_currents(results: np.ndarray[SimulationResultsWithSteadyState, np.
     outer = gridspec.GridSpec(rows, cols, figure=fig, hspace=0.2, wspace=0.1)
 
     for idx, result in np.ndenumerate(results):
-        plot_currents(result, time_range, outer[idx])
+        plot_currents_graph(result, time_range, outer[idx])
 
     show_plots_non_blocking()

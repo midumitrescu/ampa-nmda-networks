@@ -16,6 +16,8 @@ from iteration_7_one_compartment_step_input.one_compartment_with_up_down import 
 plt.rcParams.update(mpl.rcParamsDefault)
 plt.rcParams['text.usetex'] = True
 
+def fmt_v_steadystate(state):
+    return f"{state.v_steady:.3f} mV" if state is not None else "N/A"
 
 class SteadyStateResults:
 
@@ -173,7 +175,7 @@ def plot_currents_in_one_time_range(simulation_results: SimulationResultsWithSte
 
     fig = plt.figure(figsize=(14, 8))
     outer = gridspec.GridSpec(1, 1, figure=fig)
-    ax_voltage, ax_currents = plot_currents(simulation_results, time_range=time_range, grid_spec_mother=outer[0])
+    ax_voltage, ax_currents = plot_currents_graph(simulation_results, time_range=time_range, grid_spec_mother=outer[0])
 
     ax_currents.set_xlabel("Time (ms)")
     ax_currents.legend(loc="right")
@@ -182,10 +184,18 @@ def plot_currents_in_one_time_range(simulation_results: SimulationResultsWithSte
     show_plots_non_blocking()
 
 
-def plot_currents(simulation_results: SimulationResultsWithSteadyState, time_range: tuple[int, int],
-                  grid_spec_mother: SubplotSpec):
+def plot_currents_graph(simulation_results: SimulationResultsWithSteadyState, time_range: tuple[int, int],
+                        grid_spec_mother: SubplotSpec):
     voltage_and_currents = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=grid_spec_mother)
     ax_voltage, ax_currents = voltage_and_currents.subplots(sharex="row")
+    time_end, time_start = determine_start_and_end_recorded_indexes(simulation_results.experiment, time_range)
+
+    voltage_line = ax_voltage.plot(simulation_results.voltages.t[time_start:time_end],
+                    simulation_results.voltages.v[0][time_start:time_end], alpha=0.6)
+
+    plot_steady_v_lines(simulation_results, ax_voltage, color=voltage_line[0].get_color())
+    plot_spike_times_on_v_plot(simulation_results, 0, ax_voltage, color=voltage_line[0].get_color(), lims = [-70, -40])
+    '''
     if simulation_results.steady_up_results is not None:
         ax_voltage.axhline(y=simulation_results.steady_up_results.v_steady, linestyle="--", linewidth=1.5, alpha=0.6,
                            label=r"$V_\mathrm{0, UP}=$" + f"{simulation_results.steady_up_results.v_steady :.3f} mV")
@@ -196,11 +206,9 @@ def plot_currents(simulation_results: SimulationResultsWithSteadyState, time_ran
     ax_voltage.axhline(y=simulation_results.experiment.neuron_params.theta / mV, linewidth=1.5, alpha=0.6, linestyle="-.",
                        color="black",
                        label=r"$\theta=$" + f"{simulation_results.experiment.neuron_params.theta / mV} mV")
-
-    time_end, time_start = determine_start_and_end_recorded_indexes(simulation_results.experiment, time_range)
-
-    ax_voltage.plot(simulation_results.voltages.t[time_start:time_end],
-                    simulation_results.voltages.v[0][time_start:time_end], alpha=0.6)
+    '''
+    ax_voltage.axhline(y=simulation_results.experiment.neuron_params.theta / mV, linestyle="-.", linewidth=1.5,
+               alpha=0.6, color="k", label="$\\theta$")
 
     ax_voltage.legend()
     ax_voltage.set_ylim(top=simulation_results.experiment.neuron_params.theta / mV + 10)
@@ -210,6 +218,8 @@ def plot_currents(simulation_results: SimulationResultsWithSteadyState, time_ran
         current_label = r"$I_\mathrm{AMPA} + I_\mathrm{GABA}$" if current_to_plot == "I_fast" else current_to_plot
         ax_currents.plot(simulation_results.currents.t[time_start:time_end], current_curve[time_start:time_end],
                          label=f"{current_label}", alpha=0.5)
+
+    plot_spike_times_on_v_plot(simulation_results, 0, ax_currents, color=voltage_line[0].get_color())
 
     ax_voltage.set_ylabel("[mV]")
     ax_currents.set_ylabel("[nA]")
@@ -253,7 +263,7 @@ def determine_start_and_end_recorded_indexes(experiment, time_range):
 def plot_voltages_and_g_s(simulation_results: SimulationResultsWithSteadyState, time_range, grid_spec_mother):
     voltage_and_g_s_examples = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=grid_spec_mother, hspace=0.3)
     ax_voltages, ax_g_s = voltage_and_g_s_examples.subplots(sharex="col")
-    ax_voltages.axhline(y=simulation_results.experiment.neuron_params.theta / ms, linestyle="-.", linewidth=1.5, alpha=0.6,
+    ax_voltages.axhline(y=simulation_results.experiment.neuron_params.theta / mV, linestyle="-.", linewidth=1.5, alpha=0.6,
                         color="k",
                         label="$\\theta$")
 
@@ -262,11 +272,10 @@ def plot_voltages_and_g_s(simulation_results: SimulationResultsWithSteadyState, 
     for ax in [ax_voltages, ax_g_s]:
         ax.set_xlim(*time_range)
 
-    def fmt_v(state):
-        return f"{state.v_steady:.3f} mV" if state is not None else "N/A"
+    ax_voltages.set_ylim(top=simulation_results.experiment.neuron_params.theta / mV + 10)
 
     ax_voltages.set_title(
-        rf"Membrane voltage. $V_\mathrm{{M, Up}}$ ={fmt_v(simulation_results.steady_up_results)}, $V_\mathrm{{M, Down}}$ ={fmt_v(simulation_results.steady_down_results)}")
+        rf"Membrane voltage. $V_\mathrm{{M, Up}}$ ={fmt_v_steadystate(simulation_results.steady_up_results)}, $V_\mathrm{{M, Down}}$ ={fmt_v_steadystate(simulation_results.steady_down_results)}")
     ax_voltages.legend(loc="right")
     ax_voltages.set_xlabel("t [ms]")
     ax_voltages.set_ylabel("v [mV]")
@@ -311,16 +320,31 @@ def plot_v_line(simulation_results,
     lines = ax_voltages.plot(simulation_results.voltages.t, simulation_results.voltages.v[i], lw=1, alpha=0.6)
     color = lines[0].get_color()
     # spike_times_current_neuron = simulation_results.spike_monitor.all_values()['t'][i] / ms Keep This in mind
-    spike_times_current_neuron = simulation_results.spikes.all_values['t'][i] / ms
+    plot_steady_v_lines(simulation_results, ax_voltages, color)
+    plot_spike_times_on_v_plot(simulation_results, i, ax_voltages, color, lims=[-70, simulation_results.experiment.neuron_params.theta / mV + 10])
 
-    ax_voltages.vlines(x=spike_times_current_neuron, ymin=-70, ymax=-35, color=color, linestyle="-.", alpha=0.5, label="Neuron Spike Time", lw=0.8)
+
+def plot_spike_times_on_v_plot(simulation_results, i, ax_voltages, color, label: str = "Neuron Spike Time", lims=None) -> None:
+    ymin, ymax = ax_voltages.get_ylim() if lims is None else lims
+    spike_times_current_neuron = simulation_results.spikes.all_values['t'][i] / ms
+    ax_voltages.vlines(x=spike_times_current_neuron, ymin=ymin, ymax=ymax, color=color, linestyle="-.", alpha=0.5,
+                       label=label, lw=0.8)
+
+
+def plot_steady_v_lines(simulation_results, ax_voltages, color):
+    line_down_state, line_up_state = None, None
+
+    if simulation_results.steady_down_results is not None:
+        line_down_state =  ax_voltages.axhline(y=simulation_results.steady_down_results.v_steady, color="orange", linestyle="--",
+                            linewidth=1.5, alpha=0.6,
+                            label=r"$[V]_\mathrm{D}=$" + f"{simulation_results.steady_down_results.v_steady : .3f} mV")
 
     if simulation_results.steady_up_results is not None:
-        ax_voltages.axhline(y=simulation_results.steady_up_results.v_steady, color=color, linestyle="--", linewidth=1.5, alpha=0.6,
+        line_up_state = ax_voltages.axhline(y=simulation_results.steady_up_results.v_steady, color=color, linestyle="--", linewidth=1.5,
+                            alpha=0.6,
                             label=r"$[V]_\mathrm{U}=$" + f"{simulation_results.steady_up_results.v_steady : .3f} mV")
-    if simulation_results.steady_down_results is not None:
-        ax_voltages.axhline(y=simulation_results.steady_down_results.v_steady, color="orange", linestyle="--", linewidth=1.5, alpha=0.6,
-                            label=r"$[V]_\mathrm{D}=$" + f"{simulation_results.steady_down_results.v_steady : .3f} mV")
+
+    return line_down_state, line_up_state
 
 
 def plot_internal_states_in_one_time_range(simulation_results: SimulationResultsWithSteadyState, time_range: tuple[int, int]):
@@ -419,6 +443,54 @@ def plot_internal_states_in_one_time_range(simulation_results: SimulationResults
         fig.tight_layout()
 
         show_plots_non_blocking(True)
+
+def plot_voltage_trace_comparisons(results_1: SimulationResultsWithSteadyState, results_2: SimulationResultsWithSteadyState, params_t_range = None):
+    if params_t_range is None:
+        params_t_range = results_1.experiment.plot_params.t_range
+
+    if isinstance(params_t_range[0], list):
+        for time_range in params_t_range:
+            plot_one_voltage_trace_comparison(results_1, results_2,
+                                                  time_range=time_range)
+    else:
+        plot_one_voltage_trace_comparison(results_1, results_2,
+                                              time_range=params_t_range)
+
+def plot_one_voltage_trace_comparison(results_1: SimulationResultsWithSteadyState, results_2: SimulationResultsWithSteadyState, time_range: tuple[int, int]):
+    fig = plt.figure(figsize=(16, 7))
+    fig.suptitle(generate_title(results_1.experiment.with_property("panel",  "Compare control and NMDA-blocked voltage traces")))
+    ax = fig.subplots(1, 1)
+
+    ax.set_title(
+        rf"Membrane voltage. $V_\mathrm{{M, Up}}$ ={fmt_v_steadystate(results_1.steady_up_results)}, $V_\mathrm{{M, Down}}$ ={fmt_v_steadystate(results_1.steady_down_results)}")
+
+    ax.axhline(y=results_1.experiment.neuron_params.theta / mV, linestyle="-.", linewidth=1.5,
+               alpha=0.6,
+               color="k",
+               label="$\\theta$")
+
+    top_voltage = results_1.experiment.neuron_params.theta / mV + 10
+
+    for result in [results_1, results_2]:
+        lines = ax.plot(result.voltages.t, result.voltages.v[0], lw=1, alpha=0.6, label=result.experiment.plot_params.panel)
+        color = lines[0].get_color()
+        spike_times_current_neuron = result.spikes.all_values['t'][0] / ms
+        ax.vlines(x=spike_times_current_neuron, ymin=-70, ymax=top_voltage, color=color, linestyle="-.", alpha=0.5,
+                  label=f"{result.experiment.plot_params.panel} Spike Time", lw=0.8)
+
+        line_down_state, line_up_state = plot_steady_v_lines(result, ax, color)
+        if line_down_state is not None:
+            line_down_state.set_label(f"{line_down_state.get_label()} {result.experiment.plot_params.panel}")
+        if line_up_state is not None:
+            line_up_state.set_label(f"{line_up_state.get_label()} {result.experiment.plot_params.panel}")
+
+
+    ax.set_xlim(*time_range)
+    ax.set_ylim(top=top_voltage)
+    ax.set_xlabel("Time (ms)")
+    ax.legend(loc="right")
+    fig.tight_layout()
+    show_plots_non_blocking(show=True)
 
 
 def generate_title(experiment: Experiment):
