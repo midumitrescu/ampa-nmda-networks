@@ -10,6 +10,8 @@ from Plotting import show_plots_non_blocking
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment
 from iteration_7_one_compartment_step_input.grid_computations import sim_and_plot_experiment_grid_with_lambda, \
     grid_title, parallelize
+from iteration_7_one_compartment_step_input.one_compartment_with_up_down import SimulationResults
+from iteration_7_one_compartment_step_input.one_compartment_with_up_only import simulate_with_up_state_and_nmda
 from iteration_8_compute_mean_steady_state.one_compartment_with_up_down_and_steady import \
     simulate_with_up_and_down_state_and_nmda_and_steady_state, SimulationResultsWithSteadyState, plot_raster_and_rates, \
     plot_voltages_and_g_s, plot_currents_graph, plot_simulation
@@ -31,6 +33,9 @@ def sim_and_plot_experiment_grid_with_increasing_nmda_input_and_steady_state(exp
 
 def run_simulate_with_steady_state(experiments: list[Experiment]):
     return parallelize(experiments, simulate_with_up_and_down_state_and_nmda_and_steady_state)
+
+def parallelize_simulate_with_up_state_and_nmda(experiments: list[Experiment]):
+    return parallelize(experiments, simulate_with_up_state_and_nmda)
 
 def sim_and_plot_experiment_grid_with_lambda(experiments, title, obtain_results_function: Callable[
                                                  [list[Experiment]], list[SimulationResultsWithSteadyState]], show_individual_plots=True):
@@ -58,7 +63,7 @@ def sim_and_plot_experiment_grid_with_lambda(experiments, title, obtain_results_
     return results_in_matrix_form
 
 def parallelize(experiments: list[Experiment],
-                function_simulate_one_experiment: Callable[[Experiment], SimulationResultsWithSteadyState]):
+                function_simulate_one_experiment: Callable[[Experiment], SimulationResultsWithSteadyState]) -> list[SimulationResults]:
     def sim_unpickled(experiment: Experiment):
         simulation_results = function_simulate_one_experiment(experiment)
         simulation_results.internal_states_monitor = None

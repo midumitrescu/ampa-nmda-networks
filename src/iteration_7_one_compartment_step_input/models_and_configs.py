@@ -1,18 +1,3 @@
-import brian2.devices.device
-import matplotlib.pyplot as plt
-import numpy as np
-from brian2 import PopulationRateMonitor, SpikeMonitor, StateMonitor, Hz, ms, nsiemens, uamp, seed, mpl, start_scope, \
-    defaultclock, kHz, mmole, NeuronGroup, PoissonGroup, Synapses, network_operation, second, mV, run
-from loguru import logger
-from matplotlib import gridspec
-from matplotlib.gridspec import SubplotSpec
-from mpl_toolkits.axes_grid1.mpl_axes import Axes
-
-from Plotting import show_plots_non_blocking
-from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment
-from utils import ExtendedDict
-
-
 main_equations = '''
 dv/dt = 1/C * (- I_L - I_ampa - I_gaba - I_nmda): volt (unless refractory)
 

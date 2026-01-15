@@ -1,8 +1,8 @@
 import unittest
 
+import matplotlib.pyplot as plt
 import numpy as np
 from brian2 import mV, mmole, second, ms, Hz, nS
-import matplotlib.pyplot as plt
 
 from BinarySeach import binary_search_for_target_value
 from Plotting import show_plots_non_blocking
@@ -14,7 +14,8 @@ from iteration_7_one_compartment_step_input.one_compartment_with_up_down import 
 from iteration_7_one_compartment_step_input.one_compartment_with_up_only import simulate_with_up_state_and_nmda, \
     sim_and_plot_up_with_state_and_nmda
 from iteration_8_compute_mean_steady_state.grid_computations import \
-    sim_and_plot_experiment_grid_with_increasing_nmda_input_and_steady_state
+    sim_and_plot_experiment_grid_with_increasing_nmda_input_and_steady_state, \
+    parallelize_simulate_with_up_state_and_nmda
 from iteration_8_compute_mean_steady_state.models_and_configs import palmer_experiment, \
     palmer_experiment_0_1_Hz_with_NMDA_block, wang_recurrent_config
 from iteration_8_compute_mean_steady_state.one_compartment_with_up_down_and_steady import sim_and_plot_up_down, \
@@ -64,24 +65,26 @@ def run_with_NMDA_and_obtain_firing_rate(experiment, g_nmda_max, sim_time=10 * s
 
     return rate / Hz
 
+
 palmer_control = (Experiment(wang_recurrent_config).with_properties({
-            SynapticParams.KEY_G_NMDA: 0.9e-9,
-            "up_state":
-                {
-                    "N": 2000,
-                    "nu": 82,
-                    "N_nmda": 10,
-                    "nu_nmda": 10,
-                },
-            "t_range": [[0, 10_000]],
-            PlotParams.KEY_WHAT_PLOTS_TO_SHOW: [PlotParams.AvailablePlots.RASTER_AND_RATE, PlotParams.AvailablePlots.CURRENTS],
-            Experiment.KEY_CURRENTS_TO_RECORD: ["I_nmda"],
-            "panel": "Control"
-        }))
+    SynapticParams.KEY_G_NMDA: 0.9e-9,
+    "up_state":
+        {
+            "N": 2000,
+            "nu": 82,
+            "N_nmda": 10,
+            "nu_nmda": 10,
+        },
+    "t_range": [[0, 10_000]],
+    PlotParams.KEY_WHAT_PLOTS_TO_SHOW: [PlotParams.AvailablePlots.RASTER_AND_RATE, PlotParams.AvailablePlots.CURRENTS],
+    Experiment.KEY_CURRENTS_TO_RECORD: ["I_nmda"],
+    "panel": "Control"
+}))
 palmer_nmda_block = palmer_control.with_properties({
     SynapticParams.KEY_X_NMDA: 0,
     "panel": "NMDA block"
 })
+
 
 class ScriptsNMDAWithWangNumbers(unittest.TestCase):
 
@@ -179,6 +182,7 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
     
     However, the examples with down state N_nmda set to zero is different because different random realizations .
     '''
+
     def test_(self):
         palmer_experiment = (Experiment(wang_recurrent_config)
         .with_properties({
@@ -193,21 +197,22 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
             PlotParams.KEY_WHAT_PLOTS_TO_SHOW: [PlotParams.AvailablePlots.RASTER_AND_RATE,
                                                 PlotParams.AvailablePlots.CURRENTS,
                                                 PlotParams.AvailablePlots.HIDDEN_VARIABLES],
-            #PlotParams.KEY_WHAT_PLOTS_TO_SHOW: [PlotParams.AvailablePlots.RASTER_AND_RATE],
+            # PlotParams.KEY_WHAT_PLOTS_TO_SHOW: [PlotParams.AvailablePlots.RASTER_AND_RATE],
             Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD: ["x_nmda", "s_nmda", "v_minus_e_gaba", "sigmoid_v"],
-
 
         }))
         sim_and_plot_up_down(palmer_experiment)
-        sim_and_plot_up_down(palmer_experiment.with_property(SynapticParams.KEY_G_NMDA,0).with_property("panel", "G_NMDA set to 0"))
-        sim_and_plot_up_down(palmer_experiment.with_property(SynapticParams.KEY_X_NMDA,0).with_property("panel", "X_NMDA set to 0"))
+        sim_and_plot_up_down(
+            palmer_experiment.with_property(SynapticParams.KEY_G_NMDA, 0).with_property("panel", "G_NMDA set to 0"))
+        sim_and_plot_up_down(
+            palmer_experiment.with_property(SynapticParams.KEY_X_NMDA, 0).with_property("panel", "X_NMDA set to 0"))
         sim_and_plot_up_down(palmer_experiment.with_property("down_state", {
-                "N_E": 100,
-                "gamma": 4,
-                "nu": 10,
-                "N_nmda": 0,
-                "nu_nmda": 2,
-             }).with_property("panel", "Down State set to N_NMDA = 0"))
+            "N_E": 100,
+            "gamma": 4,
+            "nu": 10,
+            "N_nmda": 0,
+            "nu_nmda": 2,
+        }).with_property("panel", "Down State set to N_NMDA = 0"))
 
 
 class ScriptsPalmerResultsWithoutNMDA(unittest.TestCase):
@@ -222,18 +227,18 @@ class ScriptsPalmerResultsWithoutNMDA(unittest.TestCase):
                     "nu": 82,
                     "N_nmda": 0,
                 },
-            #"down_state": {
+            # "down_state": {
             #    "N_E": 100,
             #    "gamma": 4,
             #    "nu": 10,
 
             #    "N_nmda": 0,
             #    "nu_nmda": 2,
-            #},
+            # },
             "t_range": [[0, 10_000]]
         }))
         sim_and_plot_up_down(palmer_experiment)
-        #sim_and_plot_up_down(palmer_experiment.with_property(Experiment.KEY_CURRENTS_TO_RECORD, ["I_nmda"]))
+        # sim_and_plot_up_down(palmer_experiment.with_property(Experiment.KEY_CURRENTS_TO_RECORD, ["I_nmda"]))
 
     # produces rate 0.05 Hz with up/down
     def test_example_2(self):
@@ -323,16 +328,15 @@ class ScriptsMeetingsWeek12to16January2026(unittest.TestCase):
         sim_and_plot_up_down(experiment.with_property(Experiment.KEY_CURRENTS_TO_RECORD, ["I_nmda"]))
 
     def test_compare_models_normal_nmda_and_full_activation(self):
-        experiment = palmer_experiment.with_property( "t_range", [0, 10_000])
+        experiment = palmer_experiment.with_property("t_range", [0, 10_000])
 
     def test_compare_models_normal_nmda_and_full_activation(self):
-        experiment = palmer_experiment.with_property( "t_range", [0, 10_000])
-        sim_and_plot_up_down(experiment.with_property( "panel", r"Experiment with correct $\sigma(v)$ "))
+        experiment = palmer_experiment.with_property("t_range", [0, 10_000])
+        sim_and_plot_up_down(experiment.with_property("panel", r"Experiment with correct $\sigma(v)$ "))
         sim_and_plot_up_down(experiment.with_properties({
             Experiment.KEY_SELECTED_MODEL: single_compartment_without_nmda_deactivation_and_logged_variables,
             "panel": r"Experiment with $\sigma(v) = 1 $ constant ",
         }))
-
 
     def test_palmer_with_NMDA_block_and_without(self):
         palmer_experiment_with_nmda = (Experiment(wang_recurrent_config)
@@ -346,8 +350,9 @@ class ScriptsMeetingsWeek12to16January2026(unittest.TestCase):
                     "nu_nmda": 10,
                 },
             "t_range": [[0, 10_000]],
-            PlotParams.KEY_WHAT_PLOTS_TO_SHOW: [PlotParams.AvailablePlots.RASTER_AND_RATE, PlotParams.AvailablePlots.CURRENTS],
-            Experiment.KEY_CURRENTS_TO_RECORD: ["I_nmda"],
+            PlotParams.KEY_WHAT_PLOTS_TO_SHOW: [PlotParams.AvailablePlots.RASTER_AND_RATE,
+                                                PlotParams.AvailablePlots.CURRENTS],
+            Experiment.KEY_CURRENTS_TO_RECORD: ["I_nmda", "I_fast"],
             "panel": "Control"
         }))
         palmer_experiment_with_nmda_block = palmer_experiment_with_nmda.with_properties({
@@ -357,7 +362,9 @@ class ScriptsMeetingsWeek12to16January2026(unittest.TestCase):
         sim_results_no_nmda = sim_and_plot_up_down(palmer_experiment_with_nmda_block)
         sim_resuts_control = sim_and_plot_up_down(palmer_experiment_with_nmda)
 
-        plot_voltage_trace_comparisons(sim_resuts_control, sim_results_no_nmda, params_t_range=[[0, 10_000], [5300, 5600], [6800, 8100], [9250, 9550]])
+
+        plot_voltage_trace_comparisons(sim_resuts_control, sim_results_no_nmda,
+                                       params_t_range=[[0, 10_000], [5300, 5600], [6800, 8100], [9250, 9550]])
 
     def test_find_control_palmer_with_lowest_ndma(self):
         for nmda_strength in np.linspace(.6, 1, 5) * 1E-9:
@@ -372,7 +379,8 @@ class ScriptsMeetingsWeek12to16January2026(unittest.TestCase):
                         "nu_nmda": 10,
                     },
                 "t_range": [[0, 10_000]],
-                PlotParams.KEY_WHAT_PLOTS_TO_SHOW: [PlotParams.AvailablePlots.RASTER_AND_RATE, PlotParams.AvailablePlots.CURRENTS],
+                PlotParams.KEY_WHAT_PLOTS_TO_SHOW: [PlotParams.AvailablePlots.RASTER_AND_RATE,
+                                                    PlotParams.AvailablePlots.CURRENTS],
                 Experiment.KEY_CURRENTS_TO_RECORD: ["I_nmda"],
                 "panel": "Control"
             }))
@@ -385,35 +393,56 @@ class ScriptsMeetingsWeek12to16January2026(unittest.TestCase):
 potentials. In those cases in which action potentials were evoked without a dendritic Ca2+ transient, the number of action potentials was
 significantly less (2.1 ± 0.2 versus 3.9 ± 0.7 action potentials, n = 11 branches, P < 0.05)
     '''
+
     def test_make_nmda_in_up_state_fire_very_seldomly(self):
         pass
 
     def test_compute_rate_for_palmer_experiment(self):
-        control_results = sim_and_plot_up_with_state_and_nmda(palmer_control.with_property("t_range", [0, 100_000]))
-        results_with_nmda_block = sim_and_plot_up_with_state_and_nmda(palmer_nmda_block.with_property("t_range", [0, 100_000]))
+        t_range = [0, 1_000_000]
+        results = parallelize_simulate_with_up_state_and_nmda(
+            [palmer_control.with_property("t_range", t_range), palmer_nmda_block.with_property("t_range", t_range)])
 
-        spikes_control = len(control_results.spikes)
-        spikes_with_nmda_block = len(results_with_nmda_block.spikes)
-        print(f"YYYYYYYYYYYYYYYY {spikes_control}, {spikes_with_nmda_block}")
+        for result in results:
+            print(
+                f"{result.experiment.plot_params.panel}, #Spikes={result.spikes.num_spikes}, Mean Rate={result.spikes.mean_rate}")
 
     def test_compute_vm_distribution_for_palmer_exp(self):
-        #simulate_with_up_state_and_nmda(palmer_experiment_with_nmda)
-        results_with_nmda = simulate_with_up_state_and_nmda(palmer_control.with_property("t_range", [0, 100_000]).with_property("theta", -40))
-        results_with_nmda_block = simulate_with_up_state_and_nmda(palmer_nmda_block.with_property("t_range", [0, 100_000]).with_property("theta", -40))
+        t_range = [0, 1_000_000]
+        exp_1 = palmer_control.with_property("t_range", t_range).with_property("theta", -40)
+        exp_2 = palmer_nmda_block.with_property("t_range", t_range).with_property("theta", -40)
 
-        plot_and_compare_two_voltages_curves(results_with_nmda, results_with_nmda_block)
+        exp_results = parallelize_simulate_with_up_state_and_nmda([exp_1, exp_2])
+
+        plot_and_compare_two_voltages_curves(results_1=exp_results[0], results_2=exp_results[1], rate_exp_1=0.534,
+                                             rate_exp_2=0.136)
+
+    '''
+    Compte, 2000
+    Our working memory model requires that at recurrent synapes the NMDA receptors should contribute >65% of the charge entry
+by a unitar y EPSC at –65 mV. However, the precise value of the required NMDA:AMPA ratio is likely to depend on the details
+of the model, as well as the type of neuron models (e.g. integrate-and-fire model versus compartmental conductance-based model).
+    '''
+
+    def test_compute_ampa_vs_nmda_signal_input(self):
+        t_range = [0, 10_000]
+        result = simulate_with_up_state_and_nmda(palmer_control.with_properties({
+            "t_range": t_range,
+            #"theta": -40,
+            Experiment.KEY_CURRENTS_TO_RECORD: ["I_nmda", "I_ampa", "I_gaba"]
+        }))
+        print("NMDA ", result.currents.q_nmda)
+        print("AMPA ", result.currents.q_ampa)
+        print("GABA ", result.currents.q_gaba)
+        print("NMDAR/(NMDAR + AMPAR)", result.currents.q_nmda / (result.currents.q_nmda + result.currents.q_ampa))
 
 
-def plot_and_compare_two_voltages_curves(results_1: SimulationResults,results_2: SimulationResults, ignore_first_items=10_000):
+
+def plot_and_compare_two_voltages_curves(results_1: SimulationResults, results_2: SimulationResults, rate_exp_1,
+                                         rate_exp_2, ignore_first_items=10_000):
     from scipy.stats import norm
-
 
     counts_1, bin_centers_1, bin_edges_1 = fit_voltages_curve_to_gaussian(results_1.voltages.v[0], ignore_first_items)
     counts_2, bin_centers_2, bin_edges_2 = fit_voltages_curve_to_gaussian(results_2.voltages.v[0], ignore_first_items)
-
-    print(f"XXXXXXXXXXXXXXXX {overlap_from_histograms(counts_1, bin_centers_1, counts_2, bin_centers_2)} ")
-    print(f"XXXXXXXXXXXXXXXX {overlap_from_histograms(counts_1, bin_centers_1, counts_1, bin_centers_1)} ")
-    print(f"XXXXXXXXXXXXXXXX {overlap_from_histograms(counts_2, bin_centers_2, counts_2, bin_centers_2)} ")
 
     x = np.linspace(np.min([bin_edges_1[0], bin_centers_2[0]]), np.max([bin_edges_1[-1], bin_centers_2[-1]]), 1_000)
 
@@ -439,7 +468,8 @@ def plot_and_compare_two_voltages_curves(results_1: SimulationResults,results_2:
     )
     # Gaussian fit
     plt.plot(x, gaussian_pdf_1, "r-", linewidth=2,
-             label=f"{results_1.experiment.plot_params.panel}\n mean={mean_1: .4f}, variance={std_1: .4f}", color="black")
+             label=f"{results_1.experiment.plot_params.panel}\n mean={mean_1: .4f}, variance={std_1: .4f}",
+             color="black")
 
     plt.bar(
         bin_centers_2,
@@ -451,7 +481,8 @@ def plot_and_compare_two_voltages_curves(results_1: SimulationResults,results_2:
         label=results_2.experiment.plot_params.panel
     )
     plt.plot(x, gaussian_pdf_2, "r-", linewidth=2,
-             label=f"{results_2.experiment.plot_params.panel} \n mean={mean_2: .4f}, variance={std_2: .4f}", color="darkorange")
+             label=f"{results_2.experiment.plot_params.panel} \n mean={mean_2: .4f}, variance={std_2: .4f}",
+             color="darkorange")
 
     ymax = np.max([counts_1.max(), gaussian_pdf_1.max(), counts_2.max(), gaussian_pdf_2.max()]) + 0.3
 
@@ -476,8 +507,8 @@ def plot_and_compare_two_voltages_curves(results_1: SimulationResults,results_2:
     )
 
     plt.title("Comparison of Gaussian fits of membrane voltage for Control and NMDA Blocks Palmer simulations \n"
-              f"{results_1.experiment.plot_params.panel} = [Mean = {mean_1: .3f}, STD = {std_1: .3f}]\n "
-              f"{results_2.experiment.plot_params.panel} = [Mean = {mean_2: .3f}, STD = {std_2: .3f}] \n"
+              f"{results_1.experiment.plot_params.panel}: [rate={rate_exp_1: .3f} Hz, Mean = {mean_1: .3f}, STD = {std_1: .3f}]\n "
+              f"{results_2.experiment.plot_params.panel}: [rate={rate_exp_2: .3f} Hz, Mean = {mean_2: .3f}, STD = {std_2: .3f}] \n"
               f"Histogram overlap {overlap_from_histograms(counts_1, bin_centers_1, counts_2, bin_centers_2) * 100: .4f} %")
 
     plt.legend()
@@ -502,13 +533,13 @@ def generate_title(experiment: Experiment):
 
 
 def bayes_error_rate(pdf1, pdf2, x_min=-55, x_max=-35):
-    x=np.linspace(x_min, x_max, len(pdf1))
+    x = np.linspace(x_min, x_max, len(pdf1))
     min_pdf = np.min([pdf1, pdf2], axis=0)
     return .5 * np.trapz(y=min_pdf, x=x, dx=1E-6)
 
+
 def overlap_from_histograms(counts1, centers1, counts2, centers2,
                             bayes_error=False, d_x=2000):
-
     # Common support
     x_min = max(centers1.min(), centers2.min())
     x_max = min(centers1.max(), centers2.max())

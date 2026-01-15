@@ -5,11 +5,16 @@ import numpy as np
 from loguru import logger
 
 from iteration_10_meanfield_limit.meanfield_simulation import sim_and_plot_meanfield_with_upstate_and_steady_state, \
-    prepare_mean_field
+    prepare_mean_field, prepare_mean_field_with_up_down
+from iteration_7_one_compartment_step_input import Configuration_with_Up_Down_States
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment, PlotParams, \
     NeuronModelParams, SynapticParams
 from iteration_7_one_compartment_step_input.models_and_configs import single_compartment_with_nmda_and_logged_variables
+from iteration_7_one_compartment_step_input.one_compartment_with_up_down import sim_and_plot, \
+    simulate_and_plot_with_up_and_down_state_and_nmda
 from iteration_8_compute_mean_steady_state.models_and_configs import steady_model
+from iteration_8_compute_mean_steady_state.one_compartment_with_up_down_and_steady import sim_and_plot_up_down
+from iteration_8_compute_mean_steady_state.scripts_with_wang_numbers import palmer_control
 
 # Remove the default logger
 logger.remove()
@@ -43,7 +48,7 @@ meanfield_config = {
 
     # VL = -70 mV, the firing threshold Vth = - 50 mV, a reset potential Vreset = -55 mV
     NeuronModelParams.KEY_NEURON_E_L: -70,
-    NeuronModelParams.KEY_NEURON_THRESHOLD: -40,
+    NeuronModelParams.KEY_NEURON_THRESHOLD: -50,
     NeuronModelParams.KEY_NEURON_V_R: -55,
     NeuronModelParams.KEY_NEURON_G_L: 25e-9,  # gL = 25 nS for pyramidal
 
@@ -64,7 +69,7 @@ meanfield_config = {
 
     "up_state": {
         "N": 2000,
-        "nu": 100,
+        "nu": 85,
 
         "N_nmda": 10,
         "nu_nmda": 10,
@@ -102,14 +107,14 @@ class ScriptsMeanField(unittest.TestCase):
             PlotParams.KEY_WHAT_PLOTS_TO_SHOW: [PlotParams.AvailablePlots.RASTER_AND_RATE,
                                                 PlotParams.AvailablePlots.HIDDEN_VARIABLES]
         })
-        for scaling in [1, 1E1, 1E2, 1E3, 1E4, 1E5]:
+        for scaling in 10**np.array(range(15)):
             meanfield_experiment = prepare_mean_field(only_nmda, N=scaling * 2000, N_reference=2000)
             sim_and_plot_meanfield_with_upstate_and_steady_state(meanfield_experiment)
 
     def test_try_very_steep_meanfield_progression(self):
-        for scaling in 10**np.array(range(15)):
+        for scaling in 10**np.linspace(0, 15, num=31):
             sim_and_plot_meanfield_with_upstate_and_steady_state(
-                prepare_mean_field(Experiment(meanfield_config),
+                prepare_mean_field(Experiment(meanfield_config).with_property("theta", -50),
                                    N=scaling.item() * 2000, N_reference=2000))
 
     def test_understand_why_meanfield_estimation_makes_wrong_g_nmda_prediction(self):

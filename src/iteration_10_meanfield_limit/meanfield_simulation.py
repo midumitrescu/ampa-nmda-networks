@@ -14,15 +14,19 @@ from iteration_8_compute_mean_steady_state.one_compartment_with_up_down_and_stea
 plt.rcParams.update(mpl.rcParamsDefault)
 plt.rcParams['text.usetex'] = True
 
+
 def weak_mean_field(conductance, N, N_reference):
     res = conductance * N_reference / N
-    return res
+    return float(res)
+
 
 '''
 g_ampa = weak_mean_field(experiment.synaptic_params.g_ampa, experiment, 2000)
 g_gaba = weak_mean_field(experiment.synaptic_params.g_gaba, experiment, 2000)
 g_x = weak_mean_field(1, experiment, 2000)
 '''
+
+
 def prepare_mean_field(experiment: Experiment, N=2000, N_reference=2000):
     state = {
         "N": N,
@@ -42,6 +46,15 @@ def prepare_mean_field(experiment: Experiment, N=2000, N_reference=2000):
             "down_state": state
         })
     return result
+
+
+def prepare_mean_field_with_up_down(experiment: Experiment, N=2000, N_reference=2000):
+    return experiment.with_properties({
+            SynapticParams.KEY_G_AMPA: weak_mean_field(experiment.synaptic_params.g_ampa / siemens, N, N_reference),
+            SynapticParams.KEY_G_GABA: weak_mean_field(experiment.synaptic_params.g_gaba / siemens, N, N_reference),
+            SynapticParams.KEY_X_NMDA: weak_mean_field(experiment.synaptic_params.g_x_nmda, N, N_reference),
+        })
+
 
 def sim_and_plot_meanfield_with_upstate_and_steady_state(experiment: Experiment) -> SimulationResultsWithSteadyState:
     simulation_results = simulate_meanfield_with_up_state_and_steady_state(experiment)
@@ -95,7 +108,7 @@ def simulate_one_state_with_meanfield(experiment: Experiment):
 
     C = experiment.neuron_params.C
 
-    theta = 100 * mV
+    theta = experiment.neuron_params.theta
     g_L = experiment.neuron_params.g_L
     E_leak = experiment.neuron_params.E_leak
     V_r = experiment.neuron_params.V_r
@@ -129,11 +142,14 @@ def simulate_one_state_with_meanfield(experiment: Experiment):
 
     order = [0, 1, 2, 3, 4, 5] if experiment.in_testing else [0] * 5
 
-    P_upstate_exc = PoissonInput(target=single_neuron, target_var="g_e", N=experiment.network_params.up_state.N_E, rate=experiment.network_params.up_state.nu,
+    P_upstate_exc = PoissonInput(target=single_neuron, target_var="g_e", N=experiment.network_params.up_state.N_E,
+                                 rate=experiment.network_params.up_state.nu,
                                  weight=g_ampa, order=order[0])
-    P_upstate_inh = PoissonInput(target=single_neuron, target_var="g_i", N=experiment.network_params.up_state.N_I, rate=experiment.network_params.up_state.nu,
+    P_upstate_inh = PoissonInput(target=single_neuron, target_var="g_i", N=experiment.network_params.up_state.N_I,
+                                 rate=experiment.network_params.up_state.nu,
                                  weight=g_gaba, order=order[1])
-    P_upstate_nmda = PoissonInput(target=single_neuron, target_var="x_nmda", N=experiment.network_params.up_state.N_NMDA,
+    P_upstate_nmda = PoissonInput(target=single_neuron, target_var="x_nmda",
+                                  N=experiment.network_params.up_state.N_NMDA,
                                   rate=experiment.network_params.up_state.nu_nmda, weight=g_x, order=order[4])
 
     logger.debug("Poisson Input AMPA {}, Poisson Input GABA {}, Poisson Input NMDA {}",

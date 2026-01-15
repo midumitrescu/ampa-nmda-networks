@@ -160,7 +160,7 @@ def plot_raster_and_g_s_in_one_time_range(simulation_results: SimulationResultsW
         fig = plt.figure(figsize=(20, 12))
         fig.suptitle(generate_title(simulation_results.experiment))
 
-        height_ratios = [1, 3]
+        height_ratios = [1, 1]
         outer = gridspec.GridSpec(2, 1, figure=fig, height_ratios=height_ratios)
         plot_raster_and_rates(simulation_results, time_range, outer[0])
         plot_voltages_and_g_s(simulation_results, time_range, outer[1])
@@ -195,18 +195,6 @@ def plot_currents_graph(simulation_results: SimulationResultsWithSteadyState, ti
 
     plot_steady_v_lines(simulation_results, ax_voltage, color=voltage_line[0].get_color())
     plot_spike_times_on_v_plot(simulation_results, 0, ax_voltage, color=voltage_line[0].get_color(), lims = [-70, -40])
-    '''
-    if simulation_results.steady_up_results is not None:
-        ax_voltage.axhline(y=simulation_results.steady_up_results.v_steady, linestyle="--", linewidth=1.5, alpha=0.6,
-                           label=r"$V_\mathrm{0, UP}=$" + f"{simulation_results.steady_up_results.v_steady :.3f} mV")
-    if simulation_results.steady_down_results is not None:
-        ax_voltage.axhline(y=simulation_results.steady_down_results.v_steady, linestyle="--", linewidth=1.5, color="orange", alpha=0.6,
-                           label=r"$V_\mathrm{0, D}=$" + f"{simulation_results.steady_down_results.v_steady :.3f} mV")
-
-    ax_voltage.axhline(y=simulation_results.experiment.neuron_params.theta / mV, linewidth=1.5, alpha=0.6, linestyle="-.",
-                       color="black",
-                       label=r"$\theta=$" + f"{simulation_results.experiment.neuron_params.theta / mV} mV")
-    '''
     ax_voltage.axhline(y=simulation_results.experiment.neuron_params.theta / mV, linestyle="-.", linewidth=1.5,
                alpha=0.6, color="k", label="$\\theta$")
 
@@ -457,7 +445,7 @@ def plot_voltage_trace_comparisons(results_1: SimulationResultsWithSteadyState, 
                                               time_range=params_t_range)
 
 def plot_one_voltage_trace_comparison(results_1: SimulationResultsWithSteadyState, results_2: SimulationResultsWithSteadyState, time_range: tuple[int, int]):
-    fig = plt.figure(figsize=(16, 7))
+    fig = plt.figure(figsize=(10, 4))
     fig.suptitle(generate_title(results_1.experiment.with_property("panel",  "Compare control and NMDA-blocked voltage traces")))
     ax = fig.subplots(1, 1)
 
@@ -472,7 +460,7 @@ def plot_one_voltage_trace_comparison(results_1: SimulationResultsWithSteadyStat
     top_voltage = results_1.experiment.neuron_params.theta / mV + 10
 
     for result in [results_1, results_2]:
-        lines = ax.plot(result.voltages.t, result.voltages.v[0], lw=1, alpha=0.6, label=result.experiment.plot_params.panel)
+        lines = ax.plot(result.voltages.t, result.voltages.v[0], lw=1.7, alpha=0.6, label=result.experiment.plot_params.panel)
         color = lines[0].get_color()
         spike_times_current_neuron = result.spikes.all_values['t'][0] / ms
         ax.vlines(x=spike_times_current_neuron, ymin=-70, ymax=top_voltage, color=color, linestyle="-.", alpha=0.5,
