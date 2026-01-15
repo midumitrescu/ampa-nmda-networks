@@ -1,0 +1,32 @@
+Master Project - what can we focus on/
+
+Mean field Theory for AMPA - GABA with conductance based.
+
+-> Mean Field Eq  + Analysis, Limit
+k-> inf => drive of the neuron is a population activity.
+Alternatively, FP equation of the mean field
+
+They use effective time constant approximation.
+
+Sanzeni: population of unconnected neurons. There is no coupling.
+
+Vogels & Abbot: Detailed Balance theory: Gating multiple
+Signal Propagation and Logic Gating
+
+
+In the notes: think of lumping together E and I
+
+
+General Title: Analysis of Computational Model in Conductance Networks with NMDA Input
+
+Network Dynamics with NMDA synaptic conductances
+Question
+-> what is the effect of NMDA in network dynamics / stability / bifurcation
+        -> Find titles that are more specific
+
+
+-> could make the prediction on the overall current ratio A+G / Nmda
+
+-> mean field theory
+-> would be good to have a bit more analytical framework
+-> check if some limits make sense
