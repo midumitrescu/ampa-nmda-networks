@@ -68,7 +68,7 @@ class SimulationResults:
             return ExtendedDict({})
         return ExtendedDict({
             "t": np.array(v_monitor.t / ms),
-            "v": np.array(v_monitor.v / ms),
+            "v": np.array(v_monitor.v / mV),
         })
 
     def __extract_g_s__(self, g_monitor: StateMonitor):

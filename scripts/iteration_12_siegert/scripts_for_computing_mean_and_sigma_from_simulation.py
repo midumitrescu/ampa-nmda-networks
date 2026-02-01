@@ -21,82 +21,6 @@ from iteration_8_compute_mean_steady_state.models_and_configs import palmer_expe
 from iteration_8_compute_mean_steady_state.one_compartment_with_up_down_and_steady import sim_and_plot_up_down, \
     plot_voltage_trace_comparisons
 
-
-def find_firing_rate_without_NMDA_with_N(experiment, N, sim_time=10 * second):
-    up_state = experiment.params["up_state"]
-    up_state["N"] = N
-
-    experiment_with_nmda = experiment.with_properties({
-        Experiment.KEY_SIM_TIME: sim_time / ms,
-        "up_state": up_state})
-    results_with_nmda = simulate_with_up_state_and_nmda(experiment_with_nmda)
-
-    rate = results_with_nmda.total_spike_counts() / experiment_with_nmda.sim_time
-
-    return rate / Hz
-
-
-def find_firing_rate_without_NMDA_with_nu(experiment, nu, sim_time=10 * second):
-    up_state = experiment.params["up_state"]
-    up_state["nu"] = nu
-
-    experiment_with_nmda = experiment.with_properties({
-        Experiment.KEY_SIM_TIME: sim_time / ms,
-        "up_state": up_state})
-    results_with_nmda = simulate_with_up_state_and_nmda(experiment_with_nmda)
-
-    rate = results_with_nmda.total_spike_counts() / experiment_with_nmda.sim_time
-
-    return rate / Hz
-
-
-def run_with_NMDA_and_obtain_firing_rate(experiment, g_nmda_max, sim_time=10 * second):
-    experiment_with_nmda = experiment.with_properties({
-        Experiment.KEY_SIM_TIME: sim_time / ms,
-        SynapticParams.KEY_G_NMDA: g_nmda_max})
-    results_with_nmda = simulate_with_up_state_and_nmda(experiment_with_nmda)
-
-    rate = results_with_nmda.total_spike_counts() / experiment_with_nmda.sim_time
-
-    return rate / Hz
-
-
-palmer_control = (Experiment(wang_recurrent_config).with_properties({
-    SynapticParams.KEY_G_NMDA: 0.9e-9,
-    "up_state":
-        {
-            "N": 2000,
-            "nu": 82,
-            "N_nmda": 10,
-            "nu_nmda": 10,
-        },
-    "t_range": [[0, 10_000]],
-    PlotParams.KEY_WHAT_PLOTS_TO_SHOW: [PlotParams.AvailablePlots.RASTER_AND_RATE, PlotParams.AvailablePlots.CURRENTS],
-    Experiment.KEY_CURRENTS_TO_RECORD: ["I_nmda"],
-    "panel": "Control"
-}))
-palmer_nmda_block = palmer_control.with_properties({
-    SynapticParams.KEY_X_NMDA: 0,
-    "panel": "NMDA block",
-    "up_state":
-        {
-            "N": 2000,
-            "nu": 82,
-            "N_nmda": 0,
-            "nu_nmda": 0,
-        },
-    "down_state": {
-        "N_E": 100,
-        "gamma": 4,
-        "nu": 10,
-
-        "N_nmda": 0,
-        "nu_nmda": 0,
-    },
-
-})
-
-
 class ScriptsNMDAWithWangNumbers(unittest.TestCase):
 
     def test_up_down_with_wang_numbers(self):
@@ -373,6 +297,7 @@ class ScriptsMeetingsWeek12to16January2026(unittest.TestCase):
         sim_results_no_nmda = sim_and_plot_up_down(palmer_experiment_with_nmda_block)
         sim_resuts_control = sim_and_plot_up_down(palmer_experiment_with_nmda)
 
+
         plot_voltage_trace_comparisons(sim_resuts_control, sim_results_no_nmda,
                                        params_t_range=[[0, 10_000], [5300, 5600], [6800, 8100], [9250, 9550]])
 
@@ -437,13 +362,14 @@ of the model, as well as the type of neuron models (e.g. integrate-and-fire mode
         t_range = [0, 10_000]
         result = simulate_with_up_state_and_nmda(palmer_control.with_properties({
             "t_range": t_range,
-            # "theta": -40,
+            #"theta": -40,
             Experiment.KEY_CURRENTS_TO_RECORD: ["I_nmda", "I_ampa", "I_gaba"]
         }))
         print("NMDA ", result.currents.q_nmda)
         print("AMPA ", result.currents.q_ampa)
         print("GABA ", result.currents.q_gaba)
         print("NMDAR/(NMDAR + AMPAR)", result.currents.q_nmda / (result.currents.q_nmda + result.currents.q_ampa))
+
 
 
 def plot_and_compare_two_voltages_curves(results_1: SimulationResults, results_2: SimulationResults, rate_exp_1,

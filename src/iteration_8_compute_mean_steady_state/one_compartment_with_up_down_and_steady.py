@@ -130,8 +130,8 @@ def sim_steady_state(experiment: Experiment, state: State) -> SteadyStateResults
                              variables=["v", "g_e", "g_i", "g_nmda", "x_nmda", "s_nmda"], record=True)
 
     steady_state_network = Network([neuron, v_monitor])
-
-    run(1 * second, report="text", report_period=1 * second)
+    reporting = "text" if experiment.in_testing else None
+    run(1 * second, report=reporting, report_period=1 * second)
     result = SteadyStateResults(v_monitor)
     stop()
 

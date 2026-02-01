@@ -2,8 +2,10 @@ import copy
 import enum
 
 import numpy as np
-from brian2 import ufarad, siemens, mV, ms, Hz, nS, nsiemens, mmole
+from brian2 import ufarad, siemens, mV, ms, Hz, nS, nsiemens, mmole, kHz, psiemens
 from loguru import logger
+
+from iteration_8_compute_mean_steady_state.equations import sigmoid_v
 
 
 class SynapticParams:
@@ -25,9 +27,9 @@ class SynapticParams:
     KEY_E_GABA = "E_gaba"
 
     KEY_MG_EXTRACELLULAR_CONCENTRATION = "MG_C"
+    KEY_ALPHA_NMDA = "alpha_nmda"
 
     def __init__(self, params: dict, g: float):
-
 
         self.J = params.get(SynapticParams.KEY_SYNAPTIC_STRENGTH, 0.5 * mV)
         self.D = params.get(SynapticParams.KEY_SYNAPTIC_DELAY, 1.5 * ms)
@@ -53,7 +55,9 @@ class SynapticParams:
         self.tau_nmda_decay = params.get(NeuronModelParams.KEY_TAU_NMDA_DECAY, 100) * ms
 
         # extracellular magnesium concentration
-        self.MG_C = params.get(SynapticParams.KEY_MG_EXTRACELLULAR_CONCENTRATION, 1) * mmole  # extracellular magnesium concentration
+        self.MG_C = params.get(SynapticParams.KEY_MG_EXTRACELLULAR_CONCENTRATION,
+                               1) * mmole  # extracellular magnesium concentration
+        self.alpha_nmda = params.get(SynapticParams.KEY_ALPHA_NMDA, 0.5) * kHz  # NMDA saturation
 
     def __str__(self):
         return f"{self.__class__}(J={self.J}, D={self.D})"
@@ -69,8 +73,9 @@ C E = 4C I . We rewrite C I = γ C E —that is, γ = 0.25.
 
 N_I = gamma * N_E
 '''
-class State:
 
+
+class State:
     KEY_STATE_UP = "up_state"
     KEY_STATE_DOWN = "down_state"
 
@@ -89,6 +94,8 @@ class State:
     KEY_X_VAR_MULT = "x_var_mult"
 
     def __init__(self, params: dict):
+
+        self.params = params.copy()
 
         self.gamma = params.get(State.KEY_GAMMA, 0.25)
         self.omega = params.get(State.KEY_OMEGA, 0)
@@ -131,14 +138,12 @@ class NetworkParams:
 
     KEY_C_EXT = "C_ext"
 
-
     KEY_EPSILON = "epsilon"
 
     KEY_UP_STATE = "UP_STATE"
     KEY_DOWN_STATE = "DOWN_STATE"
 
     def __init__(self, params: dict):
-
         self.g = params.get(NetworkParams.KEY_G, 0)
         self.synaptic_params = SynapticParams(params, g=self.g)
 
@@ -177,7 +182,8 @@ class NeuronModelParams:
         if network_params.up_state is not None:
             self.nu_thr = (self.theta - self.E_leak) / (self.synaptic_params.J * network_params.up_state.N_E * self.tau)
         else:
-            self.nu_thr = (self.theta - self.E_leak) / (self.synaptic_params.J * network_params.down_state.N_E * self.tau)
+            self.nu_thr = (self.theta - self.E_leak) / (
+                    self.synaptic_params.J * network_params.down_state.N_E * self.tau)
 
         logger.debug("Computed tau membrane = {}, nu threshold = {}", self.tau, self.nu_thr)
 
@@ -219,6 +225,7 @@ class PlotParams:
         one_minus_s_nmda = "one_minus_s_nmda"
 
         g_e = "g_e"
+        g_i = "g_i"
 
         s_drive = "s_drive"
         alpha_x_t = "alpha_x_t"
@@ -341,9 +348,9 @@ class PlotParams:
             }
         return result
 
-
     def show_currents_plots(self):
-        return self.plots is not None and PlotParams.AvailablePlots.CURRENTS in self.plots and len(self.recorded_currents) > 0
+        return self.plots is not None and PlotParams.AvailablePlots.CURRENTS in self.plots and len(
+            self.recorded_currents) > 0
 
 
 class NMDAParams:
@@ -360,6 +367,7 @@ def check_plot_times_inside_sim_time(plot_params: PlotParams, sim_time):
                 raise ValueError(f"Sim time was only {sim_time}. We can not plot unit {t_range[1]}.")
     elif plot_params.t_range[0] > sim_time / ms or plot_params.t_range[1] > sim_time / ms:
         raise ValueError(f"Sim time was only {sim_time}. We can not plot unit {plot_params.t_range}.")
+
 
 class DiffusionProcess:
     KEY_X_VARIANCE_MULTIPLICATION = "x_noise_multiplier"
@@ -404,8 +412,8 @@ class Experiment:
         self.nu_thr = self.neuron_params.nu_thr
         self.nu_ext = self.nu_ext_over_nu_thr * self.nu_thr
 
-        #self.mean_excitatory_input = self.synaptic_params.J * self.neuron_params.tau * self.network_params.up_state.N_E * self.nu_ext
-        #self.mean_inhibitory_input = - self.network_params.g * self.synaptic_params.J * self.neuron_params.tau * self.network_params.up_state.N_E * self.nu_ext
+        # self.mean_excitatory_input = self.synaptic_params.J * self.neuron_params.tau * self.network_params.up_state.N_E * self.nu_ext
+        # self.mean_inhibitory_input = - self.network_params.g * self.synaptic_params.J * self.neuron_params.tau * self.network_params.up_state.N_E * self.nu_ext
 
         self.nmda_params = NMDAParams(params)
 
@@ -417,9 +425,11 @@ class Experiment:
 
         self.in_testing = params.get(Experiment.KEY_IN_TESTING, False)
 
-        self.effective_time_constant_up_state = EffectiveTimeConstantEstimation(self, self.network_params.up_state, label="Up") \
+        self.effective_time_constant_up_state = EffectiveTimeConstantEstimation(self, self.network_params.up_state,
+                                                                                label="Up") \
             if self.network_params.up_state is not None else None
-        self.effective_time_constant_down_state = EffectiveTimeConstantEstimation(self, self.network_params.down_state, label="Down") \
+        self.effective_time_constant_down_state = EffectiveTimeConstantEstimation(self, self.network_params.down_state,
+                                                                                  label="Down") \
             if self.network_params.down_state is not None else None
 
     def with_property(self, key: str, value: object):
@@ -458,7 +468,9 @@ class EffectiveTimeConstantEstimation:
 
         self.state.effective_timeconstant_estimation = self
 
-        logger.debug("Effective Reversal {} State with included Poisson Rate {}", label, self.E_0())
+        self.__cached_g_nmda = None
+
+        # logger.debug("Effective Reversal {} State with included Poisson Rate {}", label, self.E_0())
 
     def E_0(self):
         effective_reversal = (self.config.neuron_params.g_L * self.config.neuron_params.E_leak +
@@ -469,12 +481,12 @@ class EffectiveTimeConstantEstimation:
     # 2.6, 2.12
     def mean_excitatory_conductance(self):
         # According to units computation, this is not in the same unit aas g_ampa. Check section 6.5 Units, Composed
-        #return self.config.synaptic_params.tau_ampa * self.state.N_E * self.state.nu * self.config.synaptic_params.g_ampa / 18**3
+        # return self.config.synaptic_params.tau_ampa * self.state.N_E * self.state.nu * self.config.synaptic_params.g_ampa / 18**3
         return self.config.synaptic_params.tau_ampa * self.state.N_E * self.state.nu * self.config.synaptic_params.g_ampa
 
     # 2.6, 2.12
     def mean_inhibitory_conductance(self):
-        #return self.config.synaptic_params.tau_gaba * self.state.N_I * self.state.nu * self.config.synaptic_params.g_gaba / 18**3
+        # return self.config.synaptic_params.tau_gaba * self.state.N_I * self.state.nu * self.config.synaptic_params.g_gaba / 18**3
         return self.config.synaptic_params.tau_gaba * self.state.N_I * self.state.nu * self.config.synaptic_params.g_gaba
 
     def mean_nmda_activation(self):
@@ -496,11 +508,6 @@ class EffectiveTimeConstantEstimation:
             1 / 2 * self.config.synaptic_params.tau_gaba * self.state.N_I * self.state.nu
         )
 
-    def std_nmda(self):
-        return 1 * np.sqrt(
-            1 / 2 * self.config.synaptic_params.tau_nmda_rise * self.state.N_NMDA * self.state.nu_nmda
-        )
-
     # 2.19
     def std_voltage(self):
         # 2.13
@@ -516,18 +523,106 @@ class EffectiveTimeConstantEstimation:
         E_e = self.config.synaptic_params.e_ampa
         E_i = self.config.synaptic_params.e_gaba
 
-        return np.sqrt((s_e / g_0) ** 2 * (E_e - E_0) ** 2 * (tau_e / (tau_e + tau_0)) + (s_i / g_0) ** 2 * (E_i - E_0) ** 2 * (tau_i / (tau_i + tau_0)))
+        return np.sqrt(
+            (s_e / g_0) ** 2 * (E_e - E_0) ** 2 * (tau_e / (tau_e + tau_0)) + (s_i / g_0) ** 2 * (E_i - E_0) ** 2 * (
+                    tau_i / (tau_i + tau_0)))
 
     def shunt_level(self):
         return (self.mean_excitatory_conductance() + self.mean_inhibitory_conductance()) / self.mean_total_conductance()
 
-
     # 2.9 check if diffusion approximation holds
     def __check_is_diffusion_approximation_valid__(self):
+        return
         sigma_e_over_g_e_0 = self.std_excitatory_conductance() / self.mean_excitatory_conductance()
         sigma_i_over_g_i_0 = self.std_inhibitory_conductance() / self.mean_inhibitory_conductance()
-        logger.debug("Is diffusion approximation valid? sigma_e / g_e0 ={} << 1? {}", sigma_e_over_g_e_0, sigma_e_over_g_e_0 < 0.01)
-        logger.debug("Is diffusion approximation valid? sigma_i / g_i0 ={} << 1? {}", sigma_i_over_g_i_0, sigma_i_over_g_i_0 < 0.01)
+        logger.debug("Is diffusion approximation valid? sigma_e / g_e0 ={} << 1? {}", sigma_e_over_g_e_0,
+                     sigma_e_over_g_e_0 < 0.01)
+        logger.debug("Is diffusion approximation valid? sigma_i / g_i0 ={} << 1? {}", sigma_i_over_g_i_0,
+                     sigma_i_over_g_i_0 < 0.01)
 
     def gen_plot_title(self):
-        return fr"$V_\mathrm{{eff, rev}}$ = {self.E_0() / mV: .2f} mV, $\sigma_v$ = {self.std_voltage() /mV : .2f} mV, $g_{{\mathrm{{0, AMPA}}}}={self.mean_excitatory_conductance() / nS:.2f}\,n\mathrm{{S}}$, $g_{{\mathrm{{0, GABA}}}}={self.mean_inhibitory_conductance()/ nS:.2f}\,n\mathrm{{S}}$, Shunt Level = {self.shunt_level(): .2f}"
+        return fr"$V_\mathrm{{eff, rev}}$ = {self.E_0() / mV: .2f} mV, $\sigma_v$ = {self.std_voltage() / mV : .2f} mV, $g_{{\mathrm{{0, AMPA}}}}={self.mean_excitatory_conductance() / nS:.2f}\,n\mathrm{{S}}$, $g_{{\mathrm{{0, GABA}}}}={self.mean_inhibitory_conductance() / nS:.2f}\,n\mathrm{{S}}$, Shunt Level = {self.shunt_level(): .2f}"
+
+    def mean_x_nmda(self):
+        return self.config.synaptic_params.tau_nmda_rise * self.config.synaptic_params.g_x_nmda * self.state.N_NMDA * self.state.nu_nmda
+
+    def mean_s_nmda(self):
+        mean_x_nmda = self.mean_x_nmda()
+        if mean_x_nmda == 0:
+            return 1
+        return 1 - 1 / (
+                self.config.synaptic_params.alpha_nmda * self.config.synaptic_params.tau_nmda_decay * mean_x_nmda)
+
+    def mean_total_conductance_with_nmda(self):
+        g_nmda = self.compute_mean_g_nmda()
+
+        return self.mean_total_conductance() + g_nmda
+
+    def E_0_with_nmda(self, g_nmda=None):
+
+        if self.state.N_NMDA < 1:
+            return self.E_0()
+
+        if g_nmda is None:
+            g_nmda = self.compute_mean_g_nmda()
+
+        total_conductance = self.mean_total_conductance() + g_nmda
+
+        effective_reversal = (self.config.neuron_params.g_L * self.config.neuron_params.E_leak +
+                              self.mean_excitatory_conductance() * self.config.synaptic_params.e_ampa +
+                              g_nmda * self.config.synaptic_params.e_ampa +
+                              self.mean_inhibitory_conductance() * self.config.synaptic_params.e_gaba) / total_conductance
+
+        return effective_reversal
+
+    def compute_mean_g_nmda(self, v=None, current_g_nmda=0 * nsiemens, err=1E-10):
+
+        if self.__cached_g_nmda is not None:
+            return self.__cached_g_nmda
+
+        if v is None:
+            v = self.E_0()
+
+        g_nmda = self.config.synaptic_params.g_nmda * sigmoid_v(self.config, v) * self.mean_s_nmda()
+
+        diff = g_nmda - current_g_nmda
+        if np.abs(diff) / nsiemens < err:
+            self.__cached_g_nmda = g_nmda
+            return g_nmda
+
+        current_v = self.E_0_with_nmda(g_nmda)
+        return self.compute_mean_g_nmda(v=current_v, current_g_nmda=g_nmda, err=err)
+
+    def std_s_nmda(self):
+
+        tau_s = self.config.synaptic_params.tau_nmda_decay * (1 - self.mean_x_nmda())
+
+        in_sqrt = 1 / 2 * (self.state.N_NMDA * self.state.nu_nmda) / (tau_s + self.config.synaptic_params.tau_nmda_rise)
+        return self.config.synaptic_params.alpha_nmda * (
+                    1 - self.mean_x_nmda()) * tau_s * self.config.synaptic_params.tau_nmda_rise / tau_s * self.config.synaptic_params.tau_nmda_decay * np.sqrt(
+            in_sqrt)
+
+    def std_nmda(self):
+        return self.config.synaptic_params.g_nmda * sigmoid_v(self.config, self.E_0_with_nmda()) * self.std_s_nmda()
+
+    def std_voltage_with_nmda(self):
+        # 2.13
+        g_0 = self.mean_total_conductance()
+        tau_0 = self.config.neuron_params.C / g_0
+        tau_e = self.config.synaptic_params.tau_ampa
+        tau_i = self.config.synaptic_params.tau_gaba
+        tau_n = self.config.synaptic_params.tau_nmda_decay * (1 - self.mean_s_nmda())
+
+        s_e = self.std_excitatory_conductance()
+        s_i = self.std_inhibitory_conductance()
+        s_n = self.std_nmda()
+
+        E_0 = self.E_0()
+        E_e = self.config.synaptic_params.e_ampa
+        E_i = self.config.synaptic_params.e_gaba
+
+
+        return np.sqrt(
+            (s_e / g_0) ** 2 * (E_e - E_0) ** 2 * (tau_e / (tau_e + tau_0)) + (s_i / g_0) ** 2 * (E_i - E_0) ** 2 * (
+                    tau_i / (tau_i + tau_0)) + (s_n / g_0)**2 * (E_e - E_0)**2 * ( tau_n / (tau_n + tau_0))
+        )

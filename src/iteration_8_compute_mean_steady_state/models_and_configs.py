@@ -1,3 +1,6 @@
+from brian2 import mmole, mV
+import numpy as np
+
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment, PlotParams, \
     NeuronModelParams, SynapticParams
 from iteration_7_one_compartment_step_input.models_and_configs import single_compartment_with_nmda_and_logged_variables
