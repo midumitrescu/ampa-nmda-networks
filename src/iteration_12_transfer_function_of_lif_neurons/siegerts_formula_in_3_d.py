@@ -18,6 +18,7 @@ def rate_LIF_whitenoise(V_mean, tau, sigmaV, Vth, Vreset, tref):
     tau*dV/dt=-V+mu+sigma*xi(t)
     Vreset, and Vth
     """
+    # [V Mean, V Reset, V Th, V reset] = mV
     mu = (V_mean - Vreset) / (Vth - Vreset)
     s = np.sqrt(2) * sigmaV / (Vth - Vreset)
     a1 = (mu - 1) / s
@@ -27,41 +28,6 @@ def rate_LIF_whitenoise(V_mean, tau, sigmaV, Vth, Vreset, tref):
     T = T * np.sqrt(np.pi)
     return 1. / (T * tau + tref)
 
-
-def plot_2_d():
-    L = 1001  # #datapoints
-    mu = np.linspace(0, 30, L)
-    sigmaV = [0.01, 0.5, 1., 2., 4., 6.]
-    rate = np.zeros((len(sigmaV), L))
-
-    taum = 0.02  # seconds
-    Vth = 15.0  # mV
-    Vreset = 0.  # mV
-    tref = 0.002  # absolute refractory period in s
-
-    for i in range(len(sigmaV)):
-        print(sigmaV[i])
-        for j in range(L):
-            rate[i, j] = rate_LIF_whitenoise(mu[j], taum, sigmaV[i], Vth, Vreset, tref)
-
-    # firing rate for sigma=0 (no noise)
-    rate_determ = np.zeros(L)
-    for j in range(L):
-        if mu[j] > Vth:
-            T = taum * np.log((mu[j] - Vreset) / (mu[j] - Vth))
-            rate_determ[j] = 1. / (T + tref)
-
-    plt.figure(1)
-    plt.clf()
-    plt.plot(mu, rate_determ, ls='--', color='k', label=r'$\sigma_V=0$mV')
-    for i in range(len(sigmaV)):
-        plt.plot(mu, rate[i], label=r'$\sigma_V=%g$mV' % (sigmaV[i],))
-    plt.xlabel(r'input $\mu$ [mV]')
-    plt.ylabel('firing rate [Hz]')
-    plt.legend(loc=0)
-    # plt.title(r'transfer function $F(\mu,\sigma_V)$')
-    plt.savefig('lif_transferfunc.svg')
-    plt.savefig('lif_transferfunc.png', dpi=200)
 
 def plot_3d_meshgrid():
     # axes

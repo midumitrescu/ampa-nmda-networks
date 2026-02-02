@@ -147,3 +147,16 @@ class SimulationsWithWangNumbers(unittest.TestCase):
     def test_call_one_mean_sigma_control_nmda(self):
         scan_mean_sigma_from_simulation(palmer_control, N_max=10_000)
         scan_mean_sigma_from_simulation(palmer_nmda_block, N_max=10_000)
+
+
+    def test_simulate_without_firing(self):
+        palmer_control_no_firing = palmer_control.with_properties({
+            "panel": "Control_no_firing",
+            "theta": 100
+        })
+        palmer_nmda_block_no_firing = palmer_nmda_block.with_properties({
+            "panel": "NMDA_block_no_firing",
+            "theta": 100
+        })
+        scan_mean_sigma_from_simulation(palmer_control_no_firing, N_max=10_000)
+        scan_mean_sigma_from_simulation(palmer_nmda_block_no_firing, N_max=10_000)

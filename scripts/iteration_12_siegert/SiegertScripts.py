@@ -4,7 +4,7 @@ import unittest
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from brian2 import mV, ms, nsiemens
+from brian2 import mV, ms, nsiemens, second
 from joblib import delayed, Parallel
 from loguru import logger
 
@@ -23,8 +23,8 @@ from iteration_8_compute_mean_steady_state.scripts_with_wang_numbers import palm
 
 
 def compute_siegert_firing_rate(mu, sigma, tau_0_membrane, experiment: Experiment):
-    return rate_LIF_whitenoise(mu / mV, tau_0_membrane / ms, sigma / mV, experiment.neuron_params.theta / mV,
-                               experiment.neuron_params.V_r / mV, experiment.neuron_params.tau_rp / ms)
+    return rate_LIF_whitenoise(mu / mV, tau_0_membrane / second, sigma / mV, experiment.neuron_params.theta / mV,
+                               experiment.neuron_params.V_r / mV, experiment.neuron_params.tau_rp / second)
 
 
 def mean_and_sigma(n, up_state_base: dict, base: Experiment):
@@ -137,7 +137,7 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
 
         for max_n in [100, 2000, 4000, 6000, 10_000]:
             df = self.compute_theoretical_mean_sigma_and_rate(max_n, base=palmer_control)
-            self.plot_for_N(df=df, base=palmer_control, plot_simulation=False)
+            #self.plot_for_N(df=df, base=palmer_control, plot_simulation=False)
             self.plot_for_N(df=df, base=palmer_control, plot_simulation=True)
 
 
@@ -173,6 +173,9 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
 
 
         # Predicted firing rate
+        #axes[1, 0].plot(df.N, 1E3 * df.firing_rate_no_nmda, label="rate, no NDMA")
+        #axes[1, 0].plot(df.N, 1E3 * df.firing_rate_with_nmda, label="rate, with NDMA")
+
         axes[1, 0].plot(df.N, df.firing_rate_no_nmda, label="rate, no NDMA")
         axes[1, 0].plot(df.N, df.firing_rate_with_nmda, label="rate, with NDMA")
 
@@ -191,19 +194,20 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
             df_nmda_block_simulation = without_elements_after_n_max(df_nmda_block_simulation, df.N.max())
 
             axes[0, 0].plot(df_nmda_block_simulation.N, df_nmda_block_simulation.v_mean, label="Simulation, No NMDA",
-                         linestyle="--")
+                            linestyle="--")
             axes[0, 0].plot(df_control_simulation.N, df_control_simulation.v_mean, label="Simulation, With NMDA",
-                         linestyle="--")
+                            linestyle="--")
 
             axes[0, 1].plot(df_nmda_block_simulation.N, df_nmda_block_simulation.v_var,
-                         label="Simulation, Variance, no NMDA", linestyle="--")
+                            label="Simulation, Variance, no NMDA", linestyle="--")
             axes[0, 1].plot(df_control_simulation.N, df_control_simulation.v_var, label="Simulation, Variance, with NMDA",
-                         linestyle="--")
+                            linestyle="--")
 
             axes[1, 0].plot(df_nmda_block_simulation.N, df_nmda_block_simulation.mean_rate,
-                         label="Simulation, rate, no NDMA", linestyle="--")
+                            label="Simulation, rate, no NDMA", linestyle="--")
             axes[1, 0].plot(df_control_simulation.N, df_control_simulation.mean_rate, label="Simulation, rate, with NDMA",
-                         linestyle="--")
+                            linestyle="--")
+
 
 
         axes[0, 0].legend()
@@ -216,6 +220,16 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
             fig.suptitle("Firing rate predicted by Siegert's formula")
         plt.tight_layout()
         plt.show()
+
+        if plot_simulation:
+            var_no_nmda_computed = df.sigma_v_no_nmda.to_numpy() ** 2
+            var_no_nmda_simulated = df_nmda_block_simulation.v_var.to_numpy()
+
+            var_ratio = var_no_nmda_simulated / var_no_nmda_computed
+
+            plt.plot(df.N, var_ratio, label="Ratio")
+            plt.show()
+
 
     def compute_theoretical_mean_sigma_and_rate(self, max_n, base):
         up_state_base = {
@@ -271,6 +285,42 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
                 base.effective_time_constant_up_state.compute_mean_g_nmda() / nsiemens - steady_up_state_results.g_nmda_steady))
         print("x_nmda ", (base.effective_time_constant_up_state.mean_x_nmda() - steady_up_state_results.x_nmda_steady))
         print("s_nmda ", (base.effective_time_constant_up_state.mean_s_nmda() - steady_up_state_results.s_nmda_steady))
+
+    def test_plot_2_d(self):
+        L = 1001  # #datapoints
+        mu = np.linspace(0, 30, L)
+        sigmaV = [0.01, 0.5, 1., 2., 4., 6.]
+        rate = np.zeros((len(sigmaV), L))
+
+        taum = 0.02  # seconds
+        Vth = 15.0  # mV
+        Vreset = 0.  # mV
+        tref = 0.002  # absolute refractory period in s
+
+        for i in range(len(sigmaV)):
+            print(sigmaV[i])
+            for j in range(L):
+                rate[i, j] = rate_LIF_whitenoise(mu[j], taum, sigmaV[i], Vth, Vreset, tref)
+
+        # firing rate for sigma=0 (no noise)
+        rate_determ = np.zeros(L)
+        for j in range(L):
+            if mu[j] > Vth:
+                T = taum * np.log((mu[j] - Vreset) / (mu[j] - Vth))
+                rate_determ[j] = 1. / (T + tref)
+
+        plt.figure(1)
+        plt.clf()
+        plt.plot(mu, rate_determ, ls='--', color='k', label=r'$\sigma_V=0$mV')
+        for i in range(len(sigmaV)):
+            plt.plot(mu, rate[i], label=r'$\sigma_V=%g$mV' % (sigmaV[i],))
+        plt.xlabel(r'input $\mu$ [mV]')
+        plt.ylabel('firing rate [Hz]')
+        plt.legend(loc=0)
+        # plt.title(r'transfer function $F(\mu,\sigma_V)$')
+        #plt.savefig('lif_transferfunc.svg')
+        #plt.savefig('lif_transferfunc.png', dpi=200)
+        plt.show()
 
 
 if __name__ == '__main__':
