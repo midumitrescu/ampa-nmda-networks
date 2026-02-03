@@ -393,5 +393,10 @@ GEI = 0.3*nS * (2048/NE)
 GIE = 0.1*nS * (512/NI)
 GII = 1*nS * (512/NI)
 => assynnonous irregular
-
 '''
+
+for g_IE, g_EE_NMDA in [(1.9, 0.84),]:
+    for seed in [0, 1, 2, 3, 4, 5]:
+        current = AnExampleExperiment(G_EE_AMPA=0, G_EE_NMDA=g_EE_NMDA, G_EI=0.292, G_IE=g_IE, G_II=1, NE=800, NI=200,
+                                      label=f"Simulating a cue at 90 degrees. G_E_NMDA={g_EE_NMDA}, G_IE = {g_IE}", seed=seed)
+        execute_compte_experiment(example=current, seed=seed)
