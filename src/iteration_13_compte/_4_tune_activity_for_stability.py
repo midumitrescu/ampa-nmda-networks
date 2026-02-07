@@ -4,92 +4,6 @@ from brian2 import *
 from brian2.units.allunits import pampere
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-def plot_compte(sim_time, population_rate_monitor: PopulationRateMonitor, spikes_monitor: SpikeMonitor, currents_monitor: StateMonitor):
-    fig, axs = plt.subplots(
-        4, 1,
-        figsize=(20, 16),
-        sharex=True,
-        gridspec_kw={"height_ratios": [2.5, 2, 1, 1]}
-    )
-
-    im = axs[0].imshow(
-        rates_sorted,
-        aspect='auto',
-        origin='lower',
-        cmap='jet',
-        extent=[0, sim_time / msecond, 0, NE]
-    )
-
-    divider = make_axes_locatable(axs[0])
-    cax = divider.append_axes("right", size="2%", pad=0.05)
-    fig.colorbar(im, cax=cax, label="Firing rate (Hz)")
-    # cbar = fig.colorbar(im, ax=axs[0], pad=0.01)
-    # cbar.set_label('Firing rate (Hz)')
-
-    axs[0].set_ylabel('Neuron (sorted by cue)')
-    axs[0].set_title('Bump attractor dynamics')
-
-    neurons = [50]
-
-    # --- 2) Raster plot ---
-    axs[1].plot(
-        spike_monitor.t / ms,
-        spike_monitor.i,
-        ".",
-        markersize=1,
-        color="blue"
-    )
-
-    axs[1].set_xlabel('Time (s)')
-    axs[1].set_ylabel('Neuron index')
-
-    raster = to_spike_trains(spikes_monitor, neurons=neurons, sim_time=sim_time)
-    rates = raster_to_rates(raster, spikes_monitor.clock.dt)
-
-    axs[2].plot(
-        population_rate_monitor.t / ms,
-        population_rate_monitor.smooth_rate(width=5 * ms),
-        label="Population",
-        color="black",
-        linewidth=2
-    )
-    for neuron_index, rate in zip(neurons, rates):
-        axs[2].plot(
-            population_rate_monitor.t / ms,
-            rate,
-            label=f"Neuron {neuron_index}"
-        )
-
-
-    axs[2].set_ylabel('Rate (Hz)')
-    axs[2].legend(loc="upper right")
-
-    for neuron_index in neurons:
-        axs[3].plot(
-            currents_monitor.t / ms,
-            currents_monitor.I_AMPA[neuron_index] / pampere,
-            label=f"I AMPA, {neuron_index}",
-            alpha=0.6
-        )
-        axs[3].plot(
-            currents_monitor.t / ms,
-            currents_monitor.I_NMDA[neuron_index] / pampere,
-            label=f"I NMDA, {neuron_index}",
-            alpha=0.6
-        )
-        axs[3].plot(
-            currents_monitor.t / ms,
-            currents_monitor.I_GABA[neuron_index] / pampere,
-            label=f"I GABA, {neuron_index}",
-            alpha=0.6
-        )
-
-    axs[3].legend()
-    fig.suptitle(f"Simulation with seed {seed}")
-
-    plt.tight_layout()
-    fig.show()
-
 def to_spike_trains(spikemon: SpikeMonitor, neurons: list[int], sim_time):
     neurons = np.array(neurons)  # e.g. [3, 7, 12, 20]
     dt = spike_monitor.clock.dt
@@ -381,8 +295,6 @@ for seed in [8, 7, 4]:
     order = np.argsort(theta_E)
     rates_sorted = rates[order]
 
-
-
     plot_compte(sim_time=runtime, population_rate_monitor=population_rate_monitor, spikes_monitor=spike_monitor, currents_monitor=currents_monitor)
 
 '''
@@ -394,9 +306,10 @@ GIE = 0.1*nS * (512/NI)
 GII = 1*nS * (512/NI)
 => assynnonous irregular
 '''
-
+'''
 for g_IE, g_EE_NMDA in [(1.9, 0.84),]:
     for seed in [0, 1, 2, 3, 4, 5]:
         current = AnExampleExperiment(G_EE_AMPA=0, G_EE_NMDA=g_EE_NMDA, G_EI=0.292, G_IE=g_IE, G_II=1, NE=800, NI=200,
                                       label=f"Simulating a cue at 90 degrees. G_E_NMDA={g_EE_NMDA}, G_IE = {g_IE}", seed=seed)
         execute_compte_experiment(example=current, seed=seed)
+'''

@@ -1,7 +1,7 @@
 import sys
 import unittest
 
-from brian2 import ms
+from brian2 import ms, clear_cache
 from loguru import logger
 
 from iteration_12_siegert.df_utils import prepare_experiment_with_N_tot, filename_for_experiment, save_metadata_header, \
@@ -20,7 +20,6 @@ import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
 from tqdm import tqdm
-from io import StringIO
 
 
 def mean_and_sigma(n, up_state_base: dict, base: Experiment):
@@ -67,8 +66,9 @@ def mean_and_sigma(n, up_state_base: dict, base: Experiment):
     }
 
 
-def scan_mean_sigma_from_simulation(base: Experiment, output_dir="simulations", N_max=10_000,
+def scan_mean_sigma_from_simulation(base: Experiment, output_dir="simulations_2", N_max=10_000,
                                     batch_size=100):
+    clear_cache("cython")
     experiment = base.with_properties({
         Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD: ["x_nmda", "s_nmda", "g_e", "g_i", "g_nmda"],
         # "t_range": [0, 1000],
@@ -120,11 +120,12 @@ def scan_mean_sigma_from_simulation(base: Experiment, output_dir="simulations", 
     num_batches = int(np.ceil(len(n_s) / batch_size))
 
     for batch_idx in tqdm(range(num_batches), desc="Processing batches"):
+
         start = batch_idx * batch_size
         end = min(start + batch_size, len(n_s))
         batch_elements = n_s[start:end]
 
-        results = Parallel(n_jobs=-1)(
+        results = Parallel(n_jobs=-2)(
             delayed(lambda n: mean_and_sigma(n, up_state_base, experiment))(n) for n in batch_elements
         )
 

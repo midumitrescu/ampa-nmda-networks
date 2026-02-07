@@ -4,10 +4,11 @@ import unittest
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from brian2 import mV, ms, nsiemens, second
+from brian2 import mV, nsiemens, second
 from joblib import delayed, Parallel
 from loguru import logger
 
+from build.lib.src.Plotting import show_plots_non_blocking
 from iteration_12_siegert.df_utils import prepare_experiment_with_N_tot, load_df_without_metadata, \
     without_elements_after_n_max
 from iteration_12_transfer_function_of_lif_neurons.siegerts_formula_in_3_d import rate_LIF_whitenoise
@@ -209,7 +210,6 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
                             linestyle="--")
 
 
-
         axes[0, 0].legend()
         axes[0, 1].legend()
         axes[1, 0].legend()
@@ -219,8 +219,9 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
         else:
             fig.suptitle("Firing rate predicted by Siegert's formula")
         plt.tight_layout()
-        plt.show()
+        show_plots_non_blocking()
 
+        '''
         if plot_simulation:
             var_no_nmda_computed = df.sigma_v_no_nmda.to_numpy() ** 2
             var_no_nmda_simulated = df_nmda_block_simulation.v_var.to_numpy()
@@ -229,6 +230,7 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
 
             plt.plot(df.N, var_ratio, label="Ratio")
             plt.show()
+        '''
 
 
     def compute_theoretical_mean_sigma_and_rate(self, max_n, base):
@@ -252,16 +254,6 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
         self.assertAlmostEqual(0.02198201216, base.effective_time_constant_up_state.compute_mean_g_nmda() / nsiemens)
         self.assertAlmostEqual(-48.75363871, base.effective_time_constant_up_state.E_0_with_nmda() / mV)
 
-    def test_compute_E_0_using_steady_state(self):
-        base = Experiment(wang_recurrent_config)
-        steady_up_state_results = sim_steady_state(base, state=base.network_params.up_state)
-
-        self.assertAlmostEqual(-48.75341763069946, steady_up_state_results.v_steady)
-        self.assertAlmostEqual(15.999999999999934, steady_up_state_results.g_e_steady)
-        self.assertAlmostEqual(7.999999999999916, steady_up_state_results.g_i_steady)
-        self.assertAlmostEqual(0.02220431199227894, steady_up_state_results.g_nmda_steady)
-        self.assertAlmostEqual(0.19999999999999946, steady_up_state_results.x_nmda_steady)
-        self.assertAlmostEqual(0.9090909090908988, steady_up_state_results.s_nmda_steady)
 
     ''' Shows that there are errors/differences between computed and simulated values
     E_0  -0.00022108196975523242

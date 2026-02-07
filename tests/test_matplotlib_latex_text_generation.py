@@ -119,5 +119,19 @@ class ComplexLatexTextsTestCase(unittest.TestCase):
     Synapse: [$g_{\\mathrm{AMPA}}=2.52\\,\\mu\\mathrm{S}$, $g_{\\mathrm{GABA}}=2.52\\,\\mu\\mathrm{S}$, $g=1$]""", object_under_test.gen_plot_title())
 
 
+    def test_latex_text_generation_from_composite_strings(self):
+        r_in_theory_no_input = 0.0
+        r_in_sim_no_input_mean = 0.0001
+        r_in_sim_no_input_var = 0.123E-9
+
+        r_in_theory_up =15
+        r_in_sim_up_mean = 13.2
+        r_inup_up_var = 0.123E-9
+
+        plt.title(f"No input: {r"$R_\text{in, theory}=$"}={r_in_theory_no_input: .3f} MΩ. {r"$R_\text{in, sim}=$"}={r_in_sim_no_input_mean: .3f} MΩ. var={r_in_sim_no_input_var : 4f} \n"
+                     f"Up Steady-State: {r"$R_\text{in, theory}=$"}={r_in_theory_up: .3f} MΩ. {r"$R_\text{in, sim}=$"}={r_in_sim_up_mean: .3f} MΩ. var={r_inup_up_var: 4f}")
+
+        show_plots_non_blocking()
+
 if __name__ == '__main__':
     unittest.main()

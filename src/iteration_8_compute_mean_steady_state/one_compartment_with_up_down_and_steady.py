@@ -1,6 +1,7 @@
 import numpy as np
 from brian2 import plt, mpl, StateMonitor, mV, start_scope, defaultclock, kHz, NeuronGroup, run, \
-    Network, second, stop, ms, nS, nsiemens
+    Network, second, stop, ms, nS, nsiemens, Mohm
+from brian2.units.allunits import pampere
 from loguru import logger
 from matplotlib import gridspec
 from matplotlib.gridspec import SubplotSpec
@@ -21,7 +22,8 @@ def fmt_v_steadystate(state):
 
 class SteadyStateResults:
 
-    def __init__(self, steady_state_results: StateMonitor):
+    def __init__(self, experiment: Experiment, steady_state_results: StateMonitor):
+        self.experiment = experiment
         self.v_steady = steady_state_results[0].v[-1] / mV
         self.g_e_steady = steady_state_results[0].g_e[-1] / nsiemens
         self.g_i_steady = steady_state_results[0].g_i[-1] / nsiemens
@@ -29,11 +31,36 @@ class SteadyStateResults:
         self.x_nmda_steady = steady_state_results[0].x_nmda[-1]
         self.s_nmda_steady = steady_state_results[0].s_nmda[-1]
 
+        if self.experiment.current_clamp_params.i_inj / pampere == 0:
+            self.r_in = 1 / (self.experiment.neuron_params.g_L + self.g_e_steady * nsiemens + self.g_i_steady * nsiemens + self.g_nmda_steady * nsiemens) / Mohm
+        else:
+            self.r_in = (self.v_steady * mV - self.experiment.neuron_params.E_leak) / self.experiment.current_clamp_params.i_inj / Mohm
+
+    def recompute_r_in(self, other):
+        if self.experiment.current_clamp_params.i_inj / pampere != 0:
+            old = (self.v_steady * mV - other.v_steady * mV) / self.experiment.current_clamp_params.i_inj / Mohm
+            self.r_in = (self.v_steady - other.v_steady) / (self.experiment.current_clamp_params.i_inj / pampere) * 1000
+
+            print(f"XXXXXXX Delta in r_in is {old - self.r_in}")
+        return self
+
     def __str__(self):
         return (
             f"V = [{self.v_steady:.6f}], g_e = [{self.g_e_steady:.6f}], g_i = [{self.g_i_steady:.6f}], g_nmda = [{self.g_nmda_steady:.6f}], "
             f"x = [{self.x_nmda_steady:.6f}], s = [{self.s_nmda_steady:.6f}] ")
 
+    def to_dict(self): return {
+        "v_steady_mV": self.v_steady,
+        "g_e_steady_nS": self.g_e_steady,
+        "g_i_steady_nS": self.g_i_steady,
+        "g_nmda_steady_nS": self.g_nmda_steady,
+        "x_nmda_steady": self.x_nmda_steady,
+        "s_nmda_steady": self.s_nmda_steady,
+        "r_in_MOhm": self.r_in,
+    }
+
+class DetailedSteadyStateResults:
+    pass
 
 class SimulationResultsWithSteadyState(SimulationResults):
 
@@ -85,7 +112,58 @@ def simulate_with_up_and_down_state_and_nmda_and_steady_state(experiment: Experi
     return SimulationResultsWithSteadyState(simulation_results, steady_up_state_results, steady_down_state_results)
 
 
-def sim_steady_state(experiment: Experiment, state: State) -> SteadyStateResults:
+no_presynaptic_input = State(params={
+    "N": 0,
+    "nu": 0,
+    "N_nmda": 0,
+    "nu_nmda": 0,
+})
+
+def plot_internal_variables(states_monitor: StateMonitor):
+    """
+    Plot all recorded variables from a Brian2 StateMonitor
+    in stacked subplots. Each subplot title contains the
+    variable name and its final value.
+    """
+    variables = states_monitor.record_variables
+    t = states_monitor.t / ms
+    n_vars = len(variables)
+
+    units = {
+        "v": mV,
+        "g_e": nsiemens,
+        "g_i": nsiemens,
+        "g_nmda": nsiemens,
+        "x_nmda": 1,
+        "s_nmda": 1,
+    }
+
+    fig, axes = plt.subplots(
+        n_vars, 1,
+        figsize=(8, 2.5 * n_vars),
+        sharex=True
+    )
+
+    # Ensure axes is iterable even for 1 variable
+    if n_vars == 1:
+        axes = [axes]
+
+    for ax, var in zip(axes, variables):
+        data = getattr(states_monitor, var)[0]  # neuron 0
+        unit = units[var]
+        values = data / unit
+
+        final_value = values[-1]
+
+        ax.plot(t, values)
+        ax.set_ylabel(f"{var} [{unit}]")
+        ax.set_title(f"{var} (final = {final_value:.3g} {unit})")
+
+    axes[-1].set_xlabel("time [s]")
+    plt.tight_layout()
+    plt.show()
+
+def sim_steady_state(experiment: Experiment, state: State = no_presynaptic_input, plot_details=False) -> SteadyStateResults:
     start_scope()
 
     defaultclock.dt = experiment.sim_clock
@@ -122,19 +200,24 @@ def sim_steady_state(experiment: Experiment, state: State) -> SteadyStateResults
     N_N = state.N_NMDA
     r_nmda = state.nu_nmda
 
+    I_inj = experiment.current_clamp_params.i_inj
+
     neuron = NeuronGroup(1,
                          model=experiment.steady_state_model,
                          method="euler")
     neuron.v[:] = experiment.neuron_params.E_leak
-    v_monitor = StateMonitor(source=neuron,
+    states_monitor = StateMonitor(source=neuron,
                              variables=["v", "g_e", "g_i", "g_nmda", "x_nmda", "s_nmda"], record=True)
 
-    steady_state_network = Network([neuron, v_monitor])
+    steady_state_network = Network([neuron, states_monitor])
     reporting = "text" if experiment.in_testing else None
     run(1 * second, report=reporting, report_period=1 * second)
-    result = SteadyStateResults(v_monitor)
+
+    result = SteadyStateResults(experiment=experiment, steady_state_results=states_monitor)
     stop()
 
+    if plot_details:
+        plot_internal_variables(states_monitor)
 
     return result
 

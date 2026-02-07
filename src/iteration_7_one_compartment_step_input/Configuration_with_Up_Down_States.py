@@ -1,8 +1,10 @@
 import copy
 import enum
+import math
 
 import numpy as np
 from brian2 import ufarad, siemens, mV, ms, Hz, nS, nsiemens, mmole, kHz, psiemens
+from brian2.units.allunits import pampere
 from loguru import logger
 
 from iteration_8_compute_mean_steady_state.equations import sigmoid_v
@@ -105,28 +107,28 @@ class State:
 
         if self.KEY_N in params:
             self.N = params.get(State.KEY_N)
-            self.N_I = round(self.gamma / (1 + self.gamma) * self.N)
-            self.N_E = self.N - self.N_I
+            self.N_E = math.ceil(self.N / (1 + self.gamma))
+            self.N_I = self.N - self.N_E
         else:
             self.N_E = params.get(State.KEY_N_E, 10_000)
             self.N_I = round(self.gamma * self.N_E)
             self.N = self.N_E + self.N_I
 
         if self.KEY_N_NMDA in params:
-            self.N_NMDA = params.get(State.KEY_N_NMDA)
-            self.omega = self.N_NMDA / self.N
+            self.N_NMDA = params.get(State.KEY_N_NMDA) if self.N > 0 else 0
+            self.omega = self.N_NMDA / self.N if self.N > 0 else 0
         else:
             self.N_NMDA = int(self.omega * self.N)
 
         self.nu = params.get(State.KEY_NU, 0) * Hz
         self.nu_nmda = params.get(State.KEY_NU_NMDA, 0) * Hz
 
-        self.effective_timeconstant_estimation: EffectiveTimeConstantEstimation = None
-
         self.x_var_mult = params.get(State.KEY_X_VAR_MULT, 1)
 
     def gen_plot_title(self):
         return fr"$N_E={self.N_E}$, $N_I={self.N_I}$, $N_\mathrm{{NMDA}}={self.N_NMDA}$,  $\nu={self.nu}$, $\nu_\mathrm{{NMDA}}={self.nu_nmda}$, $\gamma={self.gamma}$"
+
+
 
 
 class NetworkParams:
@@ -156,6 +158,12 @@ class NetworkParams:
         return f"{self.__class__}({self.KEY_G}={self.g}, {self.KEY_GAMMA}={self.gamma}, {self.KEY_EPSILON}={self.epsilon}, {self.KEY_N_E}={self.N_E}, {self.KEY_N_I}={self.N_I}, \
                 N={self.N}, C_E={self.C_E}, {self.KEY_C_EXT}={self.C_ext})"
 
+class CurrentClampParams:
+
+    KEY_I_INJECTED = "I_CLAMP" # pico amperre
+
+    def __init__(self, params: dict):
+        self.i_inj = params.get(CurrentClampParams.KEY_I_INJECTED, 0) * pampere
 
 class NeuronModelParams:
     KEY_NEURON_C = "C"
@@ -404,7 +412,10 @@ class Experiment:
         self.network_params = NetworkParams(params)
         self.synaptic_params = SynapticParams(params, g=self.network_params.g)
         self.neuron_params = NeuronModelParams(params=params, network_params=self.network_params)
+        self.current_clamp_params = CurrentClampParams(params)
+
         self.plot_params = PlotParams(params)
+
 
         check_plot_times_inside_sim_time(self.plot_params, self.sim_time)
 
@@ -457,6 +468,8 @@ class Experiment:
     Neuron: [$C={self.neuron_params.C}$, $g_L={self.neuron_params.g_L}$, $\theta={self.neuron_params.theta}$, $V_R={self.neuron_params.V_r}$, $E_L={self.neuron_params.E_leak}$, $\tau_M={self.neuron_params.tau}$, $\tau_{{\mathrm{{ref}}}}={self.neuron_params.tau_rp}$]
     Synapse: [$g_{{\mathrm{{AMPA}}}}={self.synaptic_params.g_ampa:.2f}$, $g_{{\mathrm{{GABA}}}}={self.synaptic_params.g_gaba:.2f}$, $g={self.network_params.g}$]"""
 
+    def with_no_current(self):
+        return self.with_property(CurrentClampParams.KEY_I_INJECTED, 0)
 
 # Richardson Synaptic Shot Noise and Conductance Fluctuations Affect the Membrane Voltage with Equal Significance, 2005
 class EffectiveTimeConstantEstimation:

@@ -6,7 +6,7 @@ from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States im
 from iteration_7_one_compartment_step_input.models_and_configs import single_compartment_with_nmda_and_logged_variables
 
 steady_model = """
-dv/dt = 1/C * (- I_L - I_ampa - I_gaba - I_nmda): volt
+dv/dt = 1/C * (- I_L - I_ampa - I_gaba - I_nmda + I_inj): volt
 I_L = g_L * (v-E_leak): amp
 I_ampa = g_e * (v - E_ampa): amp
 I_gaba = g_i * (v - E_gaba): amp
@@ -21,6 +21,24 @@ sigmoid_v = 1/(1 + (MG_C/mmole)/3.57 * exp(-0.062*(v/mvolt))): 1
 
 g_nmda = g_nmda_max * sigmoid_v * s_nmda: siemens
 """
+
+steady_model_with_full_activation = """
+dv/dt = 1/C * (- I_L - I_ampa - I_gaba - I_nmda + I_inj): volt
+I_L = g_L * (v-E_leak): amp
+I_ampa = g_e * (v - E_ampa): amp
+I_gaba = g_i * (v - E_gaba): amp
+I_nmda = g_nmda * (v - E_nmda): amp
+
+dg_e/dt = -g_e / tau_ampa + g_ampa * N_E * r_e : siemens
+dg_i/dt = -g_i / tau_gaba + g_gaba * N_I * r_i : siemens
+
+dx_nmda/dt = - x_nmda / tau_nmda_rise + g_x * N_N * r_nmda: 1
+ds_nmda/dt = -s_nmda / tau_nmda_decay + alpha * x_nmda * (1 - s_nmda) : 1
+sigmoid_v = 1 : 1
+
+g_nmda = g_nmda_max * sigmoid_v * s_nmda: siemens
+"""
+
 wang_recurrent_config = {
 
     Experiment.KEY_IN_TESTING: True,
