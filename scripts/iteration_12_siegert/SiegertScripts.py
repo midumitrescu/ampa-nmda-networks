@@ -10,7 +10,7 @@ from loguru import logger
 
 from build.lib.src.Plotting import show_plots_non_blocking
 from iteration_12_siegert.df_utils import prepare_experiment_with_N_tot, load_df_without_metadata, \
-    without_elements_after_n_max
+    without_elements_after_n_max, with_elements_between
 from iteration_12_transfer_function_of_lif_neurons.siegerts_formula_in_3_d import rate_LIF_whitenoise
 from utils import ExtendedDict
 
@@ -133,10 +133,15 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
         plt.tight_layout()
         plt.show()
 
+    def test_plot_only_LIF_rate_theoretical_computation(self):
+        df = self.compute_theoretical_mean_sigma_and_rate(2500, base=palmer_control)
+        df = with_elements_between(df, 1700, 2200)
+        self.plot_for_N(df=df, base=palmer_control, plot_simulation=False)
+
 
     def test_plot_membrane_mean_and_std(self):
 
-        for max_n in [100, 2000, 4000, 6000, 10_000]:
+        for max_n in [500, 2000, 2500, 3000, 4000]:
             df = self.compute_theoretical_mean_sigma_and_rate(max_n, base=palmer_control)
             #self.plot_for_N(df=df, base=palmer_control, plot_simulation=False)
             self.plot_for_N(df=df, base=palmer_control, plot_simulation=True)
@@ -209,7 +214,6 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
             axes[1, 0].plot(df_control_simulation.N, df_control_simulation.mean_rate, label="Simulation, rate, with NDMA",
                             linestyle="--")
 
-
         axes[0, 0].legend()
         axes[0, 1].legend()
         axes[1, 0].legend()
@@ -220,17 +224,6 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
             fig.suptitle("Firing rate predicted by Siegert's formula")
         plt.tight_layout()
         show_plots_non_blocking()
-
-        '''
-        if plot_simulation:
-            var_no_nmda_computed = df.sigma_v_no_nmda.to_numpy() ** 2
-            var_no_nmda_simulated = df_nmda_block_simulation.v_var.to_numpy()
-
-            var_ratio = var_no_nmda_simulated / var_no_nmda_computed
-
-            plt.plot(df.N, var_ratio, label="Ratio")
-            plt.show()
-        '''
 
 
     def compute_theoretical_mean_sigma_and_rate(self, max_n, base):

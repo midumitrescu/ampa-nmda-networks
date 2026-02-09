@@ -3,6 +3,9 @@ import numpy as np
 from scipy.special import erfcx
 from scipy.integrate import quad
 
+from Plotting import show_plots_non_blocking
+
+
 def grad_mag(x, sigma, rate):
     dR_dsigma, dR_dmu = np.gradient(
         rate,
@@ -106,12 +109,47 @@ def plot_3d_meshgrid():
     plt.tight_layout()
     plt.show()
 
+def plot_1_d():
+    L = 1001  # #datapoints
+    mu = np.linspace(0, 30, L)
+    sigmaV = [0.5, 1., 2., 4., 6.]
+    rate = np.zeros((len(sigmaV), L))
+
+    taum = 0.02  # seconds
+    Vth = 15.0  # mV
+    Vreset = 0.  # mV
+    tref = 0.002  # absolute refractory period in s
+
+    for i in range(len(sigmaV)):
+        print(sigmaV[i])
+        for j in range(L):
+            rate[i, j] = rate_LIF_whitenoise(mu[j], taum, sigmaV[i], Vth, Vreset, tref)
+
+    # firing rate for sigma=0 (no noise)
+    rate_determ = np.zeros(L)
+    for j in range(L):
+        if mu[j] > Vth:
+            T = taum * np.log((mu[j] - Vreset) / (mu[j] - Vth))
+            rate_determ[j] = 1. / (T + tref)
+
+    plt.figure(1)
+    plt.clf()
+    plt.plot(mu, rate_determ, ls='--', color='k', label=r'$\sigma_V=0$mV')
+    for i in range(len(sigmaV)):
+        plt.plot(mu, rate[i], label=r'$\sigma_V=%g$mV' % (sigmaV[i],))
+    plt.xlabel(r'input $\mu$ [mV]')
+    plt.ylabel('firing rate [Hz]')
+    plt.legend(loc=0)
+    plt.title(r'transfer function $F(\mu,\sigma_V)$')
+    plt.tight_layout()
+    show_plots_non_blocking()
 
 
 
 #plot_3d_meshgrid()
 
 if __name__ == '__main__':
-    #plot_3d_meshgrid()
-    #plt.show()
+    plot_1_d()
+    plot_3d_meshgrid()
+    plt.show()
     pass

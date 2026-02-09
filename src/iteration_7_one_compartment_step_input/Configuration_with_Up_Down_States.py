@@ -115,7 +115,7 @@ class State:
             self.N = self.N_E + self.N_I
 
         if self.KEY_N_NMDA in params:
-            self.N_NMDA = params.get(State.KEY_N_NMDA) if self.N > 0 else 0
+            self.N_NMDA = params.get(State.KEY_N_NMDA, 0)
             self.omega = self.N_NMDA / self.N if self.N > 0 else 0
         else:
             self.N_NMDA = int(self.omega * self.N)

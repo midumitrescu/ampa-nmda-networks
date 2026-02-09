@@ -66,3 +66,13 @@ def find_last_index(csv_path, index_col):
 
 def without_elements_after_n_max(df: pd.DataFrame, max_n: int) -> pd.DataFrame:
     return df[df["N"].astype(int) <= max_n]
+
+def with_elements_between(df: pd.DataFrame, lower_bound: int = -1, upper_bound:int = -1) -> pd.DataFrame:
+    result = df.copy()
+
+    if lower_bound is not None and lower_bound >= 0:
+        result = result[result["N"].astype(int) >= lower_bound]
+    if upper_bound is not None and upper_bound >= 0 and upper_bound >= lower_bound:
+        result = result[result["N"].astype(int) <= upper_bound]
+
+    return result

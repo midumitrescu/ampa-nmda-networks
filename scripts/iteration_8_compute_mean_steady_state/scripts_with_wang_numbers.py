@@ -284,6 +284,29 @@ class ScriptsPalmerResultsWithoutNMDA(unittest.TestCase):
         self.assertEqual(81.5418709360165, res[0])
         self.assertEqual(81.54187093603468, res[1])
 
+    def test_plot_parameters(self):
+        palmer_experiment = (Experiment(wang_recurrent_config).with_properties({
+            "up_state":
+                {
+                    "N": 2000,
+                    "nu": 81.54187093603468,
+                    "N_nmda": 0,
+                },
+            "t_range": [[0, 10_000]],
+            PlotParams.KEY_WHAT_PLOTS_TO_SHOW:
+                [PlotParams.AvailablePlots.RASTER_AND_RATE]
+        }))
+
+        print('''
+        \multirow{4}{*}{Up state inputs}
+                        & $N$ & $2000$ \\
+                        & $\nu$ & $100\,\mathrm{Hz}$ \\
+                        & $N_{\mathrm{NMDA}}$ & $10$ \\
+                        & $\nu_{\mathrm{NMDA}}$ & $10\,\mathrm{Hz}$ \\
+                    \hline
+        ''')
+
+
 
 class ScriptsPalmerResultsWithNMDA(unittest.TestCase):
 
