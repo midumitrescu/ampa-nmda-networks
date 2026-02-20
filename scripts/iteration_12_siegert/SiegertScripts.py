@@ -7,6 +7,7 @@ import pandas as pd
 from brian2 import mV, nsiemens, second
 from joblib import delayed, Parallel
 from loguru import logger
+from scipy.special import assoc_legendre_p_all
 
 from build.lib.src.Plotting import show_plots_non_blocking
 from iteration_12_siegert.df_utils import prepare_experiment_with_N_tot, load_df_without_metadata, \
@@ -50,6 +51,15 @@ def mean_and_sigma(n, up_state_base: dict, base: Experiment):
         "sigma_v_with_nmda": sigma_v_with_nmda / mV,
         "firing_rate_with_nmda": siegert_firing_rate_with_nmda
     })
+
+
+def dr_over_d_mu(mean_v, mu):
+    d_rate = np.diff(mean_v.to_numpy())
+    d_mu = np.diff(mu.to_numpy())
+    result = d_rate / d_mu
+    return result
+
+
 
 class ScriptsNMDAWithWangNumbers(unittest.TestCase):
 
@@ -149,6 +159,14 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
 
     def plot_for_N(self, df, base, plot_simulation=True):
 
+        plt.rcParams.update({
+            "font.size": 16,
+            "axes.titlesize": 18,
+            "axes.labelsize": 16,
+            "legend.fontsize": 14,
+            "figure.titlesize": 20
+        })
+
         fig, axes = plt.subplots(
             nrows=2,
             ncols=2,
@@ -177,7 +195,6 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
         axes[0, 1].set_title("$V_m$ Variance")
         axes[0, 1].set_ylabel("(mV)")
 
-
         # Predicted firing rate
         #axes[1, 0].plot(df.N, 1E3 * df.firing_rate_no_nmda, label="rate, no NDMA")
         #axes[1, 0].plot(df.N, 1E3 * df.firing_rate_with_nmda, label="rate, with NDMA")
@@ -185,10 +202,16 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
         axes[1, 0].plot(df.N, df.firing_rate_no_nmda, label="rate, no NDMA")
         axes[1, 0].plot(df.N, df.firing_rate_with_nmda, label="rate, with NDMA")
 
-
         axes[1, 0].set_title("Predicted firing rate")
         axes[1, 0].set_ylabel("Hz")
         axes[1, 0].set_xlabel("N")
+
+        axes[1, 1].plot(df.N[1:], dr_over_d_mu(df.firing_rate_with_nmda, df.mu_v_no_nmda), label="with NMDA", alpha=0.55, lw=2)
+        axes[1, 1].plot(df.N[1:], dr_over_d_mu(df.firing_rate_with_nmda, df.mu_v_with_nmda), label="without NMDA", alpha=0.55)
+
+        axes[1, 1].set_title(r"dr / d$\mu$")
+        axes[1, 1].set_xlabel("N")
+        axes[1, 1].set_ylabel("[Hz/mV]")
 
         if plot_simulation:
             file_control_simulation = "simulations/Control_N_10000_T_60000.csv"
@@ -210,13 +233,19 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
                             linestyle="--")
 
             axes[1, 0].plot(df_nmda_block_simulation.N, df_nmda_block_simulation.mean_rate,
-                            label="Simulation, rate, no NDMA", linestyle="--")
+                            label="Simulation, rate, no NDMA", linestyle="--", alpha=0.5)
             axes[1, 0].plot(df_control_simulation.N, df_control_simulation.mean_rate, label="Simulation, rate, with NDMA",
-                            linestyle="--")
+                            linestyle="--", alpha=0.5)
+
+            #axes[1, 1].plot(df.N[1:], dr_over_d_mu(df_control_simulation.mean_rate, df_control_simulation.v_mean), label="with NMDA",
+            #                alpha=0.55, lw=2)
+            #axes[1, 1].plot(df.N[1:], dr_over_d_mu(df_nmda_block_simulation.mean_rate, df_nmda_block_simulation.v_mean), label="without NMDA",
+            #                alpha=0.55)
 
         axes[0, 0].legend()
-        axes[0, 1].legend()
+        axes[0, 1].legend(loc="upper left")
         axes[1, 0].legend()
+        axes[1, 1].legend()
 
         if plot_simulation:
             fig.suptitle("Firing rate predicted by Siegert's formula vs brian2 simulation")
@@ -224,7 +253,6 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
             fig.suptitle("Firing rate predicted by Siegert's formula")
         plt.tight_layout()
         show_plots_non_blocking()
-
 
     def compute_theoretical_mean_sigma_and_rate(self, max_n, base):
         up_state_base = {

@@ -101,13 +101,13 @@ def run_one_batch(elems, up_state_base: dict, experiment_base: Experiment):
     return pd.DataFrame(results)
 
 
-def scan_n_nmda_and_nu_nmda_simulation(base: Experiment, output_dir="simulations_2", N_nmda_max=100, nu_nmda_max=10,
+def scan_n_nmda_and_nu_nmda_simulation(base: Experiment, output_dir="correlations", N_nmda_max=100, nu_nmda_max=10,
                                        batch_size=100):
     clear_cache("cython")
     experiment = base.with_properties({
         Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD: ["x_nmda", "s_nmda", "g_nmda"],
-        "t_range": [0, 1000],
-        #"t_range": [0, 60 * 1000],
+        #"t_range": [0, 100],
+        "t_range": [0, 60 * 1000],
         "in_testing": False
     })
     up_state_base = experiment.network_params.up_state.params
@@ -120,17 +120,17 @@ def scan_n_nmda_and_nu_nmda_simulation(base: Experiment, output_dir="simulations
     n_scan = np.arange(1, N_nmda_max)
     nu_scan = np.arange(0, nu_nmda_max + 0.1, step=0.1)
 
-    all_combos = itertools.product(n_scan, nu_scan)
+    all_combos = list(itertools.product(n_scan, nu_scan))
     number_of_simulations = len(n_scan) * len(nu_scan)
 
     if not os.path.exists(file_name):
         # Fresh run
         save_metadata_header(file_name, metadata)
-        start_idx = 1
+        start_idx = 0
         write_header = True
     else:
         # Resume run
-        start_idx = find_last_index(file_name, INDEX_COLUMN_NAME) + 1
+        start_idx = find_last_index(file_name, INDEX_COLUMN_NAME)
         write_header = False
 
     if start_idx >= number_of_simulations:
@@ -142,16 +142,16 @@ def scan_n_nmda_and_nu_nmda_simulation(base: Experiment, output_dir="simulations
 
     for batch_idx in tqdm(range(num_batches), desc="Processing batches"):
         start = batch_idx * batch_size
-        if start_idx >=  start:
+        if start_idx >  start:
             print(f"Batch {batch_idx} was already processed")
             continue
 
         end = min(start + batch_size, number_of_simulations)
-        batch_elements = list(all_combos)[start:end]
+        batch_elements = all_combos[start:end]
 
         batch_df = run_one_batch(elems = batch_elements, up_state_base = up_state_base, experiment_base = experiment)
         batch_df[INDEX_COLUMN_NAME] = np.arange(start, end)
-
+        batch_df = batch_df[["index", *batch_df.columns.drop("index")]]
 
         batch_df.to_csv(
             file_name,
@@ -207,5 +207,8 @@ class SimulationsWithWangNumbers(unittest.TestCase):
         show_plots_non_blocking()
 
     def test_run_simulation(self):
-        scan_n_nmda_and_nu_nmda_simulation(base=palmer_nmda_block).with_property("panel", "x_s_correlation")
+        scan_n_nmda_and_nu_nmda_simulation(base=palmer_nmda_block.with_property("panel", "x_s_correlation"), batch_size=50)
+
+    def plot_simulation(self):
+        pass
 
