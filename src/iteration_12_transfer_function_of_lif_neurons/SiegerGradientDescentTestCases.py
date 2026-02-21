@@ -5,7 +5,9 @@ import numpy as np
 from brian2 import mV, second, ms, Hz, have_same_dimensions, is_dimensionless
 
 from iteration_12_transfer_function_of_lif_neurons.SiegertGradientDescent import rate_LIF_whitenoise, \
-    integration_limits, SiegertGradientDescent, create_anneal_decay_schedule
+    integration_limits, SiegertGradientDescent, create_anneal_decay_schedule, plot_grad_descent
+from iteration_8_compute_mean_steady_state.models_and_configs import palmer_experiment_0_1_Hz_with_NMDA_block
+from iteration_8_compute_mean_steady_state.scripts_with_wang_numbers import palmer_control
 
 tau_m = 20 * ms
 mu = -55 * mV
@@ -18,7 +20,7 @@ r_target = 0.3 * Hz
 
 learning_rate=1e-3 * (mV * second)**2
 
-class MyTestCase(unittest.TestCase):
+class GradientDescentTestCases(unittest.TestCase):
 
     def test_rate_LIF_plots_correctly_tilos_version(self):
         L = 1001  # #datapoints
@@ -89,9 +91,42 @@ class MyTestCase(unittest.TestCase):
 
         plt.show()
 
+    def test_plot_sigma_vs_rate(self):
+        mu = np.linspace(-55, -40, 5) * mV
+        sigmaV = np.linspace(0, 10, num=1000) * mV
+
+        taum = 20 * ms
+        Vth = -40 * mV
+        Vreset = -50. * mV
+        tref = 2 * ms
+
+        rate_sigma = np.zeros((len(mu), len(sigmaV)))
+
+        for i in range(len(mu)):
+            for j in range(len(sigmaV)):
+                rate_sigma[i, j] = rate_LIF_whitenoise(
+                    mu[i], taum, sigmaV[j], Vth, Vreset, tref
+                )
+
+        # Plot
+        for i in range(len(mu)):
+            plt.plot(sigmaV / mV,
+                     rate_sigma[i] / Hz,
+                     label=r'$\mu=%g$ mV' % (mu[i] / mV,))
+
+        # Horizontal reference lines
+        plt.axhline(y=0.05, color='orange', linestyle='-', label='Mk801')
+        plt.axhline(y=0.3, color='black', linestyle='-', label='Control')
+
+        plt.xlabel(r'noise $\sigma_V$ [mV]')
+        plt.ylabel('firing rate [Hz]')
+        #plt.ylim(0, 0.5)
+        plt.legend(loc=0)
+        plt.show()
+
     def test_limit_units(self):
 
-        object_under_test = SiegertGradientDescent(tau_m=tau_m, theta = theta, Vreset=v_reset, tau_ref = tau_ref)
+        object_under_test = SiegertGradientDescent(tau_m=tau_m, theta = theta, v_reset=v_reset, tau_ref = tau_ref)
 
         self.assertTrue(have_same_dimensions(1*mV, mu))
 
@@ -103,7 +138,7 @@ class MyTestCase(unittest.TestCase):
         self.assertTrue(is_dimensionless(object_under_test.phi(upper_limit)))
 
     def test_units_of_gradient_Loss(self):
-        object_under_test = SiegertGradientDescent(tau_m=tau_m, theta=theta, Vreset=v_reset, tau_ref=tau_ref)
+        object_under_test = SiegertGradientDescent(tau_m=tau_m, theta=theta, v_reset=v_reset, tau_ref=tau_ref)
 
         self.assertTrue(have_same_dimensions(1*Hz, rate_LIF_whitenoise(mu = mu, tau_membrane=tau_m, sigma_v=sigma, theta=theta, V_reset=v_reset, tau_ref=tau_ref)))
         self.assertTrue(have_same_dimensions(1*Hz, rate_LIF_whitenoise(mu = mu, tau_membrane=tau_m, sigma_v=sigma, theta=theta, V_reset=v_reset, tau_ref=tau_ref) - 0.05 * Hz))
@@ -141,8 +176,61 @@ class MyTestCase(unittest.TestCase):
         axes[1].grid(True, alpha=0.3, which='both')
         axes[1].legend()
 
+
         plt.tight_layout()
         plt.show()
+
+
+    def test_grad_descent_0_05_Hz(self):
+        experiment = palmer_experiment_0_1_Hz_with_NMDA_block
+
+        r_target = 0.05 * Hz
+        solver = SiegertGradientDescent(tau_m=experiment.effective_time_constant_up_state.tau_eff(),
+                                        theta=experiment.neuron_params.theta,
+                                        v_reset=experiment.neuron_params.V_r,
+                                        tau_ref=experiment.neuron_params.tau_rp, unit='mV')
+
+        # Initial guesses (in mV) - adjusted for normalized form
+        mu_0, sigma_0 = -56 * mV, 2.5 * mV
+
+        ''' def find_parameters(self, r_target, mu_0, sigma_0,
+                        learning_rate=1e-3 * (mV * second) ** 2, n_steps=5000, anneal_schedule=None,
+                        tolerance=1e-8 * Hz ** 2):'''
+        mu_sol, sigma_sol, history = solver.find_parameters(
+            r_target=r_target,
+            mu_0=mu_0,
+            sigma_0=sigma_0,
+            learning_rate=1e-2 * (mV * second) ** 2,
+            anneal_schedule=None,
+            n_steps=10_000
+        )
+
+        plot_grad_descent(history=history, r_target=r_target)
+
+    def test_grad_palmer_control(self):
+        experiment = palmer_control
+
+        r_target = 0.3 * Hz
+        solver = SiegertGradientDescent(tau_m=experiment.effective_time_constant_up_state.tau_eff(),
+                                        theta=experiment.neuron_params.theta,
+                                        v_reset=experiment.neuron_params.V_r,
+                                        tau_ref=experiment.neuron_params.tau_rp, unit='mV')
+
+        # Initial guesses (in mV) - adjusted for normalized form
+        mu_0, sigma_0 = -56 * mV, 2.5 * mV
+
+        ''' def find_parameters(self, r_target, mu_0, sigma_0,
+                        learning_rate=1e-3 * (mV * second) ** 2, n_steps=5000, anneal_schedule=None,
+                        tolerance=1e-8 * Hz ** 2):'''
+        mu_sol, sigma_sol, history = solver.find_parameters(
+            r_target=r_target,
+            mu_0=mu_0,
+            sigma_0=sigma_0,
+            anneal_schedule=None,
+            n_steps=10_000
+        )
+
+        plot_grad_descent(history=history, r_target=r_target)
 
 
 if __name__ == '__main__':
