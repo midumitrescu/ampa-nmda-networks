@@ -1,6 +1,8 @@
 from _pytest import unittest
 from brian2 import mV, Hz
+from joblib import Parallel, delayed
 
+from build.lib.src.Plotting import show_plots_non_blocking
 from iteration_12_transfer_function_of_lif_neurons.SiegertGradientDescent import SiegertGradientDescent
 from iteration_8_compute_mean_steady_state.scripts_with_wang_numbers import palmer_control
 
@@ -40,20 +42,29 @@ def plot_loss_landscape_3d_with_valley(solver, r_target, mu_range, sigma_range,
     sigma_grid = np.linspace(sigma_range[0], sigma_range[1], resolution)
     Mu, Sigma = np.meshgrid(mu_grid, sigma_grid)
 
-    # Compute loss
-    loss_grid = np.zeros_like(Mu)
-    rate_grid = np.zeros_like(Mu)
+    mu_flat = Mu.flatten()
+    sigma_flat = Sigma.flatten()
 
-    for i in range(resolution):
-        for j in range(resolution):
-            F = solver.firing_rate(Mu[j, i] * mV, Sigma[j, i] * mV)
-            if F is None or np.isnan(F/Hz):
-                F = old_F
-            else:
-                old_F = F
+    def compute_flat(k):
+        F = solver.firing_rate(mu_flat[k] * mV, sigma_flat[k] * mV)
+        F_val = F / Hz
+        if not np.isfinite(F_val):
+            return np.nan, np.nan
+        loss = 0.5 * (F_val - r_target / Hz) ** 2
+        return F_val, loss
 
-            rate_grid[j, i] = F / Hz
-            loss_grid[j, i] = 0.5 * ((F - r_target) / Hz) ** 2
+    results = Parallel(n_jobs=-1)(
+        delayed(compute_flat)(k) for k in range(len(mu_flat))
+    )
+
+    rate_vals, loss_vals = zip(*results)
+
+    rate_grid = np.array(rate_vals).reshape(Mu.shape)
+    loss_grid = np.array(loss_vals).reshape(Mu.shape)
+
+    mask = ~np.isfinite(loss_grid)
+    loss_grid[mask] = np.nanmax(loss_grid)
+    rate_grid[mask] = np.nan
 
     target_rate = r_target / Hz
 
@@ -63,23 +74,24 @@ def plot_loss_landscape_3d_with_valley(solver, r_target, mu_range, sigma_range,
     print("Min value:", np.nanmin(loss_grid))
     print("Max value:", np.nanmax(loss_grid))
     # Create figure with two subplots
-    fig = plt.figure(figsize=(18, 8))
-
-    # Plot 1: Log scale with clipping to see valley
-    ax1 = fig.add_subplot(121, projection='3d')
+    fig = plt.figure(figsize=(8, 8))
+    ax = fig.add_subplot(1, 1, 1, projection='3d')
 
     # Clip extremely high values to reveal the valley
-    clip_percentile = 90  # Clip top 10%
+    clip_percentile = 50  # Clip top 10%
     vmax = np.percentile(loss_grid, clip_percentile)
     loss_clipped = np.clip(loss_grid, 0, vmax)
 
     # Use log scale for better contrast
-    loss_log = np.log10(loss_clipped + 1e-10)
+    loss_log = np.log(loss_clipped + 1e-10)
 
     # Plot surface
-    surf1 = ax1.plot_surface(Mu, Sigma, loss_log,
+    surf1 = ax.plot_surface(Mu, Sigma, loss_log,
                              cmap=cm.viridis, alpha=0.9,
                              linewidth=0, antialiased=True)
+
+    cbar = fig.colorbar(surf1, ax=ax, shrink=0.6, pad=0.1)
+    cbar.set_label('log(Loss)', fontsize=12)
 
     # Find and plot solution curve
     tolerance = 0.05 * target_rate
@@ -90,56 +102,16 @@ def plot_loss_landscape_3d_with_valley(solver, r_target, mu_range, sigma_range,
         curve_sigma = Sigma[mask]
         curve_loss_log = loss_log[mask]
 
-        ax1.scatter(curve_mu, curve_sigma, curve_loss_log,
+        ax.scatter(curve_mu, curve_sigma, curve_loss_log,
                     c='red', s=30, alpha=1, label=f'F = {target_rate} Hz')
 
-    ax1.set_xlabel('$\mu$ (mV)')
-    ax1.set_ylabel('$\sigma$ (mV)')
-    ax1.set_zlabel('log10(Loss)')
-    ax1.set_title(f'3D Loss Landscape (log10 scale, clipped top {100 - clip_percentile}%)')
-    ax1.legend()
+    ax.set_xlabel('$\mu$ (mV)')
+    ax.set_ylabel('$\sigma$ (mV)')
+    ax.set_zlabel('$\ln\left(r(\mu, \sigma)-r_0\\right)^2$)')
+    ax.set_title(f'Loss function $\left(r(\mu, \sigma)-r_0\\right)^2$ (log scale)')
+    ax.legend()
 
-    # Plot 2: Zoomed view around the valley
-    ax2 = fig.add_subplot(122, projection='3d')
-
-    # Find region around solution curve
-    if np.any(mask):
-        mu_curve_avg = np.mean(curve_mu)
-        sigma_curve_avg = np.mean(curve_sigma)
-
-        # Zoom to ±20% around the curve
-        mu_width = (mu_range[1] - mu_range[0]) * 0.3
-        sigma_width = (sigma_range[1] - sigma_range[0]) * 0.3
-
-        mu_zoom = (mu_curve_avg - mu_width, mu_curve_avg + mu_width)
-        sigma_zoom = (sigma_curve_avg - sigma_width, sigma_curve_avg + sigma_width)
-
-        # Create zoom mask
-        zoom_mask = (Mu >= mu_zoom[0]) & (Mu <= mu_zoom[1]) & \
-                    (Sigma >= sigma_zoom[0]) & (Sigma <= sigma_zoom[1])
-
-        # Apply zoom mask
-        Mu_zoom = np.ma.masked_where(~zoom_mask, Mu)
-        Sigma_zoom = np.ma.masked_where(~zoom_mask, Sigma)
-        Loss_zoom = np.ma.masked_where(~zoom_mask, loss_log)
-
-        surf2 = ax2.plot_surface(Mu_zoom, Sigma_zoom, Loss_zoom,
-                                 cmap=cm.plasma, alpha=0.9,
-                                 linewidth=0, antialiased=True)
-
-        # Plot curve in zoomed region
-        mask_zoom = mask & zoom_mask
-        if np.any(mask_zoom):
-            ax2.scatter(Mu[mask_zoom], Sigma[mask_zoom], loss_log[mask_zoom],
-                        c='red', s=50, alpha=1)
-
-    ax2.set_xlabel('$\mu$ (mV)')
-    ax2.set_ylabel('$\sigma$ (mV)')
-    ax2.set_zlabel('log10(Loss)')
-    ax2.set_title('Zoomed view around solution curve')
-
-    plt.tight_layout()
-    plt.show()
+    show_plots_non_blocking()
 
     return fig
 
@@ -403,12 +375,9 @@ class MyTestCase(unittest.TestCase):
                                         v_reset=experiment.neuron_params.V_r,
                                         tau_ref=experiment.neuron_params.tau_rp, unit='mV')
 
-        # Initial guesses (in mV) - adjusted for normalized form
-        mu_0, sigma_0 = -56 * mV, 2.5 * mV
-
         fig = plot_loss_landscape_3d_with_valley(
             solver, r_target, (-60, -45), (0, 6),
-            resolution=200, target_rate_Hz=0.3
+            resolution=1_000,
         )
 
         fig.show()

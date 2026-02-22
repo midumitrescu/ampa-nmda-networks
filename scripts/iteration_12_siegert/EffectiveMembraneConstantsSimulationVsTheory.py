@@ -55,7 +55,7 @@ def effective_time_constant_estimation(n, up_state_base: dict, base: Experiment)
         "g_nmda_mean": exp.effective_time_constant_up_state.compute_mean_g_nmda() / nsiemens,
         "g_e_var": (exp.effective_time_constant_up_state.std_excitatory_conductance() / nsiemens)**2,
         "g_i_var": (exp.effective_time_constant_up_state.std_inhibitory_conductance() / nsiemens)**2,
-        "g_nmda_var": (exp.effective_time_constant_up_state.std_nmda() / nsiemens)**2,
+        "g_nmda_var": (exp.effective_time_constant_up_state.std_g_nmda() / nsiemens) ** 2,
     })
 
 def compute_theoretical_mean_sigma_and_rate(max_n, base):

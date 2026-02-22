@@ -566,6 +566,11 @@ class EffectiveTimeConstantEstimation:
         return 1 - 1 / (
                 self.config.synaptic_params.alpha_nmda * self.config.synaptic_params.tau_nmda_decay * mean_x_nmda)
 
+    def std_x_nmda(self):
+        return self.config.synaptic_params.g_x_nmda * np.sqrt(
+            1 / 2 * self.config.synaptic_params.tau_nmda_rise * self.state.N_NMDA * self.state.nu_nmda
+        )
+
     def mean_total_conductance_with_nmda(self):
         g_nmda = self.compute_mean_g_nmda()
 
@@ -615,7 +620,7 @@ class EffectiveTimeConstantEstimation:
                     1 - self.mean_x_nmda()) * tau_s * self.config.synaptic_params.tau_nmda_rise / tau_s * self.config.synaptic_params.tau_nmda_decay * np.sqrt(
             in_sqrt)
 
-    def std_nmda(self):
+    def std_g_nmda(self):
         return self.config.synaptic_params.g_nmda * sigmoid_v(self.config, self.E_0_with_nmda()) * self.std_s_nmda()
 
     def std_voltage_with_nmda(self):
@@ -628,7 +633,7 @@ class EffectiveTimeConstantEstimation:
 
         s_e = self.std_excitatory_conductance()
         s_i = self.std_inhibitory_conductance()
-        s_n = self.std_nmda()
+        s_n = self.std_g_nmda()
 
         E_0 = self.E_0()
         E_e = self.config.synaptic_params.e_ampa
@@ -639,3 +644,28 @@ class EffectiveTimeConstantEstimation:
             (s_e / g_0) ** 2 * (E_e - E_0) ** 2 * (tau_e / (tau_e + tau_0)) + (s_i / g_0) ** 2 * (E_i - E_0) ** 2 * (
                     tau_i / (tau_i + tau_0)) + (s_n / g_0)**2 * (E_e - E_0)**2 * ( tau_n / (tau_n + tau_0))
         )
+
+    def tau_eff(self):
+        return self.config.neuron_params.C / self.mean_total_conductance()
+
+    def crazy_s_nmda_mean_and_variance(self):
+
+        tau_rise = self.config.synaptic_params.tau_nmda_rise
+        tau_decay = self.config.synaptic_params.tau_nmda_decay
+        alpha = self.config.synaptic_params.alpha_nmda
+        """
+        Returns mean and variance of NMDA gating variable s.
+        """
+        mu_x = self.mean_x_nmda()
+        mu_s = (alpha * tau_decay * mu_x) / (1 + alpha * tau_decay * mu_x)
+
+        var_x = self.std_x_nmda()**2
+
+        # Effective rate constant for s fluctuations
+        gamma = 1 / tau_decay + alpha * mu_x
+
+        # Simplified variance formula (from solving covariance)
+        # This is an approximation valid for small fluctuations
+        var_s = (alpha * (1 - mu_s)) ** 2 * var_x * tau_rise / (gamma * tau_rise + 1)
+
+        return mu_s, var_s

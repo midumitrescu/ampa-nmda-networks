@@ -5,11 +5,11 @@ from brian2 import kHz, mV, nS
 
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment, PlotParams, \
     SynapticParams, State
+from iteration_8_compute_mean_steady_state.equations import sigmoid_v
 from iteration_8_compute_mean_steady_state.grid_computations import \
     sim_and_plot_experiment_grid_with_increasing_nmda_input_and_steady_state
 from iteration_8_compute_mean_steady_state.one_compartment_with_up_down_and_steady import sim_and_plot_up_down, \
     sim_steady_state
-from iteration_8_compute_mean_steady_state.scripts_with_wang_numbers import sigmoid_v
 from scripts.iteration_8_compute_mean_steady_state.scripts_with_wang_numbers import wang_recurrent_config
 
 wang_recurrent_config = Experiment(wang_recurrent_config).with_property("t_range",  [[0, 100]]).params

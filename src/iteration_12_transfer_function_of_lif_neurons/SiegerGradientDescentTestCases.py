@@ -53,6 +53,21 @@ class GradientDescentTestCases(unittest.TestCase):
         plt.legend(loc=0)
         plt.show()
 
+    def test_rate_LIF_white_noise_can_handle_zero_noise(self):
+
+        mu = -35 * mV
+
+        T = tau_m * np.log((mu - v_reset) / (mu - theta))
+        rate_determ = 1. / (T + tau_ref)
+
+        self.assertEqual(rate_determ / Hz, rate_LIF_whitenoise(mu, tau_membrane=tau_m, sigma_v=0*mV, theta=theta, tau_ref=tau_ref, V_reset=v_reset) / Hz)
+
+    def test_rate_LIF_whitenoise_for_zero_noise_and_subthreshold_mean(self):
+        mean = -50.00000000034059 * mV
+
+        print(rate_LIF_whitenoise(mean, tau_membrane=20*ms, sigma_v=0*mV, theta=-40*mV, tau_ref=2*ms, V_reset=-55*mV) / Hz)
+
+
     def test_rate_LIF_plots_correctly(self):
         L = 1001  # #datapoints
         mu = np.linspace(-55, -35, L) * mV

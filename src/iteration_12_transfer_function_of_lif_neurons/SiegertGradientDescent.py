@@ -47,16 +47,34 @@ def rate_LIF_whitenoise(mu, tau_membrane, sigma_v, theta, V_reset, tau_ref):
     --------
     Brian2 quantity (Hz) - firing rate
     """
+    if np.abs(sigma_v / mV) < 1E-10:
+        if mu > theta:
+            T = tau_membrane * np.log((mu - V_reset) / (mu - theta))
+            return 1. / (T + tau_ref)
+        else:
+            return 0  * Hz
 
     # Integration bounds
     lower_limit, upper_limit = integration_limits(mu, V_reset, sigma_v, theta)
+
 
     # Ensure to < upper_limit for integration
     if lower_limit > upper_limit:
         lower_limit, upper_limit = upper_limit, lower_limit
 
-    # Numerical integration of erfcx (which is e^{x^2}erfc(x))
-    I_mu_sigma, _ = quad(erfcx, lower_limit, upper_limit, epsabs=1e-18, epsrel=1e-13)
+    dx = upper_limit - lower_limit
+    if abs(dx) < 1E-8:
+        # Interval is extremely small → use midpoint approximation
+        midpoint = 0.5 * (lower_limit + upper_limit)
+        I_mu_sigma = dx * erfcx(midpoint)
+    else:
+        # Numerical integration of erfcx (which is e^{x^2}erfc(x))
+        I_mu_sigma, _ = quad(erfcx, lower_limit, upper_limit, epsabs=1e-13, epsrel=1e-13, limit=1000)
+        if np.isnan(I_mu_sigma):
+            I_mu_sigma = 1E13
+            #print(I_mu_sigma)
+            #print(erfcx(lower_limit),  " -> ", erfcx(upper_limit))
+
 
     # Compute firing rate
     rate = 1.0 / (tau_ref + tau_membrane * np.sqrt(np.pi) * I_mu_sigma)

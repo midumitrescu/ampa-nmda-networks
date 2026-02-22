@@ -1,6 +1,6 @@
 import sys
 
-from brian2 import ms
+from brian2 import ms, Hz
 from loguru import logger
 
 logger.remove()  # remove default handler
@@ -18,10 +18,24 @@ def prepare_experiment_with_N_tot(n, up_state_base, base) -> Experiment:
     exp = base.with_property("up_state", up_state_base_local)
     return exp
 
+def prepare_experiment_with_N_nmda(n, up_state_base, base) -> Experiment:
+    up_state_base_local = up_state_base.copy()
+    up_state_base_local["N_nmda"] = int(n)
+    exp = base.with_property("up_state", up_state_base_local)
+    return exp
 
-def filename_for_experiment(experiment: Experiment, N_max: int, output_dir="simulations"):
-    return f"{output_dir}/{experiment.plot_params.panel.replace(" ", "_")}_N_{N_max}_T_{int(experiment.sim_time / ms)}.csv"
+def prepare_experiment_with_nu_nmda(nu, up_state_base, base) -> Experiment:
+    up_state_base_local = up_state_base.copy()
+    up_state_base_local["nu_nmda"] = nu
+    exp = base.with_property("up_state", up_state_base_local)
+    return exp
 
+
+def filename_for_N_scan_experiment(experiment: Experiment, N_max: int, output_dir="simulations"):
+    return f"{output_dir}/{experiment.plot_params.panel.replace(" ", "_")}_N_{N_max}_nu_nmda_{f"{experiment.network_params.up_state.nu_nmda/Hz:.3f}".replace(".","_")}_Hz_T_{int(experiment.sim_time / ms)}.csv"
+
+def filename_for_nu_scan_experiment(experiment: Experiment, nu_max: float, output_dir="simulations"):
+    return f"{output_dir}/{experiment.plot_params.panel.replace(" ", "_")}_nu_{f"{nu_max: .3f}".replace(".", "_")}_T_{int(experiment.sim_time / ms)}.csv"
 
 drop_keys = [Experiment.KEY_SELECTED_MODEL, Experiment.KEY_STEADY_MODEL, Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD,
              Experiment.KEY_CURRENTS_TO_RECORD, "t_range", PlotParams.KEY_WHAT_PLOTS_TO_SHOW]

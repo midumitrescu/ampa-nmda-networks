@@ -4,7 +4,7 @@ import unittest
 from brian2 import ms, clear_cache
 from loguru import logger
 
-from iteration_12_siegert.df_utils import prepare_experiment_with_N_tot, filename_for_experiment, save_metadata_header, \
+from iteration_12_siegert.df_utils import prepare_experiment_with_N_tot, filename_for_N_scan_experiment, save_metadata_header, \
     find_last_index
 from iteration_12_siegert.one_compartment_with_up_only import simulate_and_record_essential_variables
 
@@ -77,7 +77,7 @@ def scan_mean_sigma_from_simulation(base: Experiment, output_dir="simulations_2"
     })
     up_state_base = experiment.network_params.up_state.params
 
-    file_name = filename_for_experiment(experiment=experiment, output_dir=output_dir, N_max=N_max)
+    file_name = filename_for_N_scan_experiment(experiment=experiment, output_dir=output_dir, N_max=N_max)
 
     """
     Parameters

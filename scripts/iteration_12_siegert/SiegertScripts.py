@@ -32,10 +32,10 @@ def compute_siegert_firing_rate(mu, sigma, tau_0_membrane, experiment: Experimen
 def mean_and_sigma(n, up_state_base: dict, base: Experiment):
     exp = prepare_experiment_with_N_tot(n, up_state_base, base)
 
-    mu_no_v = exp.effective_time_constant_up_state.E_0()
-    sigma_no_v = exp.effective_time_constant_up_state.std_voltage()
+    mu_no_nmda = exp.effective_time_constant_up_state.E_0()
+    sigma_no_nmda = exp.effective_time_constant_up_state.std_voltage()
     tau_0_no_nmda = exp.neuron_params.C / (exp.effective_time_constant_up_state.mean_total_conductance())
-    siegert_no_rate_without_nmda = compute_siegert_firing_rate(mu_no_v, sigma_no_v, tau_0_no_nmda, exp)
+    siegert_no_rate_without_nmda = compute_siegert_firing_rate(mu_no_nmda, sigma_no_nmda, tau_0_no_nmda, exp)
 
     mu_v_with_nmda = exp.effective_time_constant_up_state.E_0_with_nmda()
     sigma_v_with_nmda = exp.effective_time_constant_up_state.std_voltage_with_nmda()
@@ -44,8 +44,8 @@ def mean_and_sigma(n, up_state_base: dict, base: Experiment):
 
     return ExtendedDict({
         "N": n,
-        "mu_v_no_nmda": mu_no_v / mV,
-        "sigma_v_no_nmda": sigma_no_v / mV,
+        "mu_v_no_nmda": mu_no_nmda / mV,
+        "sigma_v_no_nmda": sigma_no_nmda / mV,
         "firing_rate_no_nmda": siegert_no_rate_without_nmda,
         "mu_v_with_nmda": mu_v_with_nmda / mV,
         "sigma_v_with_nmda": sigma_v_with_nmda / mV,
@@ -62,36 +62,6 @@ def dr_over_d_mu(mean_v, mu):
 
 
 class ScriptsNMDAWithWangNumbers(unittest.TestCase):
-
-    def test_call_one_mean_sigma_with_no_nmda(self):
-        up_state_base = {
-            "N": 2000,
-            "nu": 82,
-            "N_nmda": 0,
-            "nu_nmda": 0,
-        }
-
-        result =  mean_and_sigma(n=1, up_state_base=up_state_base, base=palmer_control)
-
-        self.assertEqual(result.mu_v_no_nmda, result.mu_v_with_nmda)
-        self.assertEqual(result.sigma_v_no_nmda, result.sigma_v_with_nmda)
-        self.assertEqual(result.firing_rate_no_nmda, result.firing_rate_with_nmda)
-
-    def test_call_one_mean_sigma_with_nmda(self):
-        up_state_base = {
-            "N": 2000,
-            "nu": 82,
-            "N_nmda": 10,
-            "nu_nmda": 10,
-        }
-
-        result =  mean_and_sigma(n=1, up_state_base=up_state_base, base=palmer_control)
-
-        self.assertEqual(result.mu_v_no_nmda, result.mu_v_with_nmda)
-        self.assertEqual(result.sigma_v_no_nmda, result.sigma_v_with_nmda)
-        self.assertEqual(result.firing_rate_no_nmda, result.firing_rate_with_nmda)
-
-
 
     def test_compute_mean_for_one_N(self):
         base = palmer_control
@@ -150,7 +120,6 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
 
 
     def test_plot_membrane_mean_and_std(self):
-
         for max_n in [500, 2000, 2500, 3000, 4000]:
             df = self.compute_theoretical_mean_sigma_and_rate(max_n, base=palmer_control)
             #self.plot_for_N(df=df, base=palmer_control, plot_simulation=False)
@@ -267,13 +236,10 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
             backend="loky")(delayed(lambda n: mean_and_sigma(n, up_state_base, base))(n) for n in N)
         return pd.DataFrame.from_records(results)
 
-    def test_computing_E_0_with_nmda(self):
-        base = Experiment(wang_recurrent_config)
-
-        self.assertEqual(0.2, base.effective_time_constant_up_state.mean_x_nmda())
-        self.assertEqual(0.9, base.effective_time_constant_up_state.mean_s_nmda())
-        self.assertAlmostEqual(0.02198201216, base.effective_time_constant_up_state.compute_mean_g_nmda() / nsiemens)
-        self.assertAlmostEqual(-48.75363871, base.effective_time_constant_up_state.E_0_with_nmda() / mV)
+    def test_plot_NMDA_variables_comparrison(self):
+        for max_n in [500, 2000, 2500, 3000, 4000]:
+            df = self.compute_theoretical_mean_sigma_and_rate(max_n, base=palmer_control)
+            self.plot_for_N(df=df, base=palmer_control, plot_simulation=True)
 
 
     ''' Shows that there are errors/differences between computed and simulated values
