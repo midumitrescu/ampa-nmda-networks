@@ -1,5 +1,6 @@
 import sys
 
+import pandas as pd
 from loguru import logger
 
 from Plotting import show_plots_non_blocking
@@ -16,7 +17,7 @@ plt.rcParams['text.usetex'] = True
 from brian2 import plt
 
 
-def plot_nmda_theory_vs_simulation(base, df_theory=False, df_simulation=False, N_max=1000):
+def plot_nmda_theory_vs_simulation(experiment, df_theory: pd.DataFrame, df_simulation: pd.DataFrame, N_max=1000):
 
     plt.rcParams.update({
         "font.size": 16,
@@ -53,7 +54,7 @@ def plot_nmda_theory_vs_simulation(base, df_theory=False, df_simulation=False, N
     axes[3, 1].set_ylabel("[mV$^2$]")
 
     alpha = 0.5
-    if df_theory:
+    if df_theory is not None:
         df_theory = without_elements_after_n_max(df_theory, N_max)
         # x
         axes[0, 0].plot(df_theory.N, df_theory.x_mean, label="Theory", alpha=alpha)
@@ -74,7 +75,7 @@ def plot_nmda_theory_vs_simulation(base, df_theory=False, df_simulation=False, N
         axes[3, 1].plot(df_theory.N, df_theory.sigma_v_with_nmda**2, label="Theory", alpha=alpha)
 
 
-    if df_simulation:
+    if df_simulation is not None:
         df_simulation = without_elements_after_n_max(df_simulation, N_max)
 
         axes[0, 0].plot(df_simulation.N, df_simulation.x_nmda_mean, label="Simulation",
@@ -109,9 +110,9 @@ def plot_nmda_theory_vs_simulation(base, df_theory=False, df_simulation=False, N
     [ax.legend() for ax in axes.flatten()]
     axes[0, 1].legend(loc="upper left")
 
-    if plot_simulation and plot_theory:
+    if df_theory is not None and df_simulation is not None:
         fig.suptitle("Plot theory vs simulation")
-    elif plot_theory:
+    elif df_simulation is not None:
         fig.suptitle("Plot theory")
     else:
         fig.suptitle("Plot simulation")

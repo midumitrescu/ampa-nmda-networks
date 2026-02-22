@@ -1,7 +1,7 @@
 import sys
 
 import brian2
-from brian2 import PoissonInput, SpikeMonitor
+from brian2 import PoissonInput, SpikeMonitor, msecond
 from loguru import logger
 
 from iteration_12_siegert.df_utils import prepare_experiment_with_N_nmda, filename_for_nu_scan_experiment
@@ -74,7 +74,7 @@ def simulate_and_record_with_only_nmda_input(experiment: Experiment) -> Simulati
                                 reset="v = V_r",
                                 refractory=experiment.neuron_params.tau_rp,
                                 method=experiment.integration_method)
-    single_neuron.v[:] = V_r
+    single_neuron.v[:] = E_leak
 
     order = [0, 1, 2, 3, 4, 5] if experiment.in_testing else [0] * 5
 
@@ -97,8 +97,10 @@ def simulate_and_record_with_only_nmda_input(experiment: Experiment) -> Simulati
     return SimulationResults(experiment, None, spike_monitor, v_monitor, g_monitor=None, internal_states_monitor=internal_states_monitor,
                              currents_monitor=currents_monitor)
 
-def run_nu_nmda_input_simulation_and_compute_statistics(nu, index, up_state_base: dict, base: Experiment, skip_start_simulation = 10_000):
+def run_nu_nmda_input_simulation_and_compute_statistics(nu, index, up_state_base: dict, base: Experiment, skip_ms = 100*msecond):
     exp = prepare_experiment_with_N_nmda(nu, up_state_base, base)
+
+    skip_start_simulation = int(skip_ms / exp.sim_clock)
 
     steady_state_results = sim_steady_state(exp, state=exp.network_params.up_state)
     simulation_results = simulate_and_record_with_only_nmda_input(exp)
@@ -144,7 +146,7 @@ def run_nu_nmda_input_simulation_and_compute_statistics(nu, index, up_state_base
     }
 
 
-def run_nmda_input_simulation_and_compute_statistics(n, up_state_base: dict, base: Experiment, skip_start_simulation = 10_000):
+def run_nmda_input_simulation_and_compute_statistics(n, up_state_base: dict, base: Experiment, skip_ms = 100*msecond):
     exp = prepare_experiment_with_N_nmda(n, up_state_base, base)
 
     steady_state_results = sim_steady_state(exp, state=exp.network_params.up_state)
@@ -160,6 +162,8 @@ def run_nmda_input_simulation_and_compute_statistics(n, up_state_base: dict, bas
         std_isi = np.std(isis, ddof=0)
     if int(n % 10) == 0:
         print(n, " done")
+
+    skip_start_simulation = int(skip_ms / exp.sim_clock)
     x_nmda_simulation = simulation_results.internal_states_monitor.x_nmda[:, skip_start_simulation:]
     s_nmda_simulation = simulation_results.internal_states_monitor.s_nmda[:, skip_start_simulation:]
     return {
@@ -179,7 +183,7 @@ def run_nmda_input_simulation_and_compute_statistics(n, up_state_base: dict, bas
         "s_nmda_mean": np.mean(s_nmda_simulation),
         "s_nmda_var": np.var(s_nmda_simulation),
 
-        "corr_coef_x_s": np.corrcoef(x=x_nmda_simulation, y=x_nmda_simulation),
+        "corr_coef_x_s": np.corrcoef(x=x_nmda_simulation, y=s_nmda_simulation)[0, 1],
 
         "i_nmda_mean": np.mean(simulation_results.currents.I_nmda[:, skip_start_simulation:]),
         "i_nmda_var":  np.var(simulation_results.currents.I_nmda[:, skip_start_simulation:]),
@@ -237,7 +241,8 @@ def scan_for_nu_nmda_variables(base: Experiment, output_dir="simulations_2", nu_
 
     print("Simulating ", nu_s[start_idx])
     num_batches = int(np.ceil(len(nu_s) / batch_size))
-    skip_elems = 1000 if test else 10_000
+    skip_elems = 100 * msecond if test else 300 * msecond
+
 
     for batch_idx in tqdm(range(num_batches), desc="Processing batches"):
         start = batch_idx * batch_size
@@ -246,7 +251,7 @@ def scan_for_nu_nmda_variables(base: Experiment, output_dir="simulations_2", nu_
 
         results = Parallel(n_jobs=-1)(
             delayed(lambda nu, index: run_nu_nmda_input_simulation_and_compute_statistics(nu, index, up_state_base, experiment,
-                                                                               skip_start_simulation=skip_elems))(nu, index) for
+                                                                               skip_ms=skip_elems))(nu, index) for
             nu, index in zip(batch_elements, np.arange(start, end))
         )
 
@@ -293,13 +298,13 @@ def scan_N_for_nmda_variables(base: Experiment, output_dir="simulations_2", N_ma
 
     if start_idx >= N_max:
         print("All runs already completed.")
-        return
+        return file_name
 
     n_s = np.arange(start_idx, N_max)
 
     print("Simulating ", n_s)
     num_batches = int(np.ceil(len(n_s) / batch_size))
-    skip_elems = 1000 if test else 10_000
+    skip_ms = 100 * msecond if test else 500 * msecond
 
     for batch_idx in tqdm(range(num_batches), desc="Processing batches"):
         start = batch_idx * batch_size
@@ -307,7 +312,7 @@ def scan_N_for_nmda_variables(base: Experiment, output_dir="simulations_2", N_ma
         batch_elements = n_s[start:end]
 
         results = Parallel(n_jobs=-1)(
-            delayed(lambda n: run_nmda_input_simulation_and_compute_statistics(n, up_state_base, experiment, skip_start_simulation=skip_elems))(n) for n in batch_elements
+            delayed(lambda n: run_nmda_input_simulation_and_compute_statistics(n, up_state_base, experiment, skip_ms=skip_ms))(n) for n in batch_elements
         )
 
         batch_df = pd.DataFrame(results)

@@ -68,7 +68,7 @@ def simulate_with_up_state_and_nmda(experiment: Experiment):
                                 reset="v = V_r",
                                 refractory=experiment.neuron_params.tau_rp,
                                 method=experiment.integration_method)
-    single_neuron.v[:] = -65 * mV
+    single_neuron.v[:] = E_leak
 
     order = [0, 1, 2, 3, 4, 5] if experiment.in_testing else [0] * 5
 

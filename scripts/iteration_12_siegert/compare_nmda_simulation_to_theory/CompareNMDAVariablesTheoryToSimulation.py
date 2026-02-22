@@ -10,6 +10,7 @@ from iteration_12_siegert.compare_nmda_simulation_to_theory.theory import comput
     nmda_variables
 from iteration_12_siegert.df_utils import load_df_without_metadata
 from iteration_12_transfer_function_of_lif_neurons.siegerts_formula_in_3_d import rate_LIF_whitenoise
+from iteration_7_one_compartment_step_input.one_compartment_with_up_only import sim_and_plot_up_with_state_and_nmda
 
 logger.remove()  # remove default handler
 logger.add(sys.stderr, level="INFO")
@@ -17,7 +18,8 @@ logger.add(sys.stderr, level="INFO")
 from iteration_8_compute_mean_steady_state.models_and_configs import wang_recurrent_config
 
 import unittest
-from iteration_8_compute_mean_steady_state.one_compartment_with_up_down_and_steady import sim_steady_state
+from iteration_8_compute_mean_steady_state.one_compartment_with_up_down_and_steady import sim_steady_state, \
+    single_compartment_with_nmda_and_logged_variables
 from iteration_8_compute_mean_steady_state.scripts_with_wang_numbers import palmer_control
 
 from brian2 import plt, mpl
@@ -42,6 +44,12 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
             Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD: ["x_nmda", "s_nmda", "g_nmda"],
             "pannel": "NMDA_input_with_firing",
             "t_range": [0, 1000],
+            "up_state": {
+                "N": 0,
+                "nu": 0,
+                "N_nmda": 10,
+                "nu_nmda": 10,
+            }
         })
 
         up_state_base = experiment.network_params.up_state.params
@@ -49,10 +57,14 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
                                                                              base=experiment,
                                                                              skip_start_simulation=1000)
 
+        sim_and_plot_up_with_state_and_nmda(experiment=experiment.with_property(Experiment.KEY_SELECTED_MODEL,
+                                                                                single_compartment_with_nmda_and_logged_variables))
+
         print(object_under_test)
 
-        self.assertEqual(0.034946352952140124, object_under_test['g_nmda_mean'])
-        self.assertEqual(0.034946352952140124, object_under_test['g_nmda_mean'])
+        self.assertAlmostEqual(0.03488772478046004, object_under_test['g_nmda_mean'])
+        self.assertAlmostEqual(0.30729814, object_under_test['corr_coef_x_s'])
+        print(f"{object_under_test['v_steady']} vs {object_under_test['v_mean']}")
 
     def test_compute_theoretical(self):
         experiment = palmer_control.with_properties({
@@ -68,9 +80,8 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
             "N_nmda": 10,
             "nu_nmda": 10,
         }
-        object_under_test =  nmda_variables(n=10, up_state_base=up_state_base, base=experiment)
+        object_under_test = nmda_variables(n=10, up_state_base=up_state_base, base=experiment)
         print(object_under_test)
-
 
     def test_scan_N_nmda(self):
         experiment = palmer_control.with_properties({
@@ -106,11 +117,12 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
                 "N_nmda": 1,
                 "nu_nmda": 10,
             }})
-        generated_filename = scan_N_for_nmda_variables(experiment, N_max=1000, test=True)
+        generated_filename = scan_N_for_nmda_variables(experiment, N_max=1000, test=False)
         df_simulation = load_df_without_metadata(generated_filename)
         df_theory = compute_theoretical_nmda_mean_sigma_and_rate(1000, base=palmer_control)
 
-        plot_nmda_theory_vs_simulation(df_theory, df_simulation, N_max = 1000)
+        plot_nmda_theory_vs_simulation(experiment=experiment, df_theory=df_theory, df_simulation=df_simulation,
+                                       N_max=1000)
 
     def test_plot_simulation_vs_theory_for_nu_nmda_1(self):
         experiment = palmer_control.with_properties({
@@ -122,11 +134,12 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
                 "N_nmda": 1,
                 "nu_nmda": 1,
             }})
-        generated_filename = scan_N_for_nmda_variables(experiment, N_max=1000, test=True)
+        generated_filename = scan_N_for_nmda_variables(experiment, N_max=1000)
         df_simulation = load_df_without_metadata(generated_filename)
-        df_theory = compute_theoretical_nmda_mean_sigma_and_rate(1000, base=palmer_control)
+        df_theory = compute_theoretical_nmda_mean_sigma_and_rate(1000, base=experiment)
 
-        plot_nmda_theory_vs_simulation(df_theory, df_simulation, N_max=1000)
+        plot_nmda_theory_vs_simulation(experiment=experiment, df_theory=df_theory, df_simulation=df_simulation,
+                                       N_max=1000)
 
     def test_plot_nmda_variables(self):
         # attention here to plot same experimental conditions!!

@@ -1,5 +1,8 @@
 import numpy as np
 from loguru import logger
+import sys
+logger.remove()  # remove default handler
+logger.add(sys.stderr, level="INFO")
 
 def binary_search_for_target_value(lower_value, upper_value,
                                    func,
