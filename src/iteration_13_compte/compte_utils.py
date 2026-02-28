@@ -181,3 +181,13 @@ def plot_compte(sim_time, population_rate_monitor: PopulationRateMonitor, spikes
     plt.tight_layout()
     fig.show()
 
+class CueInfo:
+
+    def __init__(self, delay=200 * ms, duration=200 * ms, sigma=2, spread=10, cue_rate=50 * Hz):
+        self.delay = delay
+        self.duration = duration
+        self.sigma = sigma
+        self.spread = spread
+        self.rate = cue_rate
+
+default_cue_info = CueInfo()

@@ -2,14 +2,14 @@ import unittest
 
 from brian2 import nsiemens, mV
 
+from iteration_12_siegert.compare_vm_sigma_vm_theory_vs_simulation.computations import mean_and_sigma
+from iteration_12_transfer_function_of_lif_neurons.SiegertGradientDescent import SiegertGradients
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment
 from iteration_8_compute_mean_steady_state.models_and_configs import wang_recurrent_config
 from iteration_8_compute_mean_steady_state.scripts_with_wang_numbers import palmer_control
-rom iteration_12_siegert.SiegertScripts import mean_and_sigma
 
 
-
-class MyTestCase(unittest.TestCase):
+class SiegertTestCase(unittest.TestCase):
     def test_call_one_mean_sigma_with_no_nmda(self):
         up_state_base = {
             "N": 2000,
@@ -45,6 +45,14 @@ class MyTestCase(unittest.TestCase):
         self.assertEqual(0.9, base.effective_time_constant_up_state.mean_s_nmda())
         self.assertAlmostEqual(0.02198201216, base.effective_time_constant_up_state.compute_mean_g_nmda() / nsiemens)
         self.assertAlmostEqual(-48.75363871, base.effective_time_constant_up_state.E_0_with_nmda() / mV)
+
+    def test_compute_firing_rate_at_threshold(self):
+        base = Experiment(wang_recurrent_config)
+        object_under_test = SiegertGradients.for_experiment(base)
+
+        self.assertEqual(-50 , object_under_test.theta / mV)
+
+        self.assertEqual(0, object_under_test.firing_rate(-50.00000001 * mV, sigma_v = 0 * mV))
 
 
 if __name__ == '__main__':

@@ -8,17 +8,22 @@ import numpy as np
 from joblib import delayed, Parallel
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
+from iteration_13_compte.compte_utils import CueInfo
 from iteration_13_compte.configs import AnExampleExperiment, CompteResults
 
-def compute_ordered_firing_rates_from_results(results: CompteResults, theta_array_assignment):
-    bin_size = 10
+def compute_binned_firing_rate(results: CompteResults, bin_size = 10):
     bins = int(results.sim_time / bin_size)
 
     rates = np.zeros((results.example.NE, bins))
     for i in range(results.example.NE):
         spikes = results.spikes_monitor.all_values[i] / ms
         counts, _ = np.histogram(spikes, bins=bins, range=(0, results.sim_time))
-        rates[i] = 1000 * counts / bin_size # 1000 because binsize = 10 ms => 0.01 seconds
+        rates[i] = 1000 * counts / bin_size  # 1000 because binsize = 10 ms => 0.01 seconds
+
+    return rates
+
+def compute_ordered_firing_rates_from_results(results: CompteResults, theta_array_assignment):
+    rates = compute_binned_firing_rate(results)
 
     order = np.argsort(theta_array_assignment)
     rates_sorted = rates[order]
@@ -72,7 +77,7 @@ def raster_to_rates(raster: np.ndarray, dt: float):
     )
     return rate
 
-def plot_compte_results(results: CompteResults, theta_array_assignment):
+def plot_compte_results(results: CompteResults, theta_array_assignment, cues: list[CueInfo]):
 
     rates_sorted = compute_ordered_firing_rates_from_results(results=results, theta_array_assignment=theta_array_assignment)
 
@@ -80,7 +85,7 @@ def plot_compte_results(results: CompteResults, theta_array_assignment):
         4, 1,
         figsize=(20, 16),
         sharex=True,
-        gridspec_kw={"height_ratios": [2.5, 2, 1, 1]}
+        gridspec_kw={"height_ratios": [2.5, 2, 1, 1]},
     )
 
     im = axs[0].imshow(
@@ -101,6 +106,30 @@ def plot_compte_results(results: CompteResults, theta_array_assignment):
     axs[0].set_yticks(ytick_indices)
     axs[0].set_yticklabels([f"{a}°" for a in angle_ticks])
     axs[0].set_ylabel("Preferred angle (°)")
+
+    #[axs[0].axvspan(cue.delay / ms, (cue.delay + cue.duration) /ms, alpha=0.3) for cue in cues]
+    import matplotlib.transforms as mtransforms
+
+    # transform: x in data coordinates, y in axes coordinates
+    trans = mtransforms.blended_transform_factory(
+        axs[0].transData, axs[0].transAxes
+    )
+
+    for _, cue in enumerate(cues):
+        start = cue.delay / ms
+        end = (cue.delay + cue.duration) / ms
+
+        axs[0].plot(
+            [start, end],  # x range in data coords
+            [-0.015, -0.015],  # y position just below axis (axes coords)
+            transform=trans,
+            linewidth=10,
+            solid_capstyle="butt",
+            label=f"Cue ({start:.0f}–{end:.0f} ms)",
+            clip_on=False,
+        )
+
+    axs[0].legend(loc="upper right")
 
     divider = make_axes_locatable(axs[0])
     cax = divider.append_axes("right", size="2%", pad=0.05)
@@ -174,7 +203,7 @@ def plot_compte_results(results: CompteResults, theta_array_assignment):
     axs[3].legend()
     fig.suptitle(f"Simulation {results.example.label} {f", seed {results.example.seed}" if results.example.in_testing else ''}")
 
-    plt.tight_layout()
+    plt.tight_layout(rect=[0, 0.05, 1, 1])
     fig.show()
 
 def to_delayed(examples: list[AnExampleExperiment], func):

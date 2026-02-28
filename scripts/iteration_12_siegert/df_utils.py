@@ -35,7 +35,7 @@ def filename_for_N_scan_experiment(experiment: Experiment, N_max: int, output_di
     return f"{output_dir}/{experiment.plot_params.panel.replace(" ", "_")}_N_{N_max}_nu_nmda_{f"{experiment.network_params.up_state.nu_nmda/Hz:.3f}".replace(".","_")}_Hz_T_{int(experiment.sim_time / ms)}.csv"
 
 def filename_for_nu_scan_experiment(experiment: Experiment, nu_max: float, output_dir="simulations"):
-    return f"{output_dir}/{experiment.plot_params.panel.replace(" ", "_")}_nu_{f"{nu_max: .3f}".replace(".", "_")}_T_{int(experiment.sim_time / ms)}.csv"
+    return f"{output_dir}/{experiment.plot_params.panel.replace(" ", "_")}_nu_{f"{nu_max:.3f}".replace(".","_")}_T_{int(experiment.sim_time / ms)}.csv"
 
 drop_keys = [Experiment.KEY_SELECTED_MODEL, Experiment.KEY_STEADY_MODEL, Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD,
              Experiment.KEY_CURRENTS_TO_RECORD, "t_range", PlotParams.KEY_WHAT_PLOTS_TO_SHOW]
@@ -52,7 +52,9 @@ def save_metadata_header(path, metadata: dict):
 
 
 def load_df_without_metadata(csv_path):
-    return pd.read_csv(csv_path, comment="#")
+    csv = pd.read_csv(csv_path, comment="#")
+    csv.columns = csv.columns.str.lower()
+    return csv
 
 def find_last_index(csv_path, index_col):
     with open(csv_path, "r") as f:
@@ -77,9 +79,12 @@ def find_last_index(csv_path, index_col):
 
     return int(df[index_col].iloc[0])
 
+def without_elements_after_max_val(df: pd.DataFrame, max_val: float, column_name: str) -> pd.DataFrame:
+    return df[df[column_name] <= max_val]
+    #return df[df["N"].astype(int) <= max_n]
 
 def without_elements_after_n_max(df: pd.DataFrame, max_n: int) -> pd.DataFrame:
-    return df[df["N"].astype(int) <= max_n]
+    return without_elements_after_max_val(df, max_n, column_name="N")
 
 def with_elements_between(df: pd.DataFrame, lower_bound: int = -1, upper_bound:int = -1) -> pd.DataFrame:
     result = df.copy()

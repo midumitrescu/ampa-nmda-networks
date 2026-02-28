@@ -119,7 +119,8 @@ def run_nu_nmda_input_simulation_and_compute_statistics(nu, index, up_state_base
     s_nmda_simulation = simulation_results.internal_states_monitor.s_nmda[:, skip_start_simulation:]
     return {
         "index": index,
-        "nu": nu,
+        "nu_nmda": nu,
+        "n_nmda": exp.network_params.up_state.N_NMDA,
         "v_steady": steady_state_results.v_steady,
         "g_nmda_steady": steady_state_results.g_nmda_steady,
         "x_nmda_steady": steady_state_results.x_nmda_steady,
@@ -134,7 +135,7 @@ def run_nu_nmda_input_simulation_and_compute_statistics(nu, index, up_state_base
         "s_nmda_mean": np.mean(s_nmda_simulation),
         "s_nmda_var": np.var(s_nmda_simulation),
 
-        "corr_coef_x_s": np.corrcoef(x=x_nmda_simulation, y=x_nmda_simulation),
+        "corr_coef_x_s": np.corrcoef(x=x_nmda_simulation, y=s_nmda_simulation)[0, 1],
 
         "i_nmda_mean": np.mean(simulation_results.currents.I_nmda[:, skip_start_simulation:]),
         "i_nmda_var":  np.var(simulation_results.currents.I_nmda[:, skip_start_simulation:]),
@@ -208,12 +209,12 @@ sigmoid_v = 1/(1 + (MG_C/mmole)/3.57 * exp(-0.062*(v/mvolt))): 1
 '''
 
 
-def scan_for_nu_nmda_variables(base: Experiment, output_dir="simulations_2", nu_max=600, batch_size=100, test=True):
+def scan_for_nu_nmda_variables(base: Experiment, output_dir="simulations_2", nu_max=600, batch_size=50, test=True):
     clear_cache("cython")
     experiment = base.with_properties({
         Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD: ["x_nmda", "s_nmda", "g_nmda"],
         Experiment.KEY_CURRENTS_TO_RECORD: ["I_nmda"],
-        "t_range": [0, 1000] if test else [0, 60 * 1000],
+        "t_range": [0, 1000] if test else [0, 30 * 1000],
         "in_testing": False,
     })
     up_state_base = experiment.network_params.up_state.params
@@ -227,19 +228,18 @@ def scan_for_nu_nmda_variables(base: Experiment, output_dir="simulations_2", nu_
         # Fresh run
         save_metadata_header(file_name, metadata)
         start_idx = 0
-        write_header = True
     else:
         # Resume run
         start_idx = find_last_index(file_name, "index") + 1
-        write_header = False
 
-    nu_s = np.arange(start_idx, nu_max+0.05, step=0.1)
-    if start_idx >= len(nu_s):
+    step = 0.1
+    last_simulated_nu = int(start_idx * step)
+    nu_s = np.arange(last_simulated_nu, nu_max + 0.05, step=step)
+    if last_simulated_nu >= nu_s[-1]:
         print("All runs already completed.")
-        return
+        return file_name
 
-
-    print("Simulating ", nu_s[start_idx])
+    print("Simulating  ", nu_s)
     num_batches = int(np.ceil(len(nu_s) / batch_size))
     skip_elems = 100 * msecond if test else 300 * msecond
 
@@ -248,8 +248,9 @@ def scan_for_nu_nmda_variables(base: Experiment, output_dir="simulations_2", nu_
         start = batch_idx * batch_size
         end = min(start + batch_size, len(nu_s))
         batch_elements = nu_s[start:end]
+        print("Processing batch", batch_elements)
 
-        results = Parallel(n_jobs=-1)(
+        results = Parallel(n_jobs=1)(
             delayed(lambda nu, index: run_nu_nmda_input_simulation_and_compute_statistics(nu, index, up_state_base, experiment,
                                                                                skip_ms=skip_elems))(nu, index) for
             nu, index in zip(batch_elements, np.arange(start, end))
@@ -257,17 +258,17 @@ def scan_for_nu_nmda_variables(base: Experiment, output_dir="simulations_2", nu_
 
         batch_df = pd.DataFrame(results)
 
-
         batch_df.to_csv(
             file_name,
             mode="a",
-            header=write_header,
+            header=start == 0,
             index=False,
             float_format="%.20f",
         )
 
-        write_header = False
         print()
+
+    return file_name
 
 
 def scan_N_for_nmda_variables(base: Experiment, output_dir="simulations_2", N_max=10_000,

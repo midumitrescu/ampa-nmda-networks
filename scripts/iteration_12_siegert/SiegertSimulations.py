@@ -23,6 +23,11 @@ from tqdm import tqdm
 
 
 def mean_and_sigma(n, up_state_base: dict, base: Experiment):
+    base = base.with_properties({
+        Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD: ["g_e", "g_i", "x_nmda", "s_nmda", "g_nmda"],
+        Experiment.KEY_CURRENTS_TO_RECORD: ["I_nmda"]
+    })
+
     exp = prepare_experiment_with_N_tot(n, up_state_base, base)
 
     steady_state_results = sim_steady_state(exp, state=exp.network_params.up_state)
@@ -58,6 +63,8 @@ def mean_and_sigma(n, up_state_base: dict, base: Experiment):
         "x_nmda_var": np.var(simulation_results.internal_states_monitor.x_nmda),
         "s_nmda_mean": np.mean(simulation_results.internal_states_monitor.s_nmda),
         "s_nmda_var": np.var(simulation_results.internal_states_monitor.s_nmda),
+        "corr_coef_x_s": np.corrcoef(x=simulation_results.internal_states_monitor.x_nmda, y=simulation_results.internal_states_monitor.s_nmda)[0, 1],
+
         "mean_rate": simulation_results.spikes.mean_rate,
         "num_spikes": simulation_results.spikes.num_spikes,
         "mean_isi": mean_isi,

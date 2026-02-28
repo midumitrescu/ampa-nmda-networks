@@ -1,23 +1,13 @@
-import brian2.devices.device
 import matplotlib.pyplot as plt
-import numpy as np
-from brian2 import PopulationRateMonitor, SpikeMonitor, StateMonitor, Hz, ms, nsiemens, seed, mpl, start_scope, \
-    defaultclock, kHz, mmole, NeuronGroup, PoissonGroup, Synapses, network_operation, second, mV, run, stop, Mohm
-from brian2.units.allunits import nampere
+import pandas as pd
+from brian2 import mpl, mV, Mohm
 from joblib import delayed, Parallel
-from loguru import logger
-from matplotlib import gridspec
-from matplotlib.gridspec import SubplotSpec
-from mpl_toolkits.axes_grid1.mpl_axes import Axes
 
-from Plotting import show_plots_non_blocking
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment, State, \
-    CurrentClampParams, NeuronModelParams
+    CurrentClampParams
 from iteration_8_compute_mean_steady_state.one_compartment_with_up_down_and_steady import sim_steady_state, \
     no_presynaptic_input
-from utils import ExtendedDict
 
-import pandas as pd
 plt.rcParams.update(mpl.rcParamsDefault)
 plt.rcParams['text.usetex'] = True
 

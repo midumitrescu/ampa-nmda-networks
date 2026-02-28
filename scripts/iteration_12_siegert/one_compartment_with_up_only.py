@@ -9,6 +9,7 @@ from iteration_7_one_compartment_step_input.one_compartment_with_up_down import 
 
 def simulate_and_record_essential_variables(experiment: Experiment)-> SimulationResults:
 
+
     if experiment.in_testing:
         np.random.seed(0)
         brian2.devices.device.seed(0)

@@ -122,7 +122,23 @@ class Experiment:
 
         self.sim_clock = params.get(Experiment.KEY_SIMULATION_CLOCK, 0.05 * ms)
 
+def prepare_bigger_fonts():
+    plt.rcParams.update({
+        "font.size": 16,
+        "axes.titlesize": 18,
+        "axes.labelsize": 16,
+        "legend.fontsize": 14,
+        "figure.titlesize": 20
+    })
+
 def show_plots_non_blocking(show=True):
+    plt.rcParams.update({
+        "font.size": 16,
+        "axes.titlesize": 18,
+        "axes.labelsize": 16,
+        "legend.fontsize": 14,
+        "figure.titlesize": 20
+    })
     if show:
         plt.show(block=False)
         plt.close("all")

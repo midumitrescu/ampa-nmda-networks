@@ -2,7 +2,7 @@ from _pytest import unittest
 from brian2 import mV, Hz
 from joblib import Parallel, delayed
 
-from build.lib.src.Plotting import show_plots_non_blocking
+from Plotting import show_plots_non_blocking, prepare_bigger_fonts
 from iteration_12_transfer_function_of_lif_neurons.SiegertGradientDescent import SiegertGradientDescent
 from iteration_8_compute_mean_steady_state.scripts_with_wang_numbers import palmer_control
 
@@ -34,6 +34,8 @@ def find_curve_grid(solver, r_target, mu_range, sigma_range, resolution=100):
 
 def plot_loss_landscape_3d_with_valley(solver, r_target, mu_range, sigma_range,
                                        resolution=50):
+
+    prepare_bigger_fonts()
     """
     3D plot with log scaling and clipping to reveal the solution valley
     """
@@ -364,7 +366,7 @@ def simple_3d_with_limits(solver, r_target, mu_range, sigma_range,
 #                       mu_range=(-60, -35), sigma_range=(0, 10),
 #                       z_max=500)  # Adjust this value until you see the valley!
 
-class MyTestCase(unittest.TestCase):
+class Show3DLossLandscape(unittest.TestCase):
 
     def test_look_for_all_solutions(self):
         experiment = palmer_control

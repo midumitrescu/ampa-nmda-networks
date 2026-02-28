@@ -5,7 +5,7 @@ import numpy as np
 from brian2 import mV, mmole, second, ms, Hz, nS
 
 from BinarySeach import binary_search_for_target_value
-from Plotting import show_plots_non_blocking
+from Plotting import show_plots_non_blocking, prepare_bigger_fonts
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment, PlotParams, \
     SynapticParams
 from iteration_7_one_compartment_step_input.models_and_configs import \
@@ -230,6 +230,7 @@ class ScriptsPalmerResultsWithoutNMDA(unittest.TestCase):
 
     # produces rate 0.05 Hz with up/down
     def test_example_1(self):
+        prepare_bigger_fonts()
         palmer_experiment = (Experiment(wang_recurrent_config)
         .with_properties({
             "up_state":
@@ -261,8 +262,9 @@ class ScriptsPalmerResultsWithoutNMDA(unittest.TestCase):
                     "N_nmda": 0,
                 },
             "t_range": [[0, 10_000]],
+            Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD: ["sigmoid_v"],
             PlotParams.KEY_WHAT_PLOTS_TO_SHOW:
-                [PlotParams.AvailablePlots.RASTER_AND_RATE]
+                [PlotParams.AvailablePlots.RASTER_AND_RATE, PlotParams.AvailablePlots.HIDDEN_VARIABLES]
         }))
 
         sim_and_plot_up_with_state_and_nmda(palmer_experiment)
@@ -347,6 +349,22 @@ class ScriptsPalmerResultsWithNMDA(unittest.TestCase):
         sim_and_plot_experiment_grid_with_increasing_nmda_input_and_steady_state(
             palmer_experiment_0_1_Hz_with_NMDA_block,
             "Palmer", interesting_nmdas)
+
+    def test_new_numbers(self):
+        prepare_bigger_fonts()
+        # SynapticParams.KEY_G_GABA: 0.04e-9,
+        palmer_experiment = (Experiment(wang_recurrent_config)
+        .with_properties({
+            SynapticParams.KEY_G_GABA: 1.35E-9,
+            "up_state":
+                {
+                    "N": 2000,
+                    "nu": 82,
+                    "N_nmda": 0,
+                },
+            "t_range": [[0, 10_000]]
+        }))
+        sim_and_plot_up_down(palmer_experiment)
 
 
 class ScriptsMeetingsWeek12to16January2026(unittest.TestCase):

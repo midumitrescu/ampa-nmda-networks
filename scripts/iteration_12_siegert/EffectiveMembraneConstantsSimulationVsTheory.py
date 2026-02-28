@@ -8,7 +8,7 @@ from brian2 import mV, nsiemens, second
 from joblib import delayed, Parallel
 from loguru import logger
 
-from build.lib.src.Plotting import show_plots_non_blocking
+from Plotting import show_plots_non_blocking
 from iteration_12_siegert.df_utils import prepare_experiment_with_N_tot, load_df_without_metadata, \
     without_elements_after_n_max
 from iteration_12_transfer_function_of_lif_neurons.siegerts_formula_in_3_d import rate_LIF_whitenoise

@@ -7,7 +7,7 @@ from matplotlib import gridspec
 from matplotlib.gridspec import SubplotSpec
 from mpl_toolkits.axes_grid1.mpl_axes import Axes
 
-from Plotting import show_plots_non_blocking
+from Plotting import show_plots_non_blocking, prepare_bigger_fonts
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment, State
 from iteration_7_one_compartment_step_input.one_compartment_with_up_down import \
     SimulationResults
@@ -223,6 +223,7 @@ def sim_steady_state(experiment: Experiment, state: State = no_presynaptic_input
 
 
 def plot_simulation(simulation_results: SimulationResultsWithSteadyState):
+    prepare_bigger_fonts()
     params_t_range = simulation_results.experiment.plot_params.t_range
 
     if isinstance(params_t_range[0], list):
@@ -256,7 +257,7 @@ def plot_currents_in_one_time_range(simulation_results: SimulationResultsWithSte
     if not simulation_results.experiment.plot_params.show_currents_plots():
         return
 
-    fig = plt.figure(figsize=(14, 8))
+    fig = plt.figure(figsize=(20, 12))
     outer = gridspec.GridSpec(1, 1, figure=fig)
     ax_voltage, ax_currents = plot_currents_graph(simulation_results, time_range=time_range, grid_spec_mother=outer[0])
 

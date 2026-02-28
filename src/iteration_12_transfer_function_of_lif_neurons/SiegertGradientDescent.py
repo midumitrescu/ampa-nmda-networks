@@ -1,13 +1,15 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from brian2 import mV, ms, Hz, second, have_same_dimensions
+from brian2 import mV, ms, Hz, second, have_same_dimensions, Quantity, volt
 from loguru import logger
 from matplotlib.collections import LineCollection
 from matplotlib.colors import Normalize
 from scipy import special
 from scipy.integrate import quad
+from scipy.optimize import fsolve
 
-from build.lib.src.Plotting import show_plots_non_blocking
+from Plotting import show_plots_non_blocking, prepare_bigger_fonts
+from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment
 
 mHz = 1e-3 * Hz
 
@@ -15,13 +17,7 @@ def create_anneal_decay_schedule(n_steps,
                                  no_anneal=500, decay_every=100,
                                  decay_factor=0.9):
     steps = np.arange(n_steps)
-
-    # Calculate decay exponent
     decay_exponent = np.floor(np.ceil(np.maximum(0, steps - no_anneal)) / decay_every)
-
-    # Calculate learning rates
-
-
     return decay_factor ** decay_exponent
 
 
@@ -55,7 +51,7 @@ def rate_LIF_whitenoise(mu, tau_membrane, sigma_v, theta, V_reset, tau_ref):
             return 0  * Hz
 
     # Integration bounds
-    lower_limit, upper_limit = integration_limits(mu, V_reset, sigma_v, theta)
+    lower_limit, upper_limit = integration_limits(V_mean=mu, V_reset=V_reset, sigma_v=sigma_v, theta=theta)
 
 
     # Ensure to < upper_limit for integration
@@ -71,10 +67,7 @@ def rate_LIF_whitenoise(mu, tau_membrane, sigma_v, theta, V_reset, tau_ref):
         # Numerical integration of erfcx (which is e^{x^2}erfc(x))
         I_mu_sigma, _ = quad(erfcx, lower_limit, upper_limit, epsabs=1e-13, epsrel=1e-13, limit=1000)
         if np.isnan(I_mu_sigma):
-            I_mu_sigma = 1E13
-            #print(I_mu_sigma)
-            #print(erfcx(lower_limit),  " -> ", erfcx(upper_limit))
-
+            I_mu_sigma = 1E-13
 
     # Compute firing rate
     rate = 1.0 / (tau_ref + tau_membrane * np.sqrt(np.pi) * I_mu_sigma)
@@ -87,8 +80,7 @@ def integration_limits(V_mean, V_reset, sigma_v, theta):
     upper_limit = (V_mean - V_reset) / (np.sqrt(2) * sigma_v)
     return lower_limit, upper_limit
 
-
-class SiegertGradientDescent:
+class SiegertGradients:
     def __init__(self, tau_m, theta, v_reset, tau_ref, unit='mV'):
         """
         Initialize with Brian2 units
@@ -107,29 +99,35 @@ class SiegertGradientDescent:
         self.tau_m = tau_m
         self.tau_ref = tau_ref
 
-    def firing_rate(self, V_mean, sigmaV):
-        """
-        Compute firing rate using the normalized form
+    def __str__(self):
+        return f"""Siegert[theta={self.theta}, v_r={self.v_reset}, tau_m={self.tau_m}, tau_ref={self.tau_ref}]"""
 
-        Parameters:
-        -----------
-        V_mean : Brian2 quantity (voltage) - mean membrane potential μ
-        sigmaV : Brian2 quantity (voltage) - noise standard deviation σ
+    @staticmethod
+    def for_experiment(experiment:Experiment):
+        return SiegertGradients(tau_m=experiment.effective_time_constant_up_state.tau_eff(),
+                                        theta=experiment.neuron_params.theta,
+                                        v_reset=experiment.neuron_params.V_r,
+                                        tau_ref=experiment.neuron_params.tau_rp, unit='mV')
 
-        Returns:
-        --------
-        Brian2 quantity (Hz) - firing rate
-        """
-        return rate_LIF_whitenoise(V_mean, self.tau_m, sigmaV,
-                                   self.theta, self.v_reset, self.tau_ref)
+    def firing_rate(self, mu_v, sigma_v):
+        return rate_LIF_whitenoise(mu=mu_v, tau_membrane=self.tau_m, sigma_v=sigma_v,
+                                     theta=self.theta, V_reset=self.v_reset, tau_ref=self.tau_ref)
 
     def phi(self, z):
         """Φ(z) = erfcx(z) = exp(z^2)*erfc(z)"""
         return erfcx(z)
 
-    def gradient_loss(self, mu_v, sigma_v, r_target):
+    def d_rate_d_mu(self, mu_v, sigma_v):
+        return self.grad_rate_mu_sigma(mu_v=mu_v, sigma_v=sigma_v)[0]
 
-        # (V_mean, V_reset, sigma_v, theta)
+    def d_rate_d_sigma(self, mu_v, sigma_v):
+        return self.grad_rate_mu_sigma(mu_v=mu_v, sigma_v=sigma_v)[1]
+
+    def grad_rate_mu_sigma(self, mu_v, sigma_v):
+        f_lif = self.firing_rate(mu_v=mu_v, sigma_v=sigma_v)
+        return - self.tau_m * np.sqrt(2) * f_lif ** 2 * self.grad_I(mu_v=mu_v, sigma_v=sigma_v)
+
+    def grad_I(self, mu_v, sigma_v):
         lower_limit, upper_limit = integration_limits(V_mean=mu_v, V_reset=self.v_reset, sigma_v=sigma_v,
                                                       theta=self.theta)
 
@@ -137,11 +135,18 @@ class SiegertGradientDescent:
         matrix = np.array([[1, -1],
                            [- upper_limit * np.sqrt(2), lower_limit * np.sqrt(2)]])
 
-        # rate_LIF_whitenoise(mu, tau_membrane, sigma_v, theta, V_reset, tau_ref):
-        f_lif = rate_LIF_whitenoise(mu=mu_v, tau_membrane=self.tau_m, sigma_v=sigma_v, theta=self.theta,
-                                    V_reset=self.v_reset, tau_ref=self.tau_ref)
+        return  1 / (np.sqrt(2) * sigma_v)  * matrix @ phi_vect
 
-        return self.tau_m / sigma_v * (f_lif - r_target) * f_lif ** 2 * matrix @ phi_vect
+
+class SiegertGradientDescent(SiegertGradients):
+
+    def __init__(self, tau_m, theta, v_reset, tau_ref, unit='mV'):
+        super().__init__(tau_m=tau_m, theta=theta, v_reset=v_reset, tau_ref=tau_ref)
+
+    def gradient_loss(self, mu_v, sigma_v, r_target):
+        f_lif = self.firing_rate(mu_v=mu_v, sigma_v=sigma_v)
+
+        return  (f_lif - r_target) * self.grad_rate_mu_sigma(mu_v, sigma_v)
 
     def update_step(self, V_mean, sigmaV, r_target, learning_rate):
         """
@@ -241,7 +246,16 @@ class SiegertGradientDescent:
 
         return mu, sigma, history
 
+
+def newton_fsolve_find_mu_for_fixed_sigma(siegert_gradient: SiegertGradients, sigma_v: Quantity, r_target: Quantity):
+    return fsolve(func=lambda mu: [siegert_gradient.firing_rate(mu_v=mu[0] * volt, sigma_v=sigma_v) - r_target],
+                  x0=-55 * mV,
+                  fprime=lambda mu: [siegert_gradient.d_rate_d_mu(mu_v=mu[0] * volt, sigma_v=sigma_v)])[0] * volt
+
+
 def plot_grad_descent(history: dict, r_target: float):
+    prepare_bigger_fonts()
+
     # Plot convergence
     fig, axes = plt.subplots(3, 2, figsize=(16, 12))
     steps = range(len(history['mu']))

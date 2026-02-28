@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from brian2 import ms, clear_cache, Hz
 from loguru import logger
 
-from build.lib.src.Plotting import show_plots_non_blocking
+from Plotting import show_plots_non_blocking
 from iteration_12_siegert.df_utils import save_metadata_header, \
     find_last_index
 from iteration_12_siegert.one_compartment_with_up_only import simulate_and_record_essential_variables

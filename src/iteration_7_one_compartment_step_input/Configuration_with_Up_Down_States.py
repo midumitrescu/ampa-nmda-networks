@@ -446,6 +446,9 @@ class Experiment:
     def with_property(self, key: str, value: object):
         return self.with_properties({key: value})
 
+    def with_label(self, value: str):
+        return self.with_property(PlotParams.KEY_PANEL, value)
+
     def with_properties(self, values: dict[str, object]):
         new_params = copy.deepcopy(self.params)
         for key, value in values.items():
@@ -647,6 +650,9 @@ class EffectiveTimeConstantEstimation:
 
     def tau_eff(self):
         return self.config.neuron_params.C / self.mean_total_conductance()
+
+    def tau_eff_with_nmda(self):
+        return self.config.neuron_params.C / self.mean_total_conductance_with_nmda()
 
     def crazy_s_nmda_mean_and_variance(self):
 

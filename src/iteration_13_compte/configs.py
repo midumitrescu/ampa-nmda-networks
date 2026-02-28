@@ -97,4 +97,4 @@ class CompteResults:
     def stats(self):
         result = self.example.summary()
         result['end_rate'] = self.extract_end_rates()
-        return result
+        return ExtendedDict(result)
