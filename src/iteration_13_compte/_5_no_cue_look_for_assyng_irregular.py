@@ -5,7 +5,7 @@ from brian2 import nS, SpikeMonitor, PopulationRateMonitor, StateMonitor, ms, pr
     NeuronGroup, Synapses, PoissonInput, second, devices, run
 from joblib import delayed, Parallel
 
-from iteration_13_compte.compte_utils_deserialized import plot_compte_results
+from iteration_13_compte.compte_utils_deserialized import plot_compte_results, run_cartezian_product
 from iteration_13_compte.configs import AnExampleExperiment, CompteResults
 from iteration_13_compte.compte_utils import plot_compte
 

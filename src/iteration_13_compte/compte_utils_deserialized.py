@@ -1,15 +1,13 @@
 import itertools
 
-from brian2 import PopulationRateMonitor, SpikeMonitor, StateMonitor, ms, Hz
 import matplotlib.pyplot as plt
-from brian2.units.allunits import pampere
-
 import numpy as np
+from brian2 import ms
 from joblib import delayed, Parallel
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-from iteration_13_compte.compte_utils import CueInfo
 from iteration_13_compte.configs import AnExampleExperiment, CompteResults
+
 
 def compute_binned_firing_rate(results: CompteResults, bin_size = 10):
     bins = int(results.sim_time / bin_size)
@@ -77,9 +75,9 @@ def raster_to_rates(raster: np.ndarray, dt: float):
     )
     return rate
 
-def plot_compte_results(results: CompteResults, theta_array_assignment, cues: list[CueInfo]):
+def plot_compte_results(results: CompteResults, plot_current_for_neurons: list[tuple[int, str]] = [(0, "non-cue"), (200, "cue")]):
 
-    rates_sorted = compute_ordered_firing_rates_from_results(results=results, theta_array_assignment=theta_array_assignment)
+    rates_sorted = compute_ordered_firing_rates_from_results(results=results, theta_array_assignment=results.example.theta_E)
 
     fig, axs = plt.subplots(
         4, 1,
@@ -97,7 +95,7 @@ def plot_compte_results(results: CompteResults, theta_array_assignment, cues: li
     )
 
     angle_ticks = np.array([0, 90, 180, 270, 359])
-    theta = np.asarray(theta_array_assignment)
+    theta = np.asarray(results.example.theta_E)
 
     ytick_indices = [
         np.argmin(np.abs(theta - angle))
@@ -115,7 +113,7 @@ def plot_compte_results(results: CompteResults, theta_array_assignment, cues: li
         axs[0].transData, axs[0].transAxes
     )
 
-    for _, cue in enumerate(cues):
+    for _, cue in enumerate(results.example.cues):
         start = cue.delay / ms
         end = (cue.delay + cue.duration) / ms
 
@@ -137,8 +135,9 @@ def plot_compte_results(results: CompteResults, theta_array_assignment, cues: li
 
     axs[0].set_title('Bump attractor dynamics')
 
-    neurons = [0, 200]
-    neuron_labels = ["non-cue", "cue"]
+    neurons, neuron_labels = zip(*plot_current_for_neurons)
+    neurons = list(neurons)
+    neuron_labels = list(neuron_labels)
 
     # --- 2) Raster plot ---
     axs[1].plot(
@@ -174,24 +173,27 @@ def plot_compte_results(results: CompteResults, theta_array_assignment, cues: li
     axs[2].legend(loc="upper right")
 
     for neuron_index, neuron_label in zip(neurons, neuron_labels):
-        axs[3].plot(
-            results.currents_monitor.t,
-            results.currents_monitor.I_AMPA[neuron_index],
-            label=f"I AMPA, {neuron_index} - {neuron_label}",
-            alpha=0.6
-        )
-        axs[3].plot(
-            results.currents_monitor.t,
-            results.currents_monitor.I_NMDA[neuron_index],
-            label=f"I NMDA, {neuron_index}- {neuron_label}",
-            alpha=0.6
-        )
-        axs[3].plot(
-            results.currents_monitor.t,
-            results.currents_monitor.I_GABA[neuron_index],
-            label=f"I GABA, {neuron_index}- {neuron_label}",
-            alpha=0.6
-        )
+        if "I_AMPA" in results.currents_monitor.recorded:
+            axs[3].plot(
+                results.currents_monitor.t,
+                results.currents_monitor.I_AMPA[neuron_index],
+                label=f"I AMPA, {neuron_index} - {neuron_label}",
+                alpha=0.6
+            )
+        if "I_NMDA" in results.currents_monitor.recorded:
+            axs[3].plot(
+                results.currents_monitor.t,
+                results.currents_monitor.I_NMDA[neuron_index],
+                label=f"I NMDA, {neuron_index}- {neuron_label}",
+                alpha=0.6
+            )
+        if "I_GABA" in results.currents_monitor.recorded:
+            axs[3].plot(
+                results.currents_monitor.t,
+                results.currents_monitor.I_GABA[neuron_index],
+                label=f"I GABA, {neuron_index}- {neuron_label}",
+                alpha=0.6
+            )
         if "I_AMPA_cue" in results.currents_monitor.recorded:
             axs[3].plot(
                 results.currents_monitor.t,

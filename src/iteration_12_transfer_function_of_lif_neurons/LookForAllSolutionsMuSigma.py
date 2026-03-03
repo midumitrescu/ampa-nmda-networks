@@ -1,14 +1,15 @@
 import sys
 
 from loguru import logger
+from scipy.optimize import fsolve
 
+from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment
 from src.Plotting import show_plots_non_blocking
 
 logger.remove()  # remove default handler
 logger.add(sys.stderr, level="INFO")
 
-from _pytest import unittest
-from brian2 import mV, Hz
+from brian2 import mV, Hz, Quantity, volt, mvolt
 from joblib import Parallel, delayed
 from scipy.stats import stats
 
@@ -49,7 +50,7 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 
 def plot_loss_landscape_with_curve(solver, r_target, mu_range, sigma_range,
-                                   resolution=50, target_rate_Hz=None):
+                                   resolution=50, target_rate_Hz=None, caller_test_case=None):
     """
     Plot 3D loss landscape with the solution curve F(μ,σ) = r_target
 
@@ -140,7 +141,7 @@ def plot_loss_landscape_with_curve(solver, r_target, mu_range, sigma_range,
     ax2.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.show()
+    show_plots_non_blocking(caller_test_case=caller_test_case, descriptor="loss_landscape")
 
     return fig, (ax1, ax2)
 
@@ -151,6 +152,21 @@ class MuToSigmaResult:
         self.sigmas = sigmas / mV
         self.r_target = r_target
         self.exp_label = exp_label
+
+def newton_fsolve_find_sigma_for_fixed_mu(siegert_gradient: SiegertGradients, mu_v: Quantity, r_target: Quantity):
+    return fsolve(func=lambda sigma: [siegert_gradient.firing_rate(mu_v=mu_v, sigma_v=sigma[0] * volt) - r_target],
+                  x0=-55 * mV,
+                  fprime=lambda sigma: [siegert_gradient.d_rate_d_mu(mu_v=mu_v, sigma_v=sigma[0] * volt)])[0] * volt
+
+def compute_mu_to_sigma_fsolve_scan_mus(experiment: Experiment, r_target):
+    mus = np.linspace(experiment.neuron_params.theta - 20*mV, experiment.neuron_params.theta - 0.1 * mV, 1001)
+    siegert_gradient = SiegertGradients.for_experiment(experiment)
+
+    sigmas = np.zeros_like(mus)
+    for index, mu in enumerate(mus):
+        sigmas[index] = newton_fsolve_find_sigma_for_fixed_mu(siegert_gradient=siegert_gradient, mu_v = mu, r_target=r_target)
+
+    return MuToSigmaResult(mus, sigmas, r_target)
 
 def compute_mu_to_sigma_fsolve_scan_sigmas(experiment, r_target):
     sigmas = np.linspace(0, 10, 101) * mV
@@ -215,7 +231,7 @@ def compute_mu_to_sigma_curve(experiment, r_target):
     return MuToSigmaResult(mus=mu_s, sigmas=sigmas, r_target=r_target, exp_label=experiment.plot_params.panel)
 
 
-def plot_line_computation_vs_fit(results: list[MuToSigmaResult]):
+def plot_line_computation_vs_fit(results: list[MuToSigmaResult], caller_test_case=None, descriptor="linear_fit"):
 
     fig2, ax = plt.subplots(figsize=(10, 6))
     for result in results:
@@ -260,78 +276,18 @@ def plot_line_computation_vs_fit(results: list[MuToSigmaResult]):
     ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.show()
+    show_plots_non_blocking(caller_test_case=caller_test_case, descriptor=descriptor)
 
 
-
-
-class LookForAllSolutionsCases(unittest.TestCase):
-
-    def test_look_for_all_solutions(self):
-        experiment = palmer_control
-
-        r_target = 0.3 * Hz
-        solver = SiegertGradientDescent(tau_m=experiment.effective_time_constant_up_state.tau_eff(),
-                                        theta=experiment.neuron_params.theta,
-                                        v_reset=experiment.neuron_params.V_r,
-                                        tau_ref=experiment.neuron_params.tau_rp, unit='mV')
-
-        # Initial guesses (in mV) - adjusted for normalized form
-        mu_0, sigma_0 = -56 * mV, 2.5 * mV
-
-        fig, axes = plot_loss_landscape_with_curve(
-            solver, r_target, (-60, -35), (0, 6),
-            resolution=50, target_rate_Hz=0.3
-        )
-
-        fig.show()
-
-    def test_look_for_all_solutions_using_binary_search(self):
-
-        experiment = palmer_control
-        palmer_control.with_property(NeuronModelParams.KEY_NEURON_V_R, -65)
-
-        nmda_block_mu_to_sigma = compute_mu_to_sigma_curve(experiment.with_label("NMDA Block"), r_target = 0.05 * Hz)
-        control_mu_to_sigma = compute_mu_to_sigma_curve(experiment.with_label("Control"), r_target = 0.3 * Hz)
-
-        self.plot_mus_vs_sigmas([nmda_block_mu_to_sigma, control_mu_to_sigma])
-
-    def plot_mus_vs_sigmas(self, results: list[MuToSigmaResult]):
-        for result in results:
-            plt.plot(result.mus, result.sigmas, label=f"{result.exp_label}, r = {result.r_target}")
-        plt.xlabel("$\mu_v$ [mV]")
-        plt.ylabel("$\sigma_v [mV]$")
-        plt.title("$\mu$ vs $\sigma_v$ dependency for constant firing rate "
-                  "predicted by first time passage formula")
-        plt.tight_layout()
-        plt.legend()
-        show_plots_non_blocking()
-        plot_line_computation_vs_fit(results)
-
-    # Newton's method
-    def test_look_for_one_solution_using_fsolve(self):
-        siegert_gradient = SiegertGradients.for_experiment(palmer_control)
-
-        r_target = 0.3 * Hz
-        sigma_v = 3 * mV
-
-        solution = newton_fsolve_find_mu_for_fixed_sigma(siegert_gradient=siegert_gradient, sigma_v=sigma_v, r_target=r_target)
-        self.assertAlmostEqual(-60.32809490445717, solution / mV)
-        self.assertAlmostEqual(r_target / Hz, siegert_gradient.firing_rate(mu_v = solution, sigma_v = sigma_v) / Hz)
-
-
-    def test_fsolve_sigma_0(self):
-        siegert_gradient = SiegertGradients.for_experiment(palmer_control)
-
-        solution = newton_fsolve_find_mu_for_fixed_sigma(siegert_gradient=siegert_gradient, sigma_v=0*mV, r_target=0.3 * Hz)
-        print(solution)
-        self.assertAlmostEqual(-40, solution / mV)
-
-
-    def test_look_for_all_solutions_using_fsolve(self):
-        result = compute_mu_to_sigma_fsolve_scan_sigmas(palmer_control, r_target = 0.3 * Hz)
-        print(result)
-        self.assertEqual(101, len(result.mus))
-        self.assertEqual(101, len(result.sigmas))
-
-        self.plot_mus_vs_sigmas([result])
+def plot_mus_vs_sigmas(results: list[MuToSigmaResult], caller_test_case=None):
+    """Plot μ vs σ curves and linear fit. Used by script runners with caller_test_case=self for figure naming."""
+    for result in results:
+        plt.plot(result.mus, result.sigmas, label=f"{result.exp_label}, r = {result.r_target}")
+    plt.xlabel(r"$\mu_v$ [mV]")
+    plt.ylabel(r"$\sigma_v$ [mV]")
+    plt.title(r"$\mu$ vs $\sigma_v$ dependency for constant firing rate "
+              "predicted by first time passage formula")
+    plt.tight_layout()
+    plt.legend()
+    show_plots_non_blocking(caller_test_case=caller_test_case)
+    plot_line_computation_vs_fit(results, caller_test_case=caller_test_case, descriptor="linear_fit")

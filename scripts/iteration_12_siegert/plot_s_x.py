@@ -38,11 +38,11 @@ def s_t(t, t0=0, alpha=1.0, tau_rise=2.0, tau_decay=200.0):
 
 
 # Time array
-t = np.linspace(-5, 50, 500)
+t = np.linspace(-5, 50, 5000)
 t0 = 0
 alpha = 1.0
 tau_rise = 2.0
-tau_decay = 10.0
+tau_decay = 200.0
 
 # Compute s(t)
 s_values = np.array([s_t(ti, t0, alpha, tau_rise, tau_decay) for ti in t])
@@ -72,7 +72,7 @@ plt.show()
 dt = t[1] - t[0]
 # Numerical derivative
 ds_dt = np.gradient(s_values, dt)
-
+desired_rate
 # Theoretical ds/dt from ODE
 ds_dt_theory = -s_values / tau_decay + alpha * x_values * (1 - s_values)
 

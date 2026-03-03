@@ -26,31 +26,30 @@ def erfcx(x):
     return special.erfcx(x)
 
 
+def rate_LIF_deterministic(mu, tau_membrane, theta, V_reset, tau_ref):
+    """
+    Firing rate of LIF with no noise (deterministic). Used when σ=0; Siegert's formula does not apply.
+    Returns 0 for mu <= theta.
+    """
+    if mu <= theta:
+        return 0 * Hz
+    T = tau_membrane * np.log((mu - V_reset) / (mu - theta))
+    return 1.0 / (T + tau_ref)
+
+
 def rate_LIF_whitenoise(mu, tau_membrane, sigma_v, theta, V_reset, tau_ref):
     """
-    Compute firing rate of LIF neuron with white noise input
-
-    Parameters:
-    -----------
-    V_mean : Brian2 quantity (mV) - mean membrane potential
-    tau : Brian2 quantity (ms) - membrane time constant
-    sigmaV : Brian2 quantity (mV) - noise standard deviation
-    Vth : Brian2 quantity (mV) - threshold voltage
-    Vreset : Brian2 quantity (mV) - reset voltage
-    tref : Brian2 quantity (ms) - refractory period
-
-    Returns:
-    --------
-    Brian2 quantity (Hz) - firing rate
+    Compute firing rate of LIF neuron with white noise input.
+    When sigma_v ≈ 0: below threshold → 0; above threshold → 1/(T + tau_ref).
     """
-    if np.abs(sigma_v / mV) < 1E-10:
+    if np.abs(float(sigma_v / mV)) < 1e-10:
         if mu > theta:
             T = tau_membrane * np.log((mu - V_reset) / (mu - theta))
-            return 1. / (T + tau_ref)
+            return 1.0 / (T + tau_ref)
         else:
-            return 0  * Hz
+            return 0 * Hz
 
-    # Integration bounds
+    # Integration bounds (Siegert's formula)
     lower_limit, upper_limit = integration_limits(V_mean=mu, V_reset=V_reset, sigma_v=sigma_v, theta=theta)
 
 
@@ -247,9 +246,13 @@ class SiegertGradientDescent(SiegertGradients):
         return mu, sigma, history
 
 
-def newton_fsolve_find_mu_for_fixed_sigma(siegert_gradient: SiegertGradients, sigma_v: Quantity, r_target: Quantity):
+def newton_fsolve_find_mu_for_fixed_sigma(siegert_gradient: SiegertGradients, sigma_v: Quantity, r_target: Quantity, mu_0=None):
+    if mu_0 is None:
+        mu_0 = -55 * mV
+    # fsolve expects x0 in same scale as lambda (mu[0] in volt)
+    x0_val = float(mu_0 / volt) if hasattr(mu_0, "unit") else mu_0
     return fsolve(func=lambda mu: [siegert_gradient.firing_rate(mu_v=mu[0] * volt, sigma_v=sigma_v) - r_target],
-                  x0=-55 * mV,
+                  x0=np.array([x0_val]),
                   fprime=lambda mu: [siegert_gradient.d_rate_d_mu(mu_v=mu[0] * volt, sigma_v=sigma_v)])[0] * volt
 
 
