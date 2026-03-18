@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from brian2 import mV, ms, Hz, second, have_same_dimensions, Quantity, volt
+from brian2 import mV, ms, Hz, second, have_same_dimensions, Quantity, volt, is_dimensionless
 from loguru import logger
 from matplotlib.collections import LineCollection
 from matplotlib.colors import Normalize
@@ -9,6 +9,7 @@ from scipy.integrate import quad
 from scipy.optimize import fsolve
 
 from Plotting import show_plots_non_blocking, prepare_bigger_fonts
+from iteration_12_transfer_function_of_lif_neurons.config import DiffusionLIFConfig
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment
 
 mHz = 1e-3 * Hz
@@ -36,22 +37,9 @@ def rate_LIF_deterministic(mu, tau_membrane, theta, V_reset, tau_ref):
     T = tau_membrane * np.log((mu - V_reset) / (mu - theta))
     return 1.0 / (T + tau_ref)
 
-
-def rate_LIF_whitenoise(mu, tau_membrane, sigma_v, theta, V_reset, tau_ref):
-    """
-    Compute firing rate of LIF neuron with white noise input.
-    When sigma_v ≈ 0: below threshold → 0; above threshold → 1/(T + tau_ref).
-    """
-    if np.abs(float(sigma_v / mV)) < 1e-10:
-        if mu > theta:
-            T = tau_membrane * np.log((mu - V_reset) / (mu - theta))
-            return 1.0 / (T + tau_ref)
-        else:
-            return 0 * Hz
-
+def I_mu_sigma(mu_v, sigma_v, theta, V_reset):
     # Integration bounds (Siegert's formula)
-    lower_limit, upper_limit = integration_limits(V_mean=mu, V_reset=V_reset, sigma_v=sigma_v, theta=theta)
-
+    lower_limit, upper_limit = integration_limits(V_mean=mu_v, V_reset=V_reset, sigma_v=sigma_v, theta=theta)
 
     # Ensure to < upper_limit for integration
     if lower_limit > upper_limit:
@@ -68,13 +56,37 @@ def rate_LIF_whitenoise(mu, tau_membrane, sigma_v, theta, V_reset, tau_ref):
         if np.isnan(I_mu_sigma):
             I_mu_sigma = 1E-13
 
-    # Compute firing rate
-    rate = 1.0 / (tau_ref + tau_membrane * np.sqrt(np.pi) * I_mu_sigma)
+    return I_mu_sigma
 
+
+def rate_LIF_whitenoise(mu, tau_membrane, sigma_v, theta, V_reset, tau_ref):
+    """
+    Compute firing rate of LIF neuron with white noise input.
+    When sigma_v ≈ 0: below threshold → 0; above threshold → 1/(T + tau_ref).
+    """
+    if np.abs(float(sigma_v / mV)) < 1e-10:
+        if mu > theta:
+            T = tau_membrane * np.log((mu - V_reset) / (mu - theta))
+            return 1.0 / (T + tau_ref)
+        else:
+            return 0 * Hz
+
+    i_mu_sigma = I_mu_sigma(mu_v=mu, sigma_v=sigma_v, theta=theta, V_reset=V_reset)
+
+    # Compute firing rate
+    rate = 1.0 / (tau_ref + tau_membrane * np.sqrt(np.pi) * i_mu_sigma)
     return rate
 
 
 def integration_limits(V_mean, V_reset, sigma_v, theta):
+
+    if is_dimensionless(V_mean):
+        V_mean = V_mean * mV
+    if is_dimensionless(V_reset):
+        V_reset = V_reset * mV
+    if is_dimensionless(sigma_v):
+        sigma_v = sigma_v * mV
+
     lower_limit = (V_mean - theta) / (np.sqrt(2) * sigma_v)
     upper_limit = (V_mean - V_reset) / (np.sqrt(2) * sigma_v)
     return lower_limit, upper_limit
@@ -108,6 +120,15 @@ class SiegertGradients:
                                         v_reset=experiment.neuron_params.V_r,
                                         tau_ref=experiment.neuron_params.tau_rp, unit='mV')
 
+    @staticmethod
+    def for_lif_config(lif_config: DiffusionLIFConfig):
+        return SiegertGradients(tau_m=lif_config.tau_m,
+                                theta=lif_config.theta,
+                                v_reset=lif_config.V_r,
+                                tau_ref=lif_config.tau_rp, unit='mV')
+
+
+
     def firing_rate(self, mu_v, sigma_v):
         return rate_LIF_whitenoise(mu=mu_v, tau_membrane=self.tau_m, sigma_v=sigma_v,
                                      theta=self.theta, V_reset=self.v_reset, tau_ref=self.tau_ref)
@@ -124,7 +145,7 @@ class SiegertGradients:
 
     def grad_rate_mu_sigma(self, mu_v, sigma_v):
         f_lif = self.firing_rate(mu_v=mu_v, sigma_v=sigma_v)
-        return - self.tau_m * np.sqrt(2) * f_lif ** 2 * self.grad_I(mu_v=mu_v, sigma_v=sigma_v)
+        return - self.tau_m * np.sqrt(np.pi) * f_lif ** 2 * self.grad_I(mu_v=mu_v, sigma_v=sigma_v)
 
     def grad_I(self, mu_v, sigma_v):
         lower_limit, upper_limit = integration_limits(V_mean=mu_v, V_reset=self.v_reset, sigma_v=sigma_v,
@@ -135,6 +156,9 @@ class SiegertGradients:
                            [- upper_limit * np.sqrt(2), lower_limit * np.sqrt(2)]])
 
         return  1 / (np.sqrt(2) * sigma_v)  * matrix @ phi_vect
+
+    def integration_limits(self, mu_v, sigma_v):
+        return integration_limits(V_mean = mu_v, V_reset=self.v_reset, sigma_v=sigma_v, theta=self.theta)
 
 
 class SiegertGradientDescent(SiegertGradients):

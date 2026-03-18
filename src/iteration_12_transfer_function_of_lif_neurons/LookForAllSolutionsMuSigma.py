@@ -3,21 +3,19 @@ import sys
 from loguru import logger
 from scipy.optimize import fsolve
 
+from iteration_12_transfer_function_of_lif_neurons.config import DiffusionLIFConfig, default_diffusion_lif_config
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment
 from src.Plotting import show_plots_non_blocking
 
 logger.remove()  # remove default handler
 logger.add(sys.stderr, level="INFO")
 
-from brian2 import mV, Hz, Quantity, volt, mvolt
+from brian2 import mV, Hz, Quantity, volt
 from joblib import Parallel, delayed
 from scipy.stats import stats
 
 from BinarySeach import binary_search_for_target_value_precission_in_result_space
-from build.lib.src.Plotting import NeuronModelParams
-from iteration_12_transfer_function_of_lif_neurons.SiegertGradientDescent import SiegertGradientDescent, \
-    rate_LIF_whitenoise, SiegertGradients, newton_fsolve_find_mu_for_fixed_sigma
-from iteration_8_compute_mean_steady_state.scripts_with_wang_numbers import palmer_control
+from iteration_12_transfer_function_of_lif_neurons.SiegertGradientDescent import rate_LIF_whitenoise, SiegertGradients, newton_fsolve_find_mu_for_fixed_sigma
 
 
 def find_curve_grid(solver, r_target, mu_range, sigma_range, resolution=100):
@@ -179,32 +177,37 @@ def compute_mu_to_sigma_fsolve_scan_sigmas(experiment, r_target):
 
     return MuToSigmaResult(mus, sigmas, r_target)
 
-def compute_mu_to_sigma_curve(experiment, r_target):
+def compute_mu_to_sigma_curve_for_experiment(experiment: Experiment, r_target: Quantity):
+    return compute_mu_to_sigma_curve(lif_config=DiffusionLIFConfig.from_experiment(experiment), r_target=r_target)
+
+
+def compute_mu_to_sigma_curve(lif_config: DiffusionLIFConfig, r_target: Quantity):
 
     # scan over mu, keep sigma
     # first, look for max mu i.e. the mu for zero sigma that returns r_target
     look_for_mu = lambda mu: rate_LIF_whitenoise(mu,
-                                                 tau_membrane=experiment.effective_time_constant_up_state.tau_eff(),
-                                                 sigma_v=0 * mV, theta=experiment.neuron_params.theta,
-                                                 V_reset=experiment.neuron_params.V_r,
-                                                 tau_ref=experiment.neuron_params.tau_rp)
+                                                 tau_membrane=lif_config.tau_m,
+                                                 sigma_v=0 * mV, theta=lif_config.theta,
+                                                 V_reset=lif_config.V_r,
+                                                 tau_ref=lif_config.tau_rp)
     _, max_mu = binary_search_for_target_value_precission_in_result_space(-55 * mV, upper_value=-35 * mV,
                                                                           func=look_for_mu, target_result=r_target,
                                                                           precision=1E-10 * Hz, max_iters=100)
-    # Prepare mu values
-    mu_s = np.linspace(experiment.neuron_params.E_leak, max_mu-0.1*mV, num=1000)
 
-    def compute_sigma(mu, r_target, experiment):
+    # Prepare mu values
+    mu_s = np.linspace(lif_config.theta - 20 * mV, max_mu-0.01*mV, num=1000)
+
+    def compute_sigma(mu, r_target, lif_config: DiffusionLIFConfig):
         """
         Find sigma for a given mu using binary search to hit r_target.
         """
         look_for_sigma = lambda s: rate_LIF_whitenoise(
             mu,
-            tau_membrane=experiment.effective_time_constant_up_state.tau_eff(),
+            tau_membrane=lif_config.tau_m,
             sigma_v=s,
-            theta=experiment.neuron_params.theta,
-            V_reset=experiment.neuron_params.V_r,
-            tau_ref=experiment.neuron_params.tau_rp
+            theta=lif_config.theta,
+            V_reset=lif_config.V_r,
+            tau_ref=lif_config.tau_rp
         )
         try:
             sigma, _ = binary_search_for_target_value_precission_in_result_space(
@@ -222,67 +225,107 @@ def compute_mu_to_sigma_curve(experiment, r_target):
 
     # Run in parallel on all mu values
     sigmas = Parallel(n_jobs=-1, backend="loky")(
-        delayed(compute_sigma)(mu, r_target, experiment) for mu in mu_s
+        delayed(compute_sigma)(mu, r_target, lif_config) for mu in mu_s
     )
     # Convert to numpy array
     logger.debug("sigma[0] = {}", sigmas[0])
     sigmas = np.array(sigmas/mV) * mV
     logger.debug("sigma[0] = {}. Attention! np.array removes units! This is why I need to re-add units!! Otherwise, bug", sigmas[0])
-    return MuToSigmaResult(mus=mu_s, sigmas=sigmas, r_target=r_target, exp_label=experiment.plot_params.panel)
+    return MuToSigmaResult(mus=mu_s, sigmas=sigmas, r_target=r_target, exp_label=lif_config.label)
 
 
-def plot_line_computation_vs_fit(results: list[MuToSigmaResult], caller_test_case=None, descriptor="linear_fit"):
+def plot_line_computation_vs_fit(results: list[MuToSigmaResult], caller_test_case=None, descriptor="linear_fit", axs=None, colors = ("orange", "black"),
+                                 config: DiffusionLIFConfig = default_diffusion_lif_config):
 
-    fig2, ax = plt.subplots(figsize=(10, 6))
-    for result in results:
+    should_create_figure = axs is None
+    if should_create_figure:
+        fig2, axs = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+
+    r2_s = np.zeros_like(results)
+
+    for index, (result, color) in enumerate(zip(results, colors)):
 
         slope, intercept, r_value, p_value, std_err = \
             stats.linregress(result.mus, result.sigmas)
 
-        print(f"{result.exp_label} ({result.r_target}): σ = {slope:.10f}·μ + {intercept:.10f}")
-
         x = result.mus
         y = result.sigmas
 
-        x_fit = np.linspace(min(x), max(x), 100)
-        y_fit = slope * x_fit + intercept
         # Calculate R² to show goodness of fit
         y_pred = slope * x + intercept
         ss_res = np.sum((y - y_pred) ** 2)
         ss_tot = np.sum((y - np.mean(y)) ** 2)
         r2 = 1 - (ss_res / ss_tot)
-        ax.plot(x, y, alpha=0.5, label=f'{result.exp_label} data', linewidth=10)
+        residuals = y - y_pred
+
+        r2_s[index] = r2
+        axs[0].plot(x, y, alpha=0.5, label=f'{result.exp_label} data', linewidth=10, color=color)
 
         # Plot fitted lines across a common range
-        x_plot = np.linspace(-70, -45, 100)
+        x_plot = np.linspace(-65, -35, 100)
         y_plot = slope * x_plot + intercept
 
-        ax.plot(x_plot, y_plot, linewidth=2,
-                label=f'{result.exp_label}: $\sigma$={slope:.3f}$\mu${intercept:.2f}')
+        axs[0].plot(x_plot, y_plot, linewidth=2,
+                label=f'{result.exp_label} linear fit: \n $\sigma_v$={slope:.3f}$\mu${intercept:.2f}', color=color)
 
-        print("=" * 60)
-        print("LINEAR FIT RESULTS")
-        print("=" * 60)
-        print(f"{result.exp_label} ({result.r_target}):")
-        print(f"  σ = {slope:.4f}·μ + {intercept:.4f}")
-        print(f"  R² = {r2:.6f}")
-        print(f"  Number of points: {len(x)}")
-        print()
+        axs[1].scatter(x, residuals, color=color, s=5, alpha=0.5, label=f'{result.exp_label}')
+        axs[1].axhline(0, color='black', lw=1, linestyle='--')
+        axs[1].set_xlabel('$mu_v$')
+        axs[1].set_ylabel('Residuals')
 
-    ax.set_xlabel('$\mu$ (mV)', fontsize=12)
-    ax.set_ylabel('$\sigma$ (mV)', fontsize=12)
-    ax.set_title('Comparison of Linear Fits for Both Conditions', fontsize=14)
-    ax.legend(fontsize=10)
-    ax.grid(True, alpha=0.3)
+        residuals = y - y_pred
+        max_error = np.max(np.abs(residuals))
+        e_infinity = max_error / (np.max(y) - np.min(y))
+        subtitle = (
+                r"$\mathrm{res}_i = \sigma_{v, i} - \hat{\sigma}_{v, i}$" + "\n" +
+                rf"$E_{{\max}} = \max_i |\mathrm{{res}}_i| = {max_error:.4f}$" + "\n" +
+                rf"$E_{{\infty}} = \frac{{E_{{\max}}}}{{\max_i \sigma_{{v, i}} - \min_i \sigma_{{v, i}}}} = {e_infinity:.4f}$"
+        )
 
-    plt.tight_layout()
-    show_plots_non_blocking(caller_test_case=caller_test_case, descriptor=descriptor)
+        axs[1].set_title(
+            fr"Plot of residual error ($\sigma_{{v, i, \mathrm{{found}}}} - \sigma_{{v, i, \mathrm{{linear\ est}}}}$) of linear fit"
+            + "\n" + subtitle
+        )
+
+    labels = [r.exp_label for r in results]
+    if len(labels) == 1:
+        cond = f"{labels[0]} condition"
+        r2_label = f"{labels[0]}: {r2_s[0]}"
+    elif len(labels) == 2:
+        cond = f"{labels[0]} and {labels[1]} conditions"
+        r2_label = f"{labels[0]}: {r2_s[0]} and {labels[1]}: {r2_s[1]}"
+    else:
+        cond = f"{', '.join(labels[:-1])} and {labels[-1]} conditions"
+        r2_labels = [f"{label}: {r_2:.4f}" for label, r_2 in zip(labels, r2_s)]
+        r2_label = f"{', '.join(r2_labels[:-1])} and {r2_labels[-1]}"
+
+    axs[0].set_xlabel('$\mu_v$ (mV)', fontsize=12)
+    axs[0].set_ylabel('$\sigma_v$ (mV)', fontsize=12)
+
+    axs[0].set_title(f'Verify linear fits for {cond} \n $R^2$ values: {r2_label}', fontsize=14)
+
+    for index, ax in enumerate(axs):
+        ax.axvline(x=default_diffusion_lif_config.theta / mV, color='dimgray', linestyle='-.',
+                   label=r'Threshold $\theta$')
+        ax.text(
+            0.02, 1.17, f"({chr(ord("A") + index)})",
+            transform=ax.transAxes,
+            fontsize=20,
+            fontweight=1000,
+            va="top",
+            ha="left"
+        )
+        ax.legend(fontsize=10)
+
+    if should_create_figure:
+        fig2.tight_layout()
+        show_plots_non_blocking(caller_test_case=caller_test_case, descriptor=descriptor)
 
 
 def plot_mus_vs_sigmas(results: list[MuToSigmaResult], caller_test_case=None):
     """Plot μ vs σ curves and linear fit. Used by script runners with caller_test_case=self for figure naming."""
-    for result in results:
-        plt.plot(result.mus, result.sigmas, label=f"{result.exp_label}, r = {result.r_target}")
+    for result, color in zip(results, ["orange", "black"]):
+        plt.plot(result.mus, result.sigmas, color=color, label=f"{result.exp_label}, r = {result.r_target / Hz} Hz", lw=2)
     plt.xlabel(r"$\mu_v$ [mV]")
     plt.ylabel(r"$\sigma_v$ [mV]")
     plt.title(r"$\mu$ vs $\sigma_v$ dependency for constant firing rate "

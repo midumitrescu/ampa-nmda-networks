@@ -84,7 +84,7 @@ def without_elements_after_max_val(df: pd.DataFrame, max_val: float, column_name
     #return df[df["N"].astype(int) <= max_n]
 
 def without_elements_after_n_max(df: pd.DataFrame, max_n: int) -> pd.DataFrame:
-    return without_elements_after_max_val(df, max_n, column_name="N")
+    return without_elements_after_max_val(df, max_n, column_name="n")
 
 def with_elements_between(df: pd.DataFrame, lower_bound: int = -1, upper_bound:int = -1) -> pd.DataFrame:
     result = df.copy()

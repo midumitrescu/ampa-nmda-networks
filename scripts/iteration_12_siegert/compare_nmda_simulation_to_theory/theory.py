@@ -89,6 +89,6 @@ def compute_theoretical_nmda_mean_sigma_and_rate_nu_scan(max_nu, base:Experiment
 
     nus = np.arange(0, max_nu+0.05, step=0.1)
     results = Parallel(
-        n_jobs=1,  # use all cores
+        n_jobs=-1,  # use all cores
         backend="loky")(delayed(lambda nu: compute_nmda_variables_for_nu_nmda(nu=nu, up_state_base=up_state_base, base=base))(nu) for nu in nus)
     return pd.DataFrame.from_records(results)

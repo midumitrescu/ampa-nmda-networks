@@ -20,6 +20,9 @@ from iteration_8_compute_mean_steady_state.models_and_configs import palmer_expe
     palmer_experiment_0_1_Hz_with_NMDA_block, wang_recurrent_config
 from iteration_8_compute_mean_steady_state.one_compartment_with_up_down_and_steady import sim_and_plot_up_down, \
     plot_voltage_trace_comparisons
+from iteration_8_compute_mean_steady_state.scripts_with_wang_numbers import palmer_control, palmer_nmda_block, \
+    run_with_NMDA_and_obtain_firing_rate, find_firing_rate_without_NMDA_with_nu, run_with_nu_NMDA_and_obtain_firing_rate
+
 
 class ScriptsNMDAWithWangNumbers(unittest.TestCase):
 
@@ -154,26 +157,25 @@ class ScriptsPalmerResultsWithoutNMDA(unittest.TestCase):
 
     # produces rate 0.05 Hz with up/down
     def test_example_1(self):
-        palmer_experiment = (Experiment(wang_recurrent_config)
-        .with_properties({
+        palmer_experiment = (Experiment(wang_recurrent_config).with_properties({
             "up_state":
                 {
                     "N": 2000,
                     "nu": 82,
                     "N_nmda": 0,
                 },
-            # "down_state": {
-            #    "N_E": 100,
-            #    "gamma": 4,
-            #    "nu": 10,
+            "down_state": {
+                "N_E": 100,
+                "gamma": 4,
+                "nu": 10,
 
-            #    "N_nmda": 0,
-            #    "nu_nmda": 2,
-            # },
+                "N_nmda": 0,
+                "nu_nmda": 2,
+            },
             "t_range": [[0, 10_000]]
         }))
         sim_and_plot_up_down(palmer_experiment)
-        # sim_and_plot_up_down(palmer_experiment.with_property(Experiment.KEY_CURRENTS_TO_RECORD, ["I_nmda"]))
+        sim_and_plot_up_down(palmer_experiment.with_property(Experiment.KEY_CURRENTS_TO_RECORD, ["I_nmda"]))
 
     # produces rate 0.05 Hz with up/down
     def test_example_2(self):
@@ -192,19 +194,20 @@ class ScriptsPalmerResultsWithoutNMDA(unittest.TestCase):
         sim_and_plot_up_with_state_and_nmda(palmer_experiment)
         sim_and_plot_up_down(palmer_experiment)
 
-    def test_search_for_nmda_rates_without_NMDA(self):
-        palmer_experiment = (Experiment(wang_recurrent_config).with_property("up_state",
-                                                                             {
-                                                                                 "N": 2000,
-                                                                                 "nu": 82,
-                                                                                 "N_nmda": 0,
-                                                                                 "nu_nmda": 0,
-                                                                             })).with_property("t_range",
-                                                                                               [[0, 1_000]])
+    def test_search_for_control_rates(self):
+        palmer_experiment = (Experiment(wang_recurrent_config).with_property("up_state", {
+            "N": 2000,
+            "nu": 82,
+            "N_nmda": 0,
+            "nu_nmda": 0,
+        }))
 
-        execute_palmer = lambda nu: find_firing_rate_without_NMDA_with_nu(palmer_experiment, nu)
+        execute_palmer = lambda nu: find_firing_rate_without_NMDA_with_nu(palmer_experiment, nu, sim_time=50 * second)
         res = binary_search_for_target_value(lower_value=80, upper_value=100, func=execute_palmer,
                                              target_result=0.05)
+        print(
+            f"test_search_for_nmda_rates_without_NMDA: {res}")  # -> test_search_for_nmda_rates_without_NMDA: (81.55250395175244, 81.55250395178882)
+
         self.assertEqual(81.5418709360165, res[0])
         self.assertEqual(81.54187093603468, res[1])
 
@@ -240,7 +243,20 @@ class ScriptsPalmerResultsWithNMDA(unittest.TestCase):
                                                                              }))
 
         execute_palmer = lambda nmda_strength: run_with_NMDA_and_obtain_firing_rate(palmer_experiment, nmda_strength)
-        res = binary_search_for_target_value(lower_value=0, upper_value=1E-9, func=execute_palmer, target_result=0.3)
+        res = binary_search_for_target_value(lower_value=0, upper_value=1E-9, func=execute_palmer, target_result=0.25)
+        print(f"XXXXXXXXXXXXX {res}")
+
+    def test_search_for_nu_nmda_producing_palmer_rates(self):
+        palmer_experiment = (Experiment(wang_recurrent_config).with_property("up_state",
+                                                                             {
+                                                                                 "N": 2000,
+                                                                                 "nu": 82,
+                                                                                 "N_nmda": 10,
+                                                                                 "nu_nmda": 5,
+                                                                             }))
+
+        execute_palmer = lambda nu_nmda: run_with_nu_NMDA_and_obtain_firing_rate(palmer_experiment, nu_nmda)
+        res = binary_search_for_target_value(lower_value=50, upper_value=200, func=execute_palmer, target_result=0.2)
         print(f"XXXXXXXXXXXXX {res}")
 
     def test_run_grid(self):
@@ -297,7 +313,6 @@ class ScriptsMeetingsWeek12to16January2026(unittest.TestCase):
         sim_results_no_nmda = sim_and_plot_up_down(palmer_experiment_with_nmda_block)
         sim_resuts_control = sim_and_plot_up_down(palmer_experiment_with_nmda)
 
-
         plot_voltage_trace_comparisons(sim_resuts_control, sim_results_no_nmda,
                                        params_t_range=[[0, 10_000], [5300, 5600], [6800, 8100], [9250, 9550]])
 
@@ -351,6 +366,16 @@ significantly less (2.1 ± 0.2 versus 3.9 ± 0.7 action potentials, n = 11 branc
         plot_and_compare_two_voltages_curves(results_1=exp_results[0], results_2=exp_results[1], rate_exp_1=0.534,
                                              rate_exp_2=0.136)
 
+    def test_how_can_variance_decrease(self):
+        t_range = [0, 1_000_000]
+        exp_1 = palmer_control.with_property("t_range", t_range).with_property("theta", -40)
+        exp_2 = palmer_nmda_block.with_property("t_range", t_range).with_property("theta", -40)
+
+        exp_results = parallelize_simulate_with_up_state_and_nmda([exp_1, exp_2])
+
+        plot_and_compare_two_voltages_curves(results_1=exp_results[0], results_2=exp_results[1], rate_exp_1=0.534,
+                                             rate_exp_2=0.136)
+
     '''
     Compte, 2000
     Our working memory model requires that at recurrent synapes the NMDA receptors should contribute >65% of the charge entry
@@ -362,14 +387,13 @@ of the model, as well as the type of neuron models (e.g. integrate-and-fire mode
         t_range = [0, 10_000]
         result = simulate_with_up_state_and_nmda(palmer_control.with_properties({
             "t_range": t_range,
-            #"theta": -40,
+            # "theta": -40,
             Experiment.KEY_CURRENTS_TO_RECORD: ["I_nmda", "I_ampa", "I_gaba"]
         }))
         print("NMDA ", result.currents.q_nmda)
         print("AMPA ", result.currents.q_ampa)
         print("GABA ", result.currents.q_gaba)
         print("NMDAR/(NMDAR + AMPAR)", result.currents.q_nmda / (result.currents.q_nmda + result.currents.q_ampa))
-
 
 
 def plot_and_compare_two_voltages_curves(results_1: SimulationResults, results_2: SimulationResults, rate_exp_1,

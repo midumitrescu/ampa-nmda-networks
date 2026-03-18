@@ -241,7 +241,7 @@ def plot_simulation(simulation_results: SimulationResultsWithSteadyState):
 
 def plot_raster_and_g_s_in_one_time_range(simulation_results: SimulationResultsWithSteadyState, time_range):
     if simulation_results.experiment.plot_params.show_raster_and_rate():
-        fig = plt.figure(figsize=(20, 12))
+        fig = plt.figure(figsize=(22, 12))
         fig.suptitle(generate_title(simulation_results.experiment))
 
         height_ratios = [1, 1]
@@ -257,7 +257,8 @@ def plot_currents_in_one_time_range(simulation_results: SimulationResultsWithSte
     if not simulation_results.experiment.plot_params.show_currents_plots():
         return
 
-    fig = plt.figure(figsize=(20, 12))
+    prepare_bigger_fonts()
+    fig = plt.figure(figsize=(22, 12))
     outer = gridspec.GridSpec(1, 1, figure=fig)
     ax_voltage, ax_currents = plot_currents_graph(simulation_results, time_range=time_range, grid_spec_mother=outer[0])
 
@@ -529,7 +530,7 @@ def plot_voltage_trace_comparisons(results_1: SimulationResultsWithSteadyState, 
                                               time_range=params_t_range)
 
 def plot_one_voltage_trace_comparison(results_1: SimulationResultsWithSteadyState, results_2: SimulationResultsWithSteadyState, time_range: tuple[int, int]):
-    fig = plt.figure(figsize=(10, 4))
+    fig = plt.figure(figsize=(22, 6))
     fig.suptitle(generate_title(results_1.experiment.with_property("panel",  "Compare control and NMDA-blocked voltage traces")))
     ax = fig.subplots(1, 1)
 

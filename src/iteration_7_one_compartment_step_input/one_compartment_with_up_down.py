@@ -9,7 +9,7 @@ from matplotlib import gridspec
 from matplotlib.gridspec import SubplotSpec
 from mpl_toolkits.axes_grid1.mpl_axes import Axes
 
-from Plotting import show_plots_non_blocking
+from Plotting import show_plots_non_blocking, prepare_bigger_fonts
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment
 from utils import ExtendedDict
 
@@ -266,7 +266,7 @@ def simulate_with_up_and_down_state_and_nmda(experiment: Experiment):
     currents_monitor = StateMonitor(source=single_neuron, variables=experiment.plot_params.recorded_currents,
                                     record=True)
     reporting = "text" if experiment.in_testing else None
-    run(experiment.sim_time, report=reporting, report_period=1 * second)
+    run(experiment.sim_time, report=reporting, report_period=30 * second)
 
     return SimulationResults(experiment, rate_monitor, spike_monitor, v_monitor, g_monitor, internal_states_monitor,
                              currents_monitor)
@@ -408,6 +408,8 @@ def simulate_with_down_and_up_state_and_nmda(experiment: Experiment):
 
 
 def plot_simulation(simulation_results: SimulationResults):
+
+    prepare_bigger_fonts()
     params_t_range = simulation_results.experiment.plot_params.t_range
 
     if isinstance(params_t_range[0], list):
@@ -424,8 +426,9 @@ def plot_simulation(simulation_results: SimulationResults):
 
 
 def plot_raster_and_g_s_in_one_time_range(simulation_results: SimulationResults, time_range):
+    prepare_bigger_fonts()
     if simulation_results.experiment.plot_params.show_raster_and_rate():
-        fig = plt.figure(figsize=(14, 12))
+        fig = plt.figure(figsize=(22, 12))
         fig.suptitle(generate_title(simulation_results.experiment))
 
         height_ratios = [1, 1]
@@ -433,6 +436,7 @@ def plot_raster_and_g_s_in_one_time_range(simulation_results: SimulationResults,
         plot_raster_and_rates(simulation_results, time_range, outer[0])
         plot_voltages_and_g_s(simulation_results, time_range, outer[1])
 
+        fig.tight_layout()
         show_plots_non_blocking(show=True)
 
 
@@ -546,7 +550,7 @@ def plot_v_line(simulation_results, i: int, ax_voltages: Axes) -> None:
 def plot_internal_states_in_one_time_range(simulation_results, time_range: tuple[int, int]):
     if simulation_results.experiment.plot_params.show_hidden_variables():
         fig, ax = plt.subplots(len(simulation_results.experiment.plot_params.recorded_hidden_variables), 1, sharex=True,
-                               figsize=[14, 8])
+                               figsize=(22, 10))
 
         if 1 == len(simulation_results.experiment.plot_params.recorded_hidden_variables):
             ax = [ax]
@@ -603,4 +607,4 @@ def generate_title(experiment: Experiment):
     {up_state_title}
     {down_state_title}    
     Neuron: [$C={experiment.neuron_params.C}$, $g_L={experiment.neuron_params.g_L}$, $\theta={experiment.neuron_params.theta}$, $V_R={experiment.neuron_params.V_r}$, $E_L={experiment.neuron_params.E_leak}$, $\tau_M={experiment.neuron_params.tau}$, $\tau_{{\mathrm{{ref}}}}={experiment.neuron_params.tau_rp}$]
-    Synapse: [$g_{{\mathrm{{AMPA}}}}={experiment.synaptic_params.g_ampa:.2f}$, $g_{{\mathrm{{GABA}}}}={experiment.synaptic_params.g_gaba:.2f}$, $g={experiment.network_params.g}$, $g_{{\mathrm{{NMDA}}}}={experiment.synaptic_params.g_nmda:.2f}$]"""
+    Synapse: [$g_{{\mathrm{{AMPA}}}}={experiment.synaptic_params.g_ampa / nsiemens:.2f}$ nS, $g_{{\mathrm{{GABA}}}}={experiment.synaptic_params.g_gaba / nsiemens:.2f}$ nS, $g={experiment.network_params.g}$, $g_{{\mathrm{{NMDA}}}}={experiment.synaptic_params.g_nmda / nsiemens:.2f}$ nS]"""

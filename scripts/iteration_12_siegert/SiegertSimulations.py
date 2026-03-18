@@ -4,8 +4,9 @@ import unittest
 from brian2 import ms, clear_cache
 from loguru import logger
 
-from iteration_12_siegert.df_utils import prepare_experiment_with_N_tot, filename_for_N_scan_experiment, save_metadata_header, \
-    find_last_index
+from iteration_12_siegert.df_utils import prepare_experiment_with_N_tot, filename_for_N_scan_experiment, \
+    save_metadata_header, \
+    find_last_index, load_df_without_metadata, without_elements_after_n_max
 from iteration_12_siegert.one_compartment_with_up_only import simulate_and_record_essential_variables
 
 logger.remove()  # remove default handler
@@ -149,6 +150,16 @@ def scan_mean_sigma_from_simulation(base: Experiment, output_dir="simulations_2"
         write_header = False
         print()
 
+def compute_theoretical_mean_sigma_and_rate(max_n, experiment: Experiment):
+    up_state_base = {
+        "N": 2000,
+        "nu": 82,
+        "N_nmda": 10,
+        "nu_nmda": 10,
+    }
+    N = np.arange(1, max_n)
+    results = Parallel(n_jobs=-1)(delayed(mean_and_sigma)(n, up_state_base, base) for n in N)
+    return pd.DataFrame.from_records(results)
 
 class SimulationsWithWangNumbers(unittest.TestCase):
 
@@ -168,3 +179,20 @@ class SimulationsWithWangNumbers(unittest.TestCase):
         })
         scan_mean_sigma_from_simulation(palmer_control_no_firing, N_max=10_000)
         scan_mean_sigma_from_simulation(palmer_nmda_block_no_firing, N_max=10_000)
+
+    def test_TODO_move_from_here_plot_no_firing(self):
+        palmer_control_no_firing = palmer_control.with_properties({
+            "panel": "Control_no_firing",
+            "theta": 100
+        })
+        for max_n in [500, 2000, 2500, 3000, 4000]:
+            df = self.compute_theoretical_mean_sigma_and_rate(max_n, base=experiment)
+            file_control_simulation = "../simulations_2/Control_N_10000_T_60000.csv"
+            file_nmda_block_simulation = "../simulations_2/NMDA_block_N_10000_T_60000.csv"
+            df_control_simulation = load_df_without_metadata(file_control_simulation)
+            df_control_simulation = without_elements_after_n_max(df_control_simulation, max_n=max_n)
+            df_nmda_block_simulation = load_df_without_metadata(file_nmda_block_simulation)
+            df_nmda_block_simulation = without_elements_after_n_max(df_nmda_block_simulation, max_n=max_n)
+
+            plot_theory_vs_simulation(base=experiment, df_theory=df, df_control_simulation=df_control_simulation,
+                                      df_nmda_block_simulation=df_nmda_block_simulation)

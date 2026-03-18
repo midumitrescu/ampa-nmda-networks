@@ -217,13 +217,6 @@ def show_plots_non_blocking(
 
     File is written to out_dir (default: plot_output under cwd) as {save_name}.png.
     """
-    plt.rcParams.update({
-        "font.size": 16,
-        "axes.titlesize": 18,
-        "axes.labelsize": 16,
-        "legend.fontsize": 14,
-        "figure.titlesize": 20
-    })
     save_current_figure(
         save_name=save_name,
         out_dir=out_dir,

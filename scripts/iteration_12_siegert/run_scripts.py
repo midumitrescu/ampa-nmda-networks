@@ -22,7 +22,7 @@ def run_siegert_scripts(filter_name=None):
     loader = SiegertScriptTestLoader()
     suite = unittest.TestSuite()
     from iteration_12_siegert.gain_computations import GainScripts, SolveForGainAndRateScripts
-    from iteration_12_siegert.look_for_all_solutions_scripts import LookForAllSolutionsScripts
+    from iteration_12_siegert.look_for_all_mu_sigma_for_fixed_rate_scripts import LookForAllSolutionsScripts
     for cls in (GainScripts, SolveForGainAndRateScripts, LookForAllSolutionsScripts):
         suite.addTests(loader.loadTestsFromTestCase(cls))
     if filter_name:

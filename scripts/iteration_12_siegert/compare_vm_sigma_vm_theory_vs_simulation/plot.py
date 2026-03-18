@@ -67,22 +67,22 @@ def plot_theory_vs_simulation(base: Experiment, df_theory: pd.DataFrame,
 
 
     if df_control_simulation is not None:
-        axes[0, 0].plot(df_control_simulation.N, df_control_simulation.v_mean, label="Simulation, With NMDA",
+        axes[0, 0].plot(df_control_simulation.n, df_control_simulation.v_mean, label="Simulation, With NMDA",
                         linestyle="--")
-        axes[0, 1].plot(df_control_simulation.N, df_control_simulation.v_var, label="Simulation, Variance, with NMDA",
+        axes[0, 1].plot(df_control_simulation.n, df_control_simulation.v_var, label="Simulation, Variance, with NMDA",
                         linestyle="--")
 
-        axes[1, 0].plot(df_control_simulation.N, df_control_simulation.mean_rate, label="Simulation, rate, with NDMA",
+        axes[1, 0].plot(df_control_simulation.n, df_control_simulation.mean_rate, label="Simulation, rate, with NDMA",
                         linestyle="--", alpha=0.5)
-        axes[1, 1].plot(df_control_simulation.N[1:], dr_over_d_mu(df_control_simulation.mean_rate, df_control_simulation.v_mean),
-                        label="with NMDA",  alpha=0.55, lw=2)
+       # axes[1, 1].plot(df_control_simulation.n[1:], dr_over_d_mu(df_control_simulation.mean_rate, df_control_simulation.v_mean),
+       #                label="with NMDA",  alpha=0.55, lw=2)
 
     if df_nmda_block_simulation is not None:
-        axes[0, 0].plot(df_nmda_block_simulation.N, df_nmda_block_simulation.v_mean, label="Simulation, No NMDA",
+        axes[0, 0].plot(df_nmda_block_simulation.n, df_nmda_block_simulation.v_mean, label="Simulation, No NMDA",
                         linestyle="--")
-        axes[0, 1].plot(df_nmda_block_simulation.N, df_nmda_block_simulation.v_var,
+        axes[0, 1].plot(df_nmda_block_simulation.n, df_nmda_block_simulation.v_var,
                         label="Simulation, Variance, no NMDA", linestyle="--")
-        axes[1, 0].plot(df_nmda_block_simulation.N, df_nmda_block_simulation.mean_rate,
+        axes[1, 0].plot(df_nmda_block_simulation.n, df_nmda_block_simulation.mean_rate,
                         label="Simulation, rate, no NDMA", linestyle="--", alpha=0.5)
 
     axes[0, 0].legend()

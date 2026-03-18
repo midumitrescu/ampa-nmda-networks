@@ -4,7 +4,8 @@ import brian2
 from brian2 import PoissonInput, SpikeMonitor, msecond
 from loguru import logger
 
-from iteration_12_siegert.df_utils import prepare_experiment_with_N_nmda, filename_for_nu_scan_experiment
+from iteration_12_siegert.df_utils import prepare_experiment_with_N_nmda, filename_for_nu_scan_experiment, \
+    prepare_experiment_with_nu_nmda
 
 logger.remove()  # remove default handler
 logger.add(sys.stderr, level="INFO")
@@ -98,7 +99,7 @@ def simulate_and_record_with_only_nmda_input(experiment: Experiment) -> Simulati
                              currents_monitor=currents_monitor)
 
 def run_nu_nmda_input_simulation_and_compute_statistics(nu, index, up_state_base: dict, base: Experiment, skip_ms = 100*msecond):
-    exp = prepare_experiment_with_N_nmda(nu, up_state_base, base)
+    exp = prepare_experiment_with_nu_nmda(nu, up_state_base, base)
 
     skip_start_simulation = int(skip_ms / exp.sim_clock)
 
@@ -214,7 +215,6 @@ def scan_for_nu_nmda_variables(base: Experiment, output_dir="simulations_2", nu_
     experiment = base.with_properties({
         Experiment.KEY_HIDDEN_VARIABLES_TO_RECORD: ["x_nmda", "s_nmda", "g_nmda"],
         Experiment.KEY_CURRENTS_TO_RECORD: ["I_nmda"],
-        "t_range": [0, 1000] if test else [0, 30 * 1000],
         "in_testing": False,
     })
     up_state_base = experiment.network_params.up_state.params

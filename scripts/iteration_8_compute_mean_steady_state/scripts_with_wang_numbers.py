@@ -36,8 +36,8 @@ def find_firing_rate_without_NMDA_with_N(experiment, N, sim_time=10 * second):
     return rate / Hz
 
 
-def find_firing_rate_without_NMDA_with_nu(experiment, nu, sim_time=10 * second):
-    up_state = experiment.params["up_state"]
+def find_firing_rate_without_NMDA_with_nu(experiment, nu, sim_time=100 * second):
+    up_state = experiment.params["up_state"].copy()
     up_state["nu"] = nu
 
     experiment_with_nmda = experiment.with_properties({
@@ -60,6 +60,19 @@ def run_with_NMDA_and_obtain_firing_rate(experiment, g_nmda_max, sim_time=10 * s
 
     return rate / Hz
 
+def run_with_nu_NMDA_and_obtain_firing_rate(experiment: Experiment, nu_nmda, sim_time=100 * second):
+    up_state_config = experiment.network_params.up_state.params.copy()
+    up_state_config["nu_nmda"] = nu_nmda
+    experiment_with_nmda = experiment.with_properties({
+        "up_state": up_state_config,
+        Experiment.KEY_SIM_TIME: sim_time / ms
+    })
+    results_with_nmda = simulate_with_up_state_and_nmda(experiment_with_nmda)
+
+    rate = results_with_nmda.total_spike_counts() / experiment_with_nmda.sim_time
+
+    return rate / Hz
+
 
 palmer_control = (Experiment(wang_recurrent_config).with_properties({
     SynapticParams.KEY_G_NMDA: 0.9e-9,
@@ -75,6 +88,7 @@ palmer_control = (Experiment(wang_recurrent_config).with_properties({
     Experiment.KEY_CURRENTS_TO_RECORD: ["I_nmda"],
     "panel": "Control"
 }))
+
 palmer_nmda_block = palmer_control.with_properties({
     SynapticParams.KEY_X_NMDA: 0,
     "panel": "NMDA block",
@@ -505,7 +519,7 @@ def plot_and_compare_two_voltages_curves(results_1: SimulationResults, results_2
     gaussian_pdf_1 = norm.pdf(x, mean_1, std_1)
     gaussian_pdf_2 = norm.pdf(x, mean_2, std_2)
 
-    plt.figure(figsize=(8, 5))
+    plt.figure(figsize=(12, 8))
     # Bar plot
     plt.bar(
         bin_centers_1,
@@ -559,7 +573,7 @@ def plot_and_compare_two_voltages_curves(results_1: SimulationResults, results_2
     plt.title("Comparison of Gaussian fits of membrane voltage for Control and NMDA Blocks Palmer simulations \n"
               f"{results_1.experiment.plot_params.panel}: [rate={rate_exp_1: .3f} Hz, Mean = {mean_1: .3f}, STD = {std_1: .3f}]\n "
               f"{results_2.experiment.plot_params.panel}: [rate={rate_exp_2: .3f} Hz, Mean = {mean_2: .3f}, STD = {std_2: .3f}] \n"
-              f"Histogram overlap {overlap_from_histograms(counts_1, bin_centers_1, counts_2, bin_centers_2) * 100: .4f} %")
+              f"Histogram overlap {overlap_from_histograms(counts_1, bin_centers_1, counts_2, bin_centers_2) * 100: .4f} \%")
 
     plt.legend()
     plt.tight_layout()
