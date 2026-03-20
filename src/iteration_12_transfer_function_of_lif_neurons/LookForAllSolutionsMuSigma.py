@@ -3,6 +3,7 @@ import sys
 from loguru import logger
 from scipy.optimize import fsolve
 
+from Plotting import prepare_bigger_fonts
 from iteration_12_transfer_function_of_lif_neurons.config import DiffusionLIFConfig, default_diffusion_lif_config
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment
 from src.Plotting import show_plots_non_blocking
@@ -109,8 +110,8 @@ def plot_loss_landscape_with_curve(solver, r_target, mu_range, sigma_range,
     ax1.scatter(curve_mu, curve_sigma, curve_loss,
                 c='red', s=20, alpha=0.8, label=f'F = {target_rate_Hz} Hz')
 
-    ax1.set_xlabel(r"$\mu$"' (mV)')
-    ax1.set_ylabel(r"$\sigma$"' (mV)')
+    ax1.set_xlabel(r"$\mu$"' [mV]')
+    ax1.set_ylabel(r"$\sigma$"' [mV]')
     ax1.set_zlabel('Loss')
     ax1.set_title(f'3D Loss Landscape with Solution Curve\nTarget Rate = {target_rate_Hz} Hz')
     ax1.legend()
@@ -238,10 +239,40 @@ def plot_line_computation_vs_fit(results: list[MuToSigmaResult], caller_test_cas
                                  config: DiffusionLIFConfig = default_diffusion_lif_config):
 
     should_create_figure = axs is None
+
+    prepare_bigger_fonts(zoom=1)
+
     if should_create_figure:
-        fig2, axs = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+        fig = plt.figure(figsize=(10, 16))
+
+        # Outer grid: 2 rows
+        outer_gs = fig.add_gridspec(
+            nrows=2, ncols=1,
+            height_ratios=[2, 3],
+            hspace=0.15
+        )
+
+        # --- Top: linear fit only ---
+        ax_linear_fit = fig.add_subplot(outer_gs[0])
+
+        # --- Bottom: grouped table + residuals ---
+        inner_gs_bottom = outer_gs[1].subgridspec(
+            nrows=2, ncols=1,
+            height_ratios=[1.5, 2],
+            hspace=0.05
+        )
+
+        ax_table = fig.add_subplot(inner_gs_bottom[0])
+        ax_table.axis('off')
+
+        ax_residuals = fig.add_subplot(inner_gs_bottom[1], sharex=ax_linear_fit)
+
 
     r2_s = np.zeros_like(results)
+    rows = []
+
+    rmse_s = np.zeros_like(results)
+    mae_s = np.zeros_like(results)
 
     for index, (result, color) in enumerate(zip(results, colors)):
 
@@ -259,66 +290,111 @@ def plot_line_computation_vs_fit(results: list[MuToSigmaResult], caller_test_cas
         residuals = y - y_pred
 
         r2_s[index] = r2
-        axs[0].plot(x, y, alpha=0.5, label=f'{result.exp_label} data', linewidth=10, color=color)
+        rmse_s[index] = np.sqrt(np.mean((y - y_pred)**2))
+        mae_s[index] = np.mean(np.abs(y - y_pred))
+
+        ax_linear_fit.plot(x, y, alpha=0.5, label=f'{result.exp_label} data', linewidth=10, color=color)
 
         # Plot fitted lines across a common range
         x_plot = np.linspace(-65, -35, 100)
         y_plot = slope * x_plot + intercept
 
-        axs[0].plot(x_plot, y_plot, linewidth=2,
-                label=f'{result.exp_label} linear fit: \n $\sigma_v$={slope:.3f}$\mu${intercept:.2f}', color=color)
+        ax_linear_fit.plot(x_plot, y_plot, linewidth=3.5,
+                           label=f'{result.exp_label} linear fit: \n $\sigma_v$={slope:.3f}$\mu${intercept:.2f}', color=color)
 
-        axs[1].scatter(x, residuals, color=color, s=5, alpha=0.5, label=f'{result.exp_label}')
-        axs[1].axhline(0, color='black', lw=1, linestyle='--')
-        axs[1].set_xlabel('$mu_v$')
-        axs[1].set_ylabel('Residuals')
+        ax_residuals.scatter(x, residuals, color=color, s=5, alpha=0.5, label=f'{result.exp_label}')
+        ax_residuals.axhline(0, color='black', lw=1, linestyle='--')
+
 
         residuals = y - y_pred
         max_error = np.max(np.abs(residuals))
         e_infinity = max_error / (np.max(y) - np.min(y))
-        subtitle = (
-                r"$\mathrm{res}_i = \sigma_{v, i} - \hat{\sigma}_{v, i}$" + "\n" +
-                rf"$E_{{\max}} = \max_i |\mathrm{{res}}_i| = {max_error:.4f}$" + "\n" +
-                rf"$E_{{\infty}} = \frac{{E_{{\max}}}}{{\max_i \sigma_{{v, i}} - \min_i \sigma_{{v, i}}}} = {e_infinity:.4f}$"
-        )
+        rows.append([result.exp_label, f"{max_error:.4f}", f"{e_infinity:.4f}"])
 
-        axs[1].set_title(
-            fr"Plot of residual error ($\sigma_{{v, i, \mathrm{{found}}}} - \sigma_{{v, i, \mathrm{{linear\ est}}}}$) of linear fit"
-            + "\n" + subtitle
-        )
-
+    ## labels and titles for ax linear fit ##
     labels = [r.exp_label for r in results]
     if len(labels) == 1:
         cond = f"{labels[0]} condition"
-        r2_label = f"{labels[0]}: {r2_s[0]}"
+        rmse_label = f"{labels[0]}: {rmse_s[0]}"
+        mae_label = f"{labels[0]}: {mae_s[0]}"
     elif len(labels) == 2:
         cond = f"{labels[0]} and {labels[1]} conditions"
-        r2_label = f"{labels[0]}: {r2_s[0]} and {labels[1]}: {r2_s[1]}"
+        rmse_label = f"{labels[0]}: {rmse_s[0]} and {labels[1]}: {rmse_s[1]}"
+        mae_label = f"{labels[0]}: {mae_s[0]} and {labels[1]}: {mae_s[1]}"
     else:
         cond = f"{', '.join(labels[:-1])} and {labels[-1]} conditions"
-        r2_labels = [f"{label}: {r_2:.4f}" for label, r_2 in zip(labels, r2_s)]
-        r2_label = f"{', '.join(r2_labels[:-1])} and {r2_labels[-1]}"
+        rmse_labels =  [f"{label}: {rmse:.4f}" for label, rmse in zip(labels, rmse_s)]
+        rmse_label = f"{', '.join(rmse_labels[:-1])} and {rmse_labels[-1]}"
+        mae_labels =  [f"{label}: {mae:.4f}" for label, mae in zip(labels, mae_s)]
+        mae_label =  f"{', '.join(mae_labels[:-1])} and {mae_labels[-1]}"
 
-    axs[0].set_xlabel('$\mu_v$ (mV)', fontsize=12)
-    axs[0].set_ylabel('$\sigma_v$ (mV)', fontsize=12)
 
-    axs[0].set_title(f'Verify linear fits for {cond} \n $R^2$ values: {r2_label}', fontsize=14)
+    ax_linear_fit.set_xlabel('$\mu_v$ [mV]')
+    ax_linear_fit.set_ylabel('$\sigma_v$ [mV]')
 
-    for index, ax in enumerate(axs):
+    ax_linear_fit.text(
+        0.5, 1.3, f'Verify errors of linear fits \n Root Mean Square Error [mV] \n {rmse_label} \n Mean Absolute Error [mV] \n {mae_label}',
+        ha='center', va='top',
+        transform=ax_linear_fit.transAxes,
+        fontsize=18,
+        clip_on = False
+    )
+
+    ## labels and title for table ##
+
+    col_labels = ["", r"$E_{\max}$" + "\n" + "$\max |\mathrm{err}|$ [mV]", r"$E_{\infty}$" + "\n" +  r"$\frac{E_{\max}}{\max |\mathrm{err}| - \min |\mathrm{err}|}$"]
+    table_title = r"Error ($\sigma_{v, i, \mathrm{found}} - \sigma_{v, i, \mathrm{linear\ est}}$) of linear fit" + "\n" + r"$\mathrm{err}_i = \sigma_{v, i} - \hat{\sigma}_{v, i}$"
+    ax_table.text(
+        0.5, 0.8, table_title,
+        ha='center', va='bottom'
+    )
+
+    table =ax_table.table(
+        cellText=rows,
+        colLabels=col_labels,
+        loc='center',
+        cellLoc='center',
+        bbox=[0.1, 0, 0.8, 0.8]
+    )
+
+    table.scale(0.8, 3)  # adjust size
+
+    table.auto_set_font_size(False)
+    for (row, col), cell in table.get_celld().items():
+        if row == 0:  # header row
+            cell.set_height(0.6)
+            cell.get_text().set_fontsize(cell.get_text().get_fontsize() + 2)
+            cell.set_text_props(weight='bold')
+        else:  # body rows
+            cell.set_height(0.2)
+
+    ## labels for residuals axis ##
+    ax_residuals.set_xlabel('$\mu_v$ [mV]')
+    ax_residuals.set_ylabel('Error [mV]')
+
+    for index, ax in enumerate([ax_linear_fit, ax_residuals]):
         ax.axvline(x=default_diffusion_lif_config.theta / mV, color='dimgray', linestyle='-.',
                    label=r'Threshold $\theta$')
         ax.text(
-            0.02, 1.17, f"({chr(ord("A") + index)})",
+            0.02, 1.1, f"({chr(ord("A") + index)})",
             transform=ax.transAxes,
             fontsize=20,
             fontweight=1000,
             va="top",
             ha="left"
         )
-        ax.legend(fontsize=10)
+    ax_linear_fit.legend(
+        loc='upper right',
+        bbox_to_anchor=(1.1, 1),
+        borderaxespad=0.,
+        fontsize=16,
+    )
+    ax_residuals.legend()
+
+    print(len(ax_linear_fit.texts))
 
     if should_create_figure:
-        fig2.tight_layout()
+        fig.tight_layout()
         show_plots_non_blocking(caller_test_case=caller_test_case, descriptor=descriptor)
 
 

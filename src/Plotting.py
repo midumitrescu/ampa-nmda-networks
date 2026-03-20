@@ -127,14 +127,23 @@ class Experiment:
 
         self.sim_clock = params.get(Experiment.KEY_SIMULATION_CLOCK, 0.05 * ms)
 
-def prepare_bigger_fonts():
-    plt.rcParams.update({
+def prepare_bigger_fonts(zoom=0):
+    if zoom == 0:
+        plt.rcParams.update({
         "font.size": 16,
         "axes.titlesize": 18,
         "axes.labelsize": 16,
         "legend.fontsize": 14,
         "figure.titlesize": 20
     })
+    elif zoom == 1:
+        plt.rcParams.update({
+            "font.size": 20,
+            "axes.titlesize": 22,
+            "axes.labelsize": 20,
+            "legend.fontsize": 18,
+            "figure.titlesize": 24
+        })
 
 def _safe_filename_part(s):
     """Replace anything that's not alphanumeric or underscore with underscore."""
@@ -198,6 +207,18 @@ def save_current_figure(
     logger.info("Saved figure: {}", path)
     return os.path.abspath(path)
 
+def add_panel_info(ax_iterable, panel_labels=None):
+    if panel_labels is None:
+        panel_labels = [f"{chr(ord("A") + index)}" for index in range(0, len(ax_iterable))]
+    for ax, label in zip(ax_iterable, panel_labels):
+        ax.text(
+            0.02, 1.2, f"({label})",
+            transform=ax.transAxes,
+            fontsize=20,
+            fontweight=1000,
+            va="top",
+            ha="left"
+        )
 
 def show_plots_non_blocking(
     show=True,

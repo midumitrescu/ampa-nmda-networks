@@ -43,6 +43,7 @@ def I_mu_sigma(mu_v, sigma_v, theta, V_reset):
 
     # Ensure to < upper_limit for integration
     if lower_limit > upper_limit:
+        print("FFFFFFFFFFFFFFFUUUUUUUUUUUUUUUUUUUCCCCCCCCCCCCKKKKKKKKKKKKKKKK lower limit > upper limit. Should not happen")
         lower_limit, upper_limit = upper_limit, lower_limit
 
     dx = upper_limit - lower_limit
@@ -132,6 +133,9 @@ class SiegertGradients:
     def firing_rate(self, mu_v, sigma_v):
         return rate_LIF_whitenoise(mu=mu_v, tau_membrane=self.tau_m, sigma_v=sigma_v,
                                      theta=self.theta, V_reset=self.v_reset, tau_ref=self.tau_ref)
+
+    def I_mu_sigma(self, mu_v, sigma_v):
+        return  I_mu_sigma(mu_v, sigma_v=sigma_v, theta=self.theta, V_reset=self.v_reset)
 
     def phi(self, z):
         """Φ(z) = erfcx(z) = exp(z^2)*erfc(z)"""

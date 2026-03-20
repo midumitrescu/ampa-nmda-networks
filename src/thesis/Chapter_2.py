@@ -1,4 +1,5 @@
 import unittest
+from itertools import chain
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -225,7 +226,15 @@ class Chapter2Figures(unittest.TestCase):
         )
         fig.tight_layout()
         show_plots_non_blocking(caller_test_case=self)
-        plot_line_computation_vs_fit([nmda_block_mu_to_sigma, control_mu_to_sigma, large_rate_mu_to_sigma],
+
+    def test_plot_line_computation_vs_fit(self):
+        lif_configs = [default_diffusion_lif_config.with_label("MK-801"),
+                       default_diffusion_lif_config.with_label("Control"),
+                       default_diffusion_lif_config.with_label("Example high rate")]
+        target_rates = [0.05 * Hz, 0.18 * Hz, 25 * Hz]
+        results = [compute_mu_to_sigma_curve(config, r_target=target_rate) for config, target_rate in
+                   zip(lif_configs, target_rates)]
+        plot_line_computation_vs_fit(results,
                                      colors=("orange", "black", "blue"),
                                      caller_test_case=self,
                                      descriptor="linear_fit")
@@ -242,27 +251,34 @@ class Chapter2Figures(unittest.TestCase):
             default_diffusion_lif_config.with_label("Example high rate"), r_target=25 * Hz
         )
         results = [nmda_block_mu_to_sigma, control_mu_to_sigma, large_rate_mu_to_sigma]
+        colors = ("orange", "black", "blue")
+        ax_integral_limits_limit = [(-30, 1000), (-30, 1000), (-2, 50)]
+        ax_zoom_limit = [(0, 100), (0, 100), (0, 5)]
 
         siegert_gradients = SiegertGradients.for_lif_config(default_diffusion_lif_config)
 
+        firing_rates, integral_limits, integral_values = [None] * len(results), [None] * len(results), [None] * len(results)
 
-        firing_rates = np.zeros(shape=(len(results), len(nmda_block_mu_to_sigma.mus)))
-        integral_limits = np.zeros(shape=(len(results), 2, len(nmda_block_mu_to_sigma.mus)))
-        integral_values = np.zeros(shape=(len(results), len(nmda_block_mu_to_sigma.mus)))
-
-        for index, result in enumerate([nmda_block_mu_to_sigma, control_mu_to_sigma, large_rate_mu_to_sigma]):
+        for index, result in enumerate(results):
+            current_firing_rates = np.zeros_like(result.mus)
+            current_integral_limits = np.zeros(shape=(2, len(result.mus)))
+            current_integral_values = np.zeros_like(result.mus)
             for row_index, (mu, sigma) in enumerate(zip(result.mus, result.sigmas)):
-                firing_rates[index, row_index] = siegert_gradients.firing_rate(mu_v=mu, sigma_v=sigma)
-                integral_limits[index, :, row_index] = integration_limits(V_mean=mu, sigma_v=sigma,
-                                                                          theta=default_diffusion_lif_config.theta,
-                                                                          V_reset=default_diffusion_lif_config.V_r)
-                integral_values[index, row_index] = I_mu_sigma(mu_v=mu, sigma_v=sigma,
-                                                               theta=default_diffusion_lif_config.theta,
-                                                               V_reset=default_diffusion_lif_config.V_r)
+                current_firing_rates[row_index] = siegert_gradients.firing_rate(mu_v=mu, sigma_v=sigma)
+                current_integral_limits[:, row_index] = integration_limits(V_mean=mu, sigma_v=sigma,
+                                                                           theta=default_diffusion_lif_config.theta,
+                                                                           V_reset=default_diffusion_lif_config.V_r)
+                current_integral_values[row_index] = I_mu_sigma(mu_v=mu, sigma_v=sigma,
+                                                                theta=default_diffusion_lif_config.theta,
+                                                                V_reset=default_diffusion_lif_config.V_r)
+            firing_rates[index] = current_firing_rates
+            integral_limits[index] = current_integral_limits
+            integral_values[index] = current_integral_values
 
-        prepare_bigger_fonts()
+        prepare_bigger_fonts(zoom=1)
+        lw = 2.5
 
-        fig = plt.figure(figsize=(26, 8))
+        fig = plt.figure(figsize=(14, 18))
         gs = fig.add_gridspec(4, 2)
 
         ax_integral_limits_mmda_block = fig.add_subplot(gs[0, 0])
@@ -282,43 +298,46 @@ class Chapter2Figures(unittest.TestCase):
         ax_rates_computation = fig.add_subplot(gs[3, 1], sharex=ax_integral_values)
 
         for index, result in enumerate(results):
-        #for index, result in enumerate([nmda_block_mu_to_sigma]):
-            # lower limit
             axs_integral_limits[index].plot(
                 result.mus,
-                integral_limits[index, 0, :],
-                label=f"{result.exp_label} (lower limit)"
+                integral_limits[index][0, :],
+                label=f"lower limit",
+                lw=lw,
+                color=colors[index],
             )
-
-            # upper limit
             axs_integral_limits[index].plot(
                 result.mus,
-                integral_limits[index, 1, :],
-                linestyle='--',
-                label=f"{result.exp_label} (upper limit)"
+                integral_limits[index][1, :],
+                linestyle='-.',
+                lw=lw,
+                color=colors[index],
+                label=f"upper limit"
             )
 
-            delta = integral_limits[index, 1, :] - integral_limits[index, 0, :]
+            axs_integral_limits[index].set_ylim(ax_integral_limits_limit[index])
+
+            delta = integral_limits[index][1, :] - integral_limits[index][0, :]
+            axs_integral_limits_zoom[index].plot(result.mus,
+                                         ((default_diffusion_lif_config.theta - default_diffusion_lif_config.V_r) / mV) / (
+                                                     np.sqrt(2) * result.sigmas),
+                                         label=r"Closed formula $\frac{V_R - \theta}{\sqrt{2} \cdot \sigma_v}$",
+                                         alpha=0.5, lw=lw, color="red")
             axs_integral_limits_zoom[index].plot(nmda_block_mu_to_sigma.mus,
                                                  delta,
-                                                 label=f"Upper limit - lower limit {result.exp_label}")
+                                                 label="upper limit - lower limit",
+                                                 lw=lw, color=colors[index])
+            axs_integral_limits_zoom[index].set_ylim(ax_zoom_limit[index])
 
-            axs_integral_limits_zoom[index].set_ylim(top = np.max(delta) / 100)
 
-        # ax_integral_limits_zoom.set_ylim((-2, 10))
-        # ax_integral_limits_zoom.set_ylim(top=10)
-
-        ax_integral_values.plot(nmda_block_mu_to_sigma.mus, integral_values.T,
-                                label=[result.exp_label for result in results])
-        ax_rates_computation.plot(nmda_block_mu_to_sigma.mus, firing_rates.T,
-                                  label=[result.exp_label for result in results])
+            ax_integral_values.plot(result.mus, integral_values[index], label=f"{result.exp_label}", lw=lw,
+                                    color=colors[index])
+            ax_rates_computation.plot(result.mus, firing_rates[index].T, label=f"{result.exp_label}", lw=lw,
+                                      color=colors[index])
 
         for index, result in enumerate(results):
-            axs_integral_limits[index].set_title(f"Plot of integral limits for {result.exp_label}\n" +
-                                                 "upper limit " + r"$\frac{\mu_v - \theta}{\sqrt{2}\sigma_v}$ and lower limit " + r"$\frac{\mu_v - V_R}{\sqrt{2}\sigma_v}$"
-                                                 )
+            axs_integral_limits[index].set_title(f"Integral limits \n {result.exp_label}")
             axs_integral_limits[index].set_ylabel(r"Integral limits (unitless)")
-            axs_integral_limits_zoom[index].set_title(f"upper limit -  lower limit for {result.exp_label}")
+            axs_integral_limits_zoom[index].set_title(f"upper limit -  lower limit \n {result.exp_label}")
             axs_integral_limits_zoom[index].set_ylabel(r"$\Delta$ limits (unitless)")
 
         ax_integral_values.set_ylabel(r"Integral value (unitless)")
@@ -328,14 +347,26 @@ class Chapter2Figures(unittest.TestCase):
             ax.set_xlabel(r"$\mu_v$ [mV]")
             ax.axvline(x=default_diffusion_lif_config.theta / mV, color='dimgray', linestyle='-.',
                        label=r'Threshold $\theta$')
+
+        panels = ["A1", "A2", "A3", "B1", "B2", "B3", "C", "D"]
+        for index, ax in enumerate(chain(axs_integral_limits, axs_integral_limits_zoom, [ax_integral_values, ax_rates_computation])):
+            ax.text(
+                0.02, 1.2, f"({panels[index]})",
+                transform=ax.transAxes,
+                fontsize=20,
+                fontweight=1000,
+                va="top",
+                ha="left"
+            )
             ax.legend()
 
         ax_integral_values.set_title(
-            r"$\int_{\frac{\mu_v - \theta}{\sqrt{2}\sigma_v}}^{\frac{\mu_v - V_R}{\sqrt{2}\sigma_v}} "
-            r"e^{x^2}\,\mathrm{erfc}(x)\,dx$"
+            r"$I(\mu_v, \sigma_v)=\int_{\frac{\mu_v - \theta}{\sqrt{2}\sigma_v}}^{\frac{\mu_v - V_R}{\sqrt{2}\sigma_v}} "
+            r"e^{x^2}\,\mathrm{erfc}(x)\,dx$" + "\n on the set \n" + r"$r_0(\mu_v, \sigma_v)$ = constant"
         )
         ax_rates_computation.set_title(
-            "$r_0(\mu_v, \sigma_v)$" + " computed with actual numerical values \n returned by Newton's method")
+            "$r_0(\mu_v, \sigma_v)$" + " computed with actual numerical values \n returned by Newton's method", y=1.1)
 
+        fig.suptitle("Plot of integral limits \n" +  "upper limit " + r"$\frac{\mu_v - V_R}{\sqrt{2}\sigma_v}$ and lower limit $\frac{\mu_v - \theta}{\sqrt{2}\sigma_v}$" + "\n with check that both integral and rate \n are constant" )
         fig.tight_layout()
         show_plots_non_blocking(caller_test_case=self)
