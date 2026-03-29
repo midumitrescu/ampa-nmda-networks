@@ -40,8 +40,11 @@ class DiffusionLIFConfig:
         })
 
     def with_label(self, label: str):
+        return self.with_property(DiffusionLIFConfig.KEY_LABEL, label)
+
+    def with_property(self, key: str, value):
         new_params = self.params.copy()
-        new_params[DiffusionLIFConfig.KEY_LABEL] = label
+        new_params[key] = value
         return DiffusionLIFConfig(new_params)
 
 

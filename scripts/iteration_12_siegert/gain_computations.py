@@ -15,6 +15,7 @@ from scipy.optimize import fsolve
 
 from Plotting import show_plots_non_blocking, prepare_bigger_fonts
 from iteration_12_transfer_function_of_lif_neurons.SiegertGradientDescent import SiegertGradients, I_mu_sigma
+from iteration_12_transfer_function_of_lif_neurons.config import DiffusionLIFConfig
 
 try:
     from utils import ExtendedDict
@@ -69,19 +70,45 @@ class RateGainSearchParams:
         self.d_sigma = d_sigma * mV
         self.d_sigma_unitless = self.d_sigma / mV
 
-def find_sigma_for_mu_producing_rate(experiment: Experiment, params: RateGainSearchParams):
-    siegert_gradient = SiegertGradients.for_experiment(experiment)
+def find_sigma_for_mu_producing_rate_from_lif_config(lif_config: DiffusionLIFConfig, params: RateGainSearchParams):
+    siegert_gradient = SiegertGradients.for_lif_config(lif_config)
     sigma_sol = fsolve(func=lambda sigma: [siegert_gradient.firing_rate(mu_v=params.mu_v_nmda_block, sigma_v=sigma[0] * volt) - params.rate_nmda_block],
                        x0=4 * mV)[0] * volt
-
     if sigma_sol < 0 * mV:
         return 0 * mV
     return sigma_sol
 
+def find_sigma_for_mu_producing_rate(experiment: Experiment, params: RateGainSearchParams):
+    return find_sigma_for_mu_producing_rate_from_lif_config(DiffusionLIFConfig.from_experiment(experiment), params)
 
 # Parametrizable defaults for "rate at baseline, desired gain, step in mu" plots (ExtendedDict = attribute-style access)
 default_rate_gain_params = RateGainSearchParams(rate_nmda_block=0.05, rate_with_nmda=0.3, mu_v_nmda_block=-60, mu_v_with_nmda=-60 + 0.1)
 
+def solve_mu_sigma_via_fsolve_for_LIF_config(lif_config: DiffusionLIFConfig, params: RateGainSearchParams):
+    sieger_gradient = SiegertGradients.for_lif_config(lif_config)
+
+    sigma = find_sigma_for_mu_producing_rate_from_lif_config(lif_config, params)
+    rate_nmda_block_recomputed = sieger_gradient.firing_rate(mu_v=params.mu_v_nmda_block, sigma_v=sigma)
+    print(
+        f"mu_v {params.mu_v_nmda_block_unitless: .3f} mV, sigma={sigma: .3f} mV rate computed = {rate_nmda_block_recomputed}")
+
+    d_rate_d_mu = sieger_gradient.d_rate_d_mu(mu_v=params.mu_v_nmda_block, sigma_v=sigma)
+    taylor_rate_actual = params.rate_nmda_block + d_rate_d_mu * params.d_mu
+    taylor_rate_wanted = params.rate_nmda_block + params.gain * params.d_mu
+
+    rate_delta_mu = sieger_gradient.firing_rate(mu_v=params.mu_v_with_nmda, sigma_v=sigma) / Hz
+
+    return ExtendedDict({
+        "sigma": sigma,
+        "mu_nmda_block": params.mu_v_nmda_block_unitless,
+        "theta": lif_config.theta,
+        "rate_nmda_block_recomputed": rate_nmda_block_recomputed / Hz,
+        "rate_delta_mu_Hz": rate_delta_mu,
+        "taylor_error_Hz": rate_nmda_block_recomputed - taylor_rate_actual,
+        "gain_error_Hz": rate_nmda_block_recomputed - taylor_rate_wanted,
+        "params": params,
+        "siegert_gradient": sieger_gradient
+    })
 
 def solve_mu_sigma_via_fsolve(experiment: Experiment, params: RateGainSearchParams):
     """Search for (mu, sigma) using fsolve: fix mu_nmda_block = theta - offset, find sigma such that rate(mu_nmda_block, sigma) = rate_nmda_block_recomputed.
@@ -95,7 +122,7 @@ def solve_mu_sigma_via_fsolve(experiment: Experiment, params: RateGainSearchPara
     d_rate_d_mu = sieger_gradient.d_rate_d_mu(mu_v=params.mu_v_nmda_block, sigma_v=sigma)
     taylor_rate_actual = params.rate_nmda_block + d_rate_d_mu * params.d_mu
     taylor_rate_wanted = params.rate_nmda_block + params.gain * params.d_mu
-    
+
     rate_delta_mu = sieger_gradient.firing_rate(mu_v=params.mu_v_with_nmda, sigma_v=sigma) / Hz
 
     return ExtendedDict({

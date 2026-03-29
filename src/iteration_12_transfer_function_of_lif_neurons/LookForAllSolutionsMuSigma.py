@@ -2,6 +2,7 @@ import sys
 
 from loguru import logger
 from scipy.optimize import fsolve
+import numpy as np
 
 from Plotting import prepare_bigger_fonts
 from iteration_12_transfer_function_of_lif_neurons.config import DiffusionLIFConfig, default_diffusion_lif_config
@@ -18,6 +19,35 @@ from scipy.stats import stats
 from BinarySeach import binary_search_for_target_value_precission_in_result_space
 from iteration_12_transfer_function_of_lif_neurons.SiegertGradientDescent import rate_LIF_whitenoise, SiegertGradients, newton_fsolve_find_mu_for_fixed_sigma
 
+
+def compute_sigma(mu, r_target, lif_config: DiffusionLIFConfig):
+    """
+    Find sigma for a given mu using binary search to hit r_target.
+    """
+    look_for_sigma = lambda s: rate_LIF_whitenoise(
+        mu,
+        tau_membrane=lif_config.tau_m,
+        sigma_v=s,
+        theta=lif_config.theta,
+        V_reset=lif_config.V_r,
+        tau_ref=lif_config.tau_rp
+    )
+    try:
+        sigma, _ = binary_search_for_target_value_precission_in_result_space(
+            lower_value=0 * mV,
+            upper_value=20 * mV,
+            func=look_for_sigma,
+            target_result=r_target,
+            precision=1e-10 * Hz,
+            max_iters=100
+        )
+        return sigma
+    except ValueError as e:
+        print(f"mu={mu}: {e}")
+        return np.nan  # fallback if binary search fails
+
+def binary_search_sigma_at_mu_for_firing_rate(mu, r_target, lif_config: DiffusionLIFConfig):
+    return compute_sigma(mu, r_target, lif_config)
 
 def find_curve_grid(solver, r_target, mu_range, sigma_range, resolution=100):
     """
@@ -152,6 +182,12 @@ class MuToSigmaResult:
         self.r_target = r_target
         self.exp_label = exp_label
 
+    def mus_to_sigmas(self):
+        return zip(self.mus, self.sigmas)
+
+    def linear_fit(self):
+        return stats.linregress(self.mus, self.sigmas)
+
 def newton_fsolve_find_sigma_for_fixed_mu(siegert_gradient: SiegertGradients, mu_v: Quantity, r_target: Quantity):
     return fsolve(func=lambda sigma: [siegert_gradient.firing_rate(mu_v=mu_v, sigma_v=sigma[0] * volt) - r_target],
                   x0=-55 * mV,
@@ -197,32 +233,6 @@ def compute_mu_to_sigma_curve(lif_config: DiffusionLIFConfig, r_target: Quantity
 
     # Prepare mu values
     mu_s = np.linspace(lif_config.theta - 20 * mV, max_mu-0.01*mV, num=1000)
-
-    def compute_sigma(mu, r_target, lif_config: DiffusionLIFConfig):
-        """
-        Find sigma for a given mu using binary search to hit r_target.
-        """
-        look_for_sigma = lambda s: rate_LIF_whitenoise(
-            mu,
-            tau_membrane=lif_config.tau_m,
-            sigma_v=s,
-            theta=lif_config.theta,
-            V_reset=lif_config.V_r,
-            tau_ref=lif_config.tau_rp
-        )
-        try:
-            sigma, _ = binary_search_for_target_value_precission_in_result_space(
-                lower_value=0 * mV,
-                upper_value=20 * mV,
-                func=look_for_sigma,
-                target_result=r_target,
-                precision=1e-10 * Hz,
-                max_iters=100
-            )
-            return sigma
-        except ValueError as e:
-            print(f"mu={mu}: {e}")
-            return np.nan  # fallback if binary search fails
 
     # Run in parallel on all mu values
     sigmas = Parallel(n_jobs=-1, backend="loky")(
@@ -314,20 +324,16 @@ def plot_line_computation_vs_fit(results: list[MuToSigmaResult], caller_test_cas
     ## labels and titles for ax linear fit ##
     labels = [r.exp_label for r in results]
     if len(labels) == 1:
-        cond = f"{labels[0]} condition"
-        rmse_label = f"{labels[0]}: {rmse_s[0]}"
-        mae_label = f"{labels[0]}: {mae_s[0]}"
+        rmse_label = f"{labels[0]}: {rmse_s[0] :.4f}"
+        mae_label = f"{labels[0]}: {mae_s[0]:.4f}"
     elif len(labels) == 2:
-        cond = f"{labels[0]} and {labels[1]} conditions"
-        rmse_label = f"{labels[0]}: {rmse_s[0]} and {labels[1]}: {rmse_s[1]}"
-        mae_label = f"{labels[0]}: {mae_s[0]} and {labels[1]}: {mae_s[1]}"
+        rmse_label = f"{labels[0]}: {rmse_s[0] :.4f} and {labels[1]}: {rmse_s[1]:.4f}"
+        mae_label = f"{labels[0]}: {mae_s[0] :.4f} and {labels[1]}: {mae_s[1]:.4f}"
     else:
-        cond = f"{', '.join(labels[:-1])} and {labels[-1]} conditions"
         rmse_labels =  [f"{label}: {rmse:.4f}" for label, rmse in zip(labels, rmse_s)]
         rmse_label = f"{', '.join(rmse_labels[:-1])} and {rmse_labels[-1]}"
         mae_labels =  [f"{label}: {mae:.4f}" for label, mae in zip(labels, mae_s)]
         mae_label =  f"{', '.join(mae_labels[:-1])} and {mae_labels[-1]}"
-
 
     ax_linear_fit.set_xlabel('$\mu_v$ [mV]')
     ax_linear_fit.set_ylabel('$\sigma_v$ [mV]')

@@ -6,6 +6,7 @@ import numpy as np
 from brian2 import mV, Hz
 
 from Plotting import show_plots_non_blocking, prepare_bigger_fonts
+from iteration_12_siegert.CorrelationSimulations import label_for_float
 from iteration_12_transfer_function_of_lif_neurons.LookForAllSolutionsMuSigma import \
     compute_mu_to_sigma_curve, plot_line_computation_vs_fit
 from iteration_12_transfer_function_of_lif_neurons.SiegerGradientDescentTestCases import \
@@ -370,3 +371,95 @@ class Chapter2Figures(unittest.TestCase):
         fig.suptitle("Plot of integral limits \n" +  "upper limit " + r"$\frac{\mu_v - V_R}{\sqrt{2}\sigma_v}$ and lower limit $\frac{\mu_v - \theta}{\sqrt{2}\sigma_v}$" + "\n with check that both integral and rate \n are constant" )
         fig.tight_layout()
         show_plots_non_blocking(caller_test_case=self)
+
+    def test_show_linear_fit_and_compute_mu_sigma(self):
+
+        for delta_mu in [0.4, 0.7]:
+            lif_config = default_diffusion_lif_config
+
+            lif_configs = [lif_config.with_label("MK-801"),
+                           lif_config.with_label("Control")]
+            target_rates = [0.05 * Hz, 0.18 * Hz]
+            results = [compute_mu_to_sigma_curve(config, r_target=target_rate) for config, target_rate in
+                       zip(lif_configs, target_rates)]
+            nmda_block_mu_to_sigma = results[0]
+            control_mu_to_sigma = results[1]
+
+            m_mk801, b_mk801, _, _, _ = nmda_block_mu_to_sigma.linear_fit()
+            m_control, b_control, _, _, _ = control_mu_to_sigma.linear_fit()
+
+            sigma_v, mu_v = 1 / (m_mk801 - m_control) * np.array([[-m_control, m_mk801], [-1, 1]]) @ np.array(
+                [[b_mk801], [m_control * delta_mu + b_control]])
+
+            sigma_sol = sigma_v[0]
+            mu_v_mk801 = mu_v[0]
+            mu_v_control = mu_v_mk801 + delta_mu
+
+            print(f"mu_v MK-801 = {mu_v_mk801}, mu_v Control = {mu_v_control}, sigma_v = {sigma_v}")
+
+            siegert_gradient = SiegertGradients.for_lif_config(lif_config)
+            rate_mk801 = siegert_gradient.firing_rate(mu_v=mu_v_mk801 * mV, sigma_v=sigma_sol * mV)
+            rate_control = siegert_gradient.firing_rate(mu_v=mu_v_control, sigma_v=sigma_sol * mV)
+            print(f"Predicted MK801 rate: {rate_mk801}, Control rate: {rate_control}")
+
+            prepare_bigger_fonts()
+
+            fig, ax = plt.subplots(figsize=(10, 10))
+            prepare_bigger_fonts()
+
+            """Plot μ vs σ curves and linear fit. Used by script runners with caller_test_case=self for figure naming."""
+            for result, color in zip(results, ["orange", "black"]):
+                ax.plot(result.mus, result.sigmas, color=color, label=f"{result.exp_label}, r = {result.r_target / Hz} Hz",
+                         lw=2)
+
+            ax.plot(mu_v_control, sigma_sol,
+                     marker='x', color='C0', markeredgewidth=1, markersize=12, linestyle="", alpha=0.7,
+                     label=r"$\mu_\mathrm{sol} + \Delta \mu_{\mathrm{obs}}$="f"{mu_v_control: .3f} mV")
+
+            ax.plot(mu_v_mk801, sigma_sol,
+                     marker='x', color='C0', markeredgewidth=1, markersize=12, linestyle="", alpha=0.7,
+                     label=r"$\mu_\mathrm{sol} =$"f"{mu_v_mk801 : .3f} mV")
+
+            ax.axvline(x=mu_v_control, ymin=0.2, ymax=0.5, color='C0', linestyle='--', alpha=0.8)
+            ax.axvline(x=mu_v_mk801, ymin=0.2, ymax=0.5, color='C0', linestyle='--', alpha=0.8)
+
+            x_max = 0.9 - abs((lif_config.theta / mV - mu_v_control))/40
+            ax.axhline(y=sigma_sol, xmin=0, xmax=x_max, color='C0', linestyle='--', alpha=0.8,
+                        label=r"$\sigma_{v, \mathrm{sol}} = $" + f"{sigma_sol: .3f} mV")
+            ax.annotate(
+                text="",
+                xy=(mu_v_mk801, 1.1),
+                xytext=(mu_v_control, 1.1),
+                arrowprops=dict(
+                    arrowstyle="<->",
+                    color="black",
+                    lw=1.5
+                )
+            )
+            ax.text(
+                x=(mu_v_control + mu_v_mk801) / 2,
+                y=0.6,
+                s=r"$\Delta \mu_v$ = "f"{delta_mu: .1f} mV",
+                fontsize=14,
+                ha="center",
+                va="bottom"
+            )
+
+            ax.set_xlabel(r"$\mu_v$ [mV]")
+            ax.set_ylabel(r"$\sigma_v$ [mV]")
+
+            ax.legend()
+            fig.suptitle(f"Found solutions for {r"$r_0(\mu_{v, \mathrm{MK-801}}, \sigma_v) =$ 0.05 Hz"}, {r"$r_0(\mu_{v, \mathrm{Control}}, \sigma_v) =$ 0.18 Hz"}\n"
+                         r"$\mu_{v, \mathrm{MK-801}}$="f"{mu_v_mk801 :.3f} mV, "r"$\mu_{v, \mathrm{Control}}$="f"{mu_v_control :.3f} mV, "r"$\Delta \mu_v$="f"{mu_v_control - mu_v_mk801 : .3f} mV, "r"$\sigma_v$="f"{sigma_sol:.3f} mV \n"
+                         r"$\theta - \mu_{v, \mathrm{Control}}$="f"{default_diffusion_lif_config.theta / mV - mu_v_control: .3f} mV")
+
+            fig.tight_layout()
+            show_plots_non_blocking(caller_test_case=self, descriptor=f"d_mu_{label_for_float(delta_mu)}")
+
+            print(f"delta mu {delta_mu}: m mk801= {m_mk801}, m control = {m_control}"
+                  f"b mk801 = {b_mk801}, b control = {b_control}")
+
+            print(f"Empirical vs analytical: MK801: {b_mk801 - m_mk801 * lif_config.theta / mV}")
+            print(f"Empirical vs analytical: Control: {b_control - m_control * lif_config.theta / mV}")
+
+
