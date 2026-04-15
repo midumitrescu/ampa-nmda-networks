@@ -4,11 +4,26 @@ from brian2.units.allunits import nampere, pampere
 
 from utils import ExtendedDict
 
+class CueInfo:
+
+    def __init__(self, degree = 90, delay=200 * ms, duration=200 * ms, sigma=2, spread=10, cue_rate=50 * Hz):
+        self.degree = degree
+
+        self.delay = delay
+        self.duration = duration
+        self.sigma = sigma
+        self.spread = spread
+        self.rate = cue_rate
+
+        self.label = f"{degree} degrees, from {delay} to {duration + delay} ms, spread of {self.spread} neurons"
+
+default_cue_info = CueInfo()
 
 class AnExampleExperiment:
 
     def __init__(self, G_EE_AMPA, G_EE_NMDA, G_EI, G_IE, G_II, NE, NI, label,
-                 gext_E=3.1, gext_I=2.38, nu_ext=1800, N_ext=1000, NE_ref=2048, NI_ref=512, seed=None):
+                 gext_E=3.1, gext_I=2.38, nu_ext=1800, N_ext=1000, NE_ref=2048, NI_ref=512, seed=None,
+                 sigma_EE = 18.0, Jp=1.62, cues: list[CueInfo] = None):
         self.G_EE_AMPA = G_EE_AMPA * (NE_ref / NE) * nS
         self.G_EE_NMDA = G_EE_NMDA * (NE_ref / NE) * nS
         self.GEI = G_EI * (NE_ref / NE) * nS
@@ -29,6 +44,20 @@ class AnExampleExperiment:
         self.nu_ext_total = nu_ext * Hz
         self.N_ext = N_ext
         self.nu_ext = self.nu_ext_total / self.N_ext
+
+        dtheta = np.linspace(-180, 180, 360)
+        G = np.exp(-dtheta ** 2 / (2 * sigma_EE ** 2))
+        alpha = np.mean(G)  # ≈ sqrt(2π)σ / 360
+        self.theta_E = np.linspace(0, 360, NE, endpoint=False)
+        self.theta_I = np.linspace(0, 360, NI, endpoint=False)
+
+        self.sigma_EE = sigma_EE # degrees
+        self.Jp = Jp
+
+        # Preferred cue angles
+        self.Jm = (1 - alpha * self.Jp) / (1 - alpha)
+
+        self.cues = cues if cues is not None else [CueInfo(degree=90, delay=200 * ms, duration=200 * ms, sigma=2, spread=10, cue_rate=50 * Hz)]
 
     def summary(self):
         return {

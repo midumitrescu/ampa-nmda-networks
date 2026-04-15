@@ -293,6 +293,12 @@ class PlotParams:
             "title": r'$g_\mathrm{AMPA}$',
             "y_label": "[nS]",
             "scaling": nsiemens
+        },
+
+        AvailableHiddenVariables.g_i.value: {
+            "title": r'$g_\mathrm{GABA}$',
+            "y_label": "[nS]",
+            "scaling": nsiemens
         }
     }
 
@@ -564,10 +570,8 @@ class EffectiveTimeConstantEstimation:
 
     def mean_s_nmda(self):
         mean_x_nmda = self.mean_x_nmda()
-        if mean_x_nmda == 0:
-            return 1
         return 1 - 1 / (
-                self.config.synaptic_params.alpha_nmda * self.config.synaptic_params.tau_nmda_decay * mean_x_nmda)
+                1 + self.config.synaptic_params.alpha_nmda * self.config.synaptic_params.tau_nmda_decay * mean_x_nmda)
 
     def std_x_nmda(self):
         return self.config.synaptic_params.g_x_nmda * np.sqrt(
@@ -581,7 +585,7 @@ class EffectiveTimeConstantEstimation:
 
     def E_0_with_nmda(self, g_nmda=None):
 
-        if self.state.N_NMDA < 1:
+        if self.state.N_NMDA < 1 or self.state.nu_nmda == 0:
             return self.E_0()
 
         if g_nmda is None:

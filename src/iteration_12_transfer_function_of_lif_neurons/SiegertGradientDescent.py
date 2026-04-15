@@ -1,6 +1,8 @@
+import math
+
 import matplotlib.pyplot as plt
 import numpy as np
-from brian2 import mV, ms, Hz, second, have_same_dimensions, Quantity, volt
+from brian2 import mV, ms, Hz, second, have_same_dimensions, Quantity, volt, is_dimensionless
 from loguru import logger
 from matplotlib.collections import LineCollection
 from matplotlib.colors import Normalize
@@ -9,6 +11,7 @@ from scipy.integrate import quad
 from scipy.optimize import fsolve
 
 from Plotting import show_plots_non_blocking, prepare_bigger_fonts
+from iteration_12_transfer_function_of_lif_neurons.config import DiffusionLIFConfig, default_diffusion_lif_config
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment
 
 mHz = 1e-3 * Hz
@@ -26,36 +29,23 @@ def erfcx(x):
     return special.erfcx(x)
 
 
-def rate_LIF_whitenoise(mu, tau_membrane, sigma_v, theta, V_reset, tau_ref):
+def rate_LIF_deterministic(mu, tau_membrane, theta, V_reset, tau_ref):
     """
-    Compute firing rate of LIF neuron with white noise input
-
-    Parameters:
-    -----------
-    V_mean : Brian2 quantity (mV) - mean membrane potential
-    tau : Brian2 quantity (ms) - membrane time constant
-    sigmaV : Brian2 quantity (mV) - noise standard deviation
-    Vth : Brian2 quantity (mV) - threshold voltage
-    Vreset : Brian2 quantity (mV) - reset voltage
-    tref : Brian2 quantity (ms) - refractory period
-
-    Returns:
-    --------
-    Brian2 quantity (Hz) - firing rate
+    Firing rate of LIF with no noise (deterministic). Used when σ=0; Siegert's formula does not apply.
+    Returns 0 for mu <= theta.
     """
-    if np.abs(sigma_v / mV) < 1E-10:
-        if mu > theta:
-            T = tau_membrane * np.log((mu - V_reset) / (mu - theta))
-            return 1. / (T + tau_ref)
-        else:
-            return 0  * Hz
+    if mu <= theta:
+        return 0 * Hz
+    T = tau_membrane * np.log((mu - V_reset) / (mu - theta))
+    return 1.0 / (T + tau_ref)
 
-    # Integration bounds
-    lower_limit, upper_limit = integration_limits(V_mean=mu, V_reset=V_reset, sigma_v=sigma_v, theta=theta)
-
+def I_mu_sigma(mu_v, sigma_v, theta, V_reset):
+    # Integration bounds (Siegert's formula)
+    lower_limit, upper_limit = integration_limits(V_mean=mu_v, V_reset=V_reset, sigma_v=sigma_v, theta=theta)
 
     # Ensure to < upper_limit for integration
     if lower_limit > upper_limit:
+        print("FFFFFFFFFFFFFFFUUUUUUUUUUUUUUUUUUUCCCCCCCCCCCCKKKKKKKKKKKKKKKK lower limit > upper limit. Should not happen")
         lower_limit, upper_limit = upper_limit, lower_limit
 
     dx = upper_limit - lower_limit
@@ -69,13 +59,37 @@ def rate_LIF_whitenoise(mu, tau_membrane, sigma_v, theta, V_reset, tau_ref):
         if np.isnan(I_mu_sigma):
             I_mu_sigma = 1E-13
 
-    # Compute firing rate
-    rate = 1.0 / (tau_ref + tau_membrane * np.sqrt(np.pi) * I_mu_sigma)
+    return I_mu_sigma
 
+
+def rate_LIF_whitenoise(mu, tau_membrane, sigma_v, theta, V_reset, tau_ref):
+    """
+    Compute firing rate of LIF neuron with white noise input.
+    When sigma_v ≈ 0: below threshold → 0; above threshold → 1/(T + tau_ref).
+    """
+    if np.abs(float(sigma_v / mV)) < 1e-10:
+        if mu > theta:
+            T = tau_membrane * np.log((mu - V_reset) / (mu - theta))
+            return 1.0 / (T + tau_ref)
+        else:
+            return 0 * Hz
+
+    i_mu_sigma = I_mu_sigma(mu_v=mu, sigma_v=sigma_v, theta=theta, V_reset=V_reset)
+
+    # Compute firing rate
+    rate = 1.0 / (tau_ref + tau_membrane * np.sqrt(np.pi) * i_mu_sigma)
     return rate
 
 
 def integration_limits(V_mean, V_reset, sigma_v, theta):
+
+    if is_dimensionless(V_mean):
+        V_mean = V_mean * mV
+    if is_dimensionless(V_reset):
+        V_reset = V_reset * mV
+    if is_dimensionless(sigma_v):
+        sigma_v = sigma_v * mV
+
     lower_limit = (V_mean - theta) / (np.sqrt(2) * sigma_v)
     upper_limit = (V_mean - V_reset) / (np.sqrt(2) * sigma_v)
     return lower_limit, upper_limit
@@ -109,11 +123,25 @@ class SiegertGradients:
                                         v_reset=experiment.neuron_params.V_r,
                                         tau_ref=experiment.neuron_params.tau_rp, unit='mV')
 
+    @staticmethod
+    def for_lif_config(lif_config: DiffusionLIFConfig):
+        return SiegertGradients(tau_m=lif_config.tau_m,
+                                theta=lif_config.theta,
+                                v_reset=lif_config.V_r,
+                                tau_ref=lif_config.tau_rp, unit='mV')
+
+    @staticmethod
+    def default():
+        return SiegertGradients.for_lif_config(default_diffusion_lif_config)
+
     def firing_rate(self, mu_v, sigma_v):
         return rate_LIF_whitenoise(mu=mu_v, tau_membrane=self.tau_m, sigma_v=sigma_v,
                                      theta=self.theta, V_reset=self.v_reset, tau_ref=self.tau_ref)
 
-    def phi(self, z):
+    def I_mu_sigma(self, mu_v, sigma_v):
+        return  I_mu_sigma(mu_v, sigma_v=sigma_v, theta=self.theta, V_reset=self.v_reset)
+
+    def E(self, z):
         """Φ(z) = erfcx(z) = exp(z^2)*erfc(z)"""
         return erfcx(z)
 
@@ -125,17 +153,48 @@ class SiegertGradients:
 
     def grad_rate_mu_sigma(self, mu_v, sigma_v):
         f_lif = self.firing_rate(mu_v=mu_v, sigma_v=sigma_v)
-        return - self.tau_m * np.sqrt(2) * f_lif ** 2 * self.grad_I(mu_v=mu_v, sigma_v=sigma_v)
+        grad_I_current = self.grad_I(mu_v=mu_v, sigma_v=sigma_v)
+        if f_lif  < 10**-4 * Hz:
+            return np.array([0, 0]) * Hz / mV
+        return - self.tau_m * np.sqrt(np.pi) * f_lif ** 2 * grad_I_current
 
     def grad_I(self, mu_v, sigma_v):
         lower_limit, upper_limit = integration_limits(V_mean=mu_v, V_reset=self.v_reset, sigma_v=sigma_v,
                                                       theta=self.theta)
 
-        phi_vect = np.array([self.phi(upper_limit), self.phi(lower_limit)]).T
+        phi_vect = np.array([self.E(upper_limit), self.E(lower_limit)]).T
         matrix = np.array([[1, -1],
                            [- upper_limit * np.sqrt(2), lower_limit * np.sqrt(2)]])
 
         return  1 / (np.sqrt(2) * sigma_v)  * matrix @ phi_vect
+
+    def integration_limits(self, mu_v, sigma_v):
+        return integration_limits(V_mean = mu_v, V_reset=self.v_reset, sigma_v=sigma_v, theta=self.theta)
+
+    def d_squared_rate_d_mu_squared(self, mu_v, sigma_v):
+
+        rate = self.firing_rate(mu_v = mu_v, sigma_v = sigma_v)
+        mu_vr, mu_theta = self.integration_limits(mu_v = mu_v, sigma_v=sigma_v)
+
+        d_i_d_mu = 1/(math.sqrt(2) * sigma_v) *(self.E(mu_vr) - self.E(mu_theta))
+
+        d_quared_I_d_mu_squared = (1/(math.sqrt(2) * sigma_v**3)*
+                                   ((mu_v - self.v_reset)* self.E(mu_vr) - (mu_v - self.theta) * self.E(mu_theta)))
+
+        return 2 * self.tau_m**2  * math.pi * rate**3 * d_i_d_mu**2 - self.tau_m * math.sqrt(math.pi) * rate ** 2 * d_quared_I_d_mu_squared
+
+    def d_squared_rate_d_mu_d_sigma(self, mu_v, sigma_v):
+
+        rate = self.firing_rate(mu_v = mu_v, sigma_v = sigma_v)
+        mu_vr, mu_theta = self.integration_limits(mu_v = mu_v, sigma_v=sigma_v)
+        d_i_d_mu = 1 / (math.sqrt(2) * sigma_v) * (self.E(mu_vr) - self.E(mu_theta))
+        d_i_d_sigma = - 1 / (math.sqrt(2) * sigma_v**2) * ((mu_v - self.v_reset) * self.E(mu_vr) - (mu_v - self.theta) * self.E(mu_theta))
+        d_quared_I_d_mu_d_sigma = (1 / (math.sqrt(2) * sigma_v ** 2) *
+                                   (self.E(mu_theta) * (1 + (mu_v - self.theta)**2/sigma_v**2)
+                                    - self.E(mu_vr) * (1 + (mu_v - self.v_reset)**2 /sigma_v**2)
+                                    + math.sqrt(2/math.pi)* (self.theta - self.v_reset)/sigma_v))
+
+        return 2 * self.tau_m**2  * math.pi * rate**3 * d_i_d_sigma * d_i_d_mu - self.tau_m * math.sqrt(math.pi) * rate ** 2 * d_quared_I_d_mu_d_sigma
 
 
 class SiegertGradientDescent(SiegertGradients):
@@ -247,9 +306,13 @@ class SiegertGradientDescent(SiegertGradients):
         return mu, sigma, history
 
 
-def newton_fsolve_find_mu_for_fixed_sigma(siegert_gradient: SiegertGradients, sigma_v: Quantity, r_target: Quantity):
+def newton_fsolve_find_mu_for_fixed_sigma(siegert_gradient: SiegertGradients, sigma_v: Quantity, r_target: Quantity, mu_0=None):
+    if mu_0 is None:
+        mu_0 = -55 * mV
+    # fsolve expects x0 in same scale as lambda (mu[0] in volt)
+    x0_val = float(mu_0 / volt) if hasattr(mu_0, "unit") else mu_0
     return fsolve(func=lambda mu: [siegert_gradient.firing_rate(mu_v=mu[0] * volt, sigma_v=sigma_v) - r_target],
-                  x0=-55 * mV,
+                  x0=np.array([x0_val]),
                   fprime=lambda mu: [siegert_gradient.d_rate_d_mu(mu_v=mu[0] * volt, sigma_v=sigma_v)])[0] * volt
 
 

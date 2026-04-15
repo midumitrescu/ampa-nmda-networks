@@ -25,6 +25,17 @@ from iteration_8_compute_mean_steady_state.one_compartment_with_up_down_and_stea
 from iteration_8_compute_mean_steady_state.scripts_with_wang_numbers import palmer_control
 
 
+def compute_theoretical_mean_sigma_and_rate(max_n, base):
+    up_state_base = {
+        "N": 2000,
+        "nu": 82,
+        "N_nmda": 10,
+        "nu_nmda": 10,
+    }
+    N = np.arange(1, max_n)
+    results = Parallel(n_jobs=-1)(delayed(mean_and_sigma)(n, up_state_base, base) for n in N)
+    return pd.DataFrame.from_records(results)
+
 class ScriptsNMDAWithWangNumbers(unittest.TestCase):
 
     def test_compute_mean_for_one_N(self):
@@ -123,19 +134,6 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
         df_nmda_block_simulation = with_elements_between(df_nmda_block_simulation, start_ROI, end_ROI)
         plot_theory_vs_simulation_without_simulation_in_lower_graphs(base=experiment, df_theory=df, df_control_simulation=df_control_simulation,
                                   df_nmda_block_simulation=df_nmda_block_simulation)
-
-    def compute_theoretical_mean_sigma_and_rate(self, max_n, base):
-        up_state_base = {
-            "N": 2000,
-            "nu": 82,
-            "N_nmda": 10,
-            "nu_nmda": 10,
-        }
-        N = np.arange(1, max_n)
-        results = Parallel(
-            n_jobs=-1,  # use all cores
-            backend="loky")(delayed(lambda n: mean_and_sigma(n, up_state_base, base))(n) for n in N)
-        return pd.DataFrame.from_records(results)
 
     def test_plot_NMDA_variables_comparrison(self):
         for max_n in [500, 2000, 2500, 3000, 4000]:

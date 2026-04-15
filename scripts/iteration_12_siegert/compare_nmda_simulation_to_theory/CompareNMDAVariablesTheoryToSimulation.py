@@ -9,7 +9,8 @@ from iteration_12_siegert.compare_nmda_simulation_to_theory.simulation import si
 from iteration_12_siegert.compare_nmda_simulation_to_theory.theory import \
     compute_theoretical_nmda_mean_sigma_and_rate_n_scan, \
     nmda_variables, compute_theoretical_nmda_mean_sigma_and_rate_nu_scan
-from iteration_12_siegert.df_utils import load_df_without_metadata, filename_for_N_scan_experiment
+from iteration_12_siegert.df_utils import load_df_without_metadata, filename_for_N_scan_experiment, \
+    filename_for_nu_scan_experiment
 from iteration_12_transfer_function_of_lif_neurons.siegerts_formula_in_3_d import rate_LIF_whitenoise
 from iteration_7_one_compartment_step_input.one_compartment_with_up_only import sim_and_plot_up_with_state_and_nmda
 
@@ -37,7 +38,7 @@ def compute_siegert_firing_rate(mu, sigma, tau_0_membrane, experiment: Experimen
                                experiment.neuron_params.V_r / mV, experiment.neuron_params.tau_rp / second)
 
 
-class ScriptsNMDAWithWangNumbers(unittest.TestCase):
+class NMDAVarsTheoryVsSimulation(unittest.TestCase):
 
     def test_run_simulation_for_one_N_nmda(self):
         experiment = palmer_control.with_properties({
@@ -56,7 +57,7 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
         up_state_base = experiment.network_params.up_state.params
         object_under_test = run_nmda_input_simulation_and_compute_statistics(n=10, up_state_base=up_state_base,
                                                                              base=experiment,
-                                                                             skip_start_simulation=1000)
+                                                                             skip_ms=1000)
 
         sim_and_plot_up_with_state_and_nmda(experiment=experiment.with_property(Experiment.KEY_SELECTED_MODEL,
                                                                                 single_compartment_with_nmda_and_logged_variables))
@@ -148,7 +149,7 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
         experiment = palmer_control.with_properties({
             Experiment.KEY_SELECTED_MODEL: sigle_compartment_with_nmda_only,
             "panel": "scan_nu_nmda",
-            "t_range": [0, 30 * 1000],
+            "t_range": [0, 10 * 1000],
             "up_state": {
                 "N": 0,
                 "nu": 0,
@@ -162,6 +163,25 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
 
         plot_nu_scan_theory_vs_simulation(experiment=experiment, df_theory=df_theory, df_simulation=df_simulation,
                                        nu_max=nu_max)
+
+    def test_simulation_can_be_plotted(self):
+        experiment = palmer_control.with_properties({
+            Experiment.KEY_SELECTED_MODEL: sigle_compartment_with_nmda_only,
+            "panel": "scan_nu_nmda",
+            "t_range": [0, 10 * 1000],
+            "up_state": {
+                "N": 0,
+                "nu": 0,
+                "N_nmda": 1,
+                "nu_nmda": 1,
+            }})
+        nu_max = 1_000
+        filename = filename_for_nu_scan_experiment(experiment=experiment, output_dir="simulations_2", nu_max=1_000)
+        df_simulation = load_df_without_metadata(filename)
+        df_theory = compute_theoretical_nmda_mean_sigma_and_rate_nu_scan(max_nu=100, base=experiment)
+
+        plot_nu_scan_theory_vs_simulation(experiment=experiment, df_theory=df_theory, df_simulation=df_simulation,
+                                          nu_max=nu_max)
 
     def test_plot_nmda_variables(self):
         # attention here to plot same experimental conditions!!

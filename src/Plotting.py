@@ -1,6 +1,11 @@
+import os
+import re
 import matplotlib.pyplot as plt
 from loguru import logger
 from brian2 import ufarad, cm, siemens, mV, ms
+
+# Default directory for test/script-generated figures (clear provenance from filename).
+PLOT_OUTPUT_DIR = os.path.join(os.getcwd(), "plot_output")
 
 class SynapticParams:
     KEY_SYNAPTIC_STRENGTH = "J"
@@ -122,23 +127,124 @@ class Experiment:
 
         self.sim_clock = params.get(Experiment.KEY_SIMULATION_CLOCK, 0.05 * ms)
 
-def prepare_bigger_fonts():
-    plt.rcParams.update({
+def prepare_bigger_fonts(zoom=0):
+    if zoom == 0:
+        plt.rcParams.update({
         "font.size": 16,
         "axes.titlesize": 18,
         "axes.labelsize": 16,
         "legend.fontsize": 14,
         "figure.titlesize": 20
     })
+    elif zoom == 1:
+        plt.rcParams.update({
+            "font.size": 20,
+            "axes.titlesize": 22,
+            "axes.labelsize": 20,
+            "legend.fontsize": 18,
+            "figure.titlesize": 24
+        })
 
-def show_plots_non_blocking(show=True):
-    plt.rcParams.update({
-        "font.size": 16,
-        "axes.titlesize": 18,
-        "axes.labelsize": 16,
-        "legend.fontsize": 14,
-        "figure.titlesize": 20
-    })
+def _safe_filename_part(s):
+    """Replace anything that's not alphanumeric or underscore with underscore."""
+    return re.sub(r"[^\w]", "_", str(s))
+
+
+def build_figure_basename(caller_test_case=None, script_file=None, descriptor=None):
+    """
+    Build a filename stem that identifies exactly which test or script produced the figure.
+    - From unittest: use caller_test_case (TestCase instance) → {module_file}_{class_name}_{method_name}[_{descriptor}]
+    - From script: use script_file (__file__) and optional descriptor → {script_basename}[_{descriptor}]
+    """
+    if caller_test_case is not None:
+        mod = getattr(caller_test_case.__class__, "__module__", "")
+        module_part = mod.split(".")[-1] if mod else "unknown"
+        class_name = caller_test_case.__class__.__name__
+        method_name = getattr(caller_test_case, "_testMethodName", "unknown")
+        base = f"{_safe_filename_part(module_part)}_{_safe_filename_part(class_name)}_{_safe_filename_part(method_name)}"
+        if descriptor:
+            base = f"{base}_{_safe_filename_part(descriptor)}"
+        return base
+    if script_file is not None:
+        base = _safe_filename_part(os.path.splitext(os.path.basename(script_file))[0])
+        if descriptor:
+            return f"{base}_{_safe_filename_part(descriptor)}"
+        return base
+    return "figure"
+
+
+def save_current_figure(
+    save_name=None,
+    out_dir=None,
+    caller_test_case=None,
+    script_file=None,
+    descriptor=None,
+):
+    """
+    Save the current matplotlib figure to a PNG file.
+
+    Builds the filename from save_name, or from caller_test_case / script_file when save_name
+    is not provided. Creates out_dir if needed. Returns the absolute path of the saved file,
+    or None if no save was performed (no save_name and no caller/script to build one).
+
+    - save_name: exact stem for the file (e.g. "my_figure")
+    - out_dir: directory to write to (default: PLOT_OUTPUT_DIR)
+    - caller_test_case: unittest.TestCase instance → filename from module, class, method
+    - script_file: __file__ and optional descriptor → filename from script basename
+    """
+    if out_dir is None:
+        out_dir = PLOT_OUTPUT_DIR
+    if save_name is None and (caller_test_case is not None or script_file is not None):
+        save_name = build_figure_basename(
+            caller_test_case=caller_test_case, script_file=script_file, descriptor=descriptor
+        )
+    if save_name is None:
+        return None
+    os.makedirs(out_dir, exist_ok=True)
+    path = os.path.join(out_dir, f"{save_name}.png")
+    fig = plt.gcf()
+    fig.savefig(path, dpi=150, bbox_inches="tight")
+    logger.info("Saved figure: {}", path)
+    return os.path.abspath(path)
+
+def add_panel_info(ax_iterable, panel_labels=None):
+    if panel_labels is None:
+        panel_labels = [f"{chr(ord("A") + index)}" for index in range(0, len(ax_iterable))]
+    for ax, label in zip(ax_iterable, panel_labels):
+        ax.text(
+            0.02, 1.2, f"({label})",
+            transform=ax.transAxes,
+            fontsize=20,
+            fontweight=1000,
+            va="top",
+            ha="left"
+        )
+
+def show_plots_non_blocking(
+    show=True,
+    save_name=None,
+    caller_test_case=None,
+    script_file=None,
+    descriptor=None,
+    out_dir=None,
+):
+    """
+    Apply bigger fonts, optionally save current figure to a file with a clear test/script name, then show non-blocking and close.
+
+    For saving, provide either:
+    - save_name: exact stem for the file (e.g. "SiegerGradientDescentTestCases_GradientDescentTestCases_test_foo")
+    - caller_test_case: unittest.TestCase instance (e.g. self) → filename from module, class, method
+    - script_file: __file__ and optional descriptor → filename from script basename
+
+    File is written to out_dir (default: plot_output under cwd) as {save_name}.png.
+    """
+    save_current_figure(
+        save_name=save_name,
+        out_dir=out_dir,
+        caller_test_case=caller_test_case,
+        script_file=script_file,
+        descriptor=descriptor,
+    )
     if show:
         plt.show(block=False)
         plt.close("all")

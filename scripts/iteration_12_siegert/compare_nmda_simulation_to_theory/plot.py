@@ -63,6 +63,8 @@ def plot_nmda_theory_vs_simulation_w_column(experiment, df_theory: pd.DataFrame,
     axes[4, 0].set_title("Correlation coeeficient (x,s)")
     axes[4, 0].set_ylabel("[unitless]")
 
+    axes[4, 1].set_title("Fano factor")
+
     alpha = 0.5
     if df_theory is not None:
         df_theory = without_elements_after_max_val(df_theory, max_val=max_val, column_name=column_name)
@@ -72,10 +74,9 @@ def plot_nmda_theory_vs_simulation_w_column(experiment, df_theory: pd.DataFrame,
         # s
         axes[1, 0].plot(df_theory[column_name], df_theory.s_mean, label="Theory", alpha=alpha)
         #axes[1, 1].plot(df_theory[column_name], df_theory.s_std ** 2, label="Theory", alpha=alpha)
-
         # s
-        axes[1, 0].plot(df_theory[column_name], df_theory.s_nmda_crazy_mean, label="Crazy", alpha=alpha)
-        #axes[1, 1].plot(df_theory[column_name], df_theory.s_nmda_crazy_var, label="Crazy", alpha=alpha)
+        #axes[1, 0].plot(df_theory[column_name], df_theory.s_nmda_crazy_mean, label="Crazy", alpha=alpha) Check the TODO from bellow
+        #axes[1, 1].plot(df_theory[column_name], df_theory.s_nmda_crazy_var, label="Crazy", alpha=alpha) TODO: Crazy, in the end, shows the correct shape but not the magnitude!!
         # g
         axes[2, 0].plot(df_theory[column_name], df_theory.g_nmda_mean, label="Theory", alpha=alpha)
         #axes[2, 1].plot(df_theory[column_name], df_theory.g_nmda_std ** 2, label="Theory", alpha=alpha)
@@ -120,12 +121,13 @@ def plot_nmda_theory_vs_simulation_w_column(experiment, df_theory: pd.DataFrame,
         axes[4, 0].plot(df_simulation[column_name], df_simulation.corr_coef_x_s, label="simulation",
                      alpha=alpha)
 
+        axes[4, 1].plot(df_simulation[column_name], df_simulation.x_nmda_var / df_simulation.x_nmda_mean, label="FF x",
+                        alpha=alpha)
         axes[4, 1].plot(df_simulation[column_name], df_simulation.s_nmda_var / df_simulation.s_nmda_mean , label="FF s",
                         alpha=alpha)
         #axes[4, 1].plot(df_simulation[column_name], np.sqrt(df_simulation.s_nmda_var) / df_simulation.s_nmda_mean, label="CV s",
         #                alpha=alpha)
-        axes[4, 1].plot(df_simulation[column_name], df_simulation.x_nmda_var / df_simulation.x_nmda_mean, label="FF x",
-                        alpha=alpha)
+
         #axes[4, 1].plot(df_simulation[column_name], np.sqrt(df_simulation.x_nmda_var) / df_simulation.x_nmda_mean, label="CV x",
         #                alpha=alpha)
 
@@ -133,7 +135,7 @@ def plot_nmda_theory_vs_simulation_w_column(experiment, df_theory: pd.DataFrame,
     axes[0, 1].legend(loc="upper left")
 
     if df_theory is not None and df_simulation is not None:
-        fig.suptitle("Plot theory vs simulation")
+        fig.suptitle(r"Plot theory vs simulation for $x_\mathrm{NMDA}$, $s_\mathrm{NMDA}$ values for increasing $\nu_\mathrm{NMDA}$")
     elif df_simulation is not None:
         fig.suptitle("Plot theory")
     else:
