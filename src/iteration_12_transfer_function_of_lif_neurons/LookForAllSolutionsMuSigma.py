@@ -12,7 +12,7 @@ from src.Plotting import show_plots_non_blocking
 logger.remove()  # remove default handler
 logger.add(sys.stderr, level="INFO")
 
-from brian2 import mV, Hz, Quantity, volt
+from brian2 import mV, Hz, Quantity, volt, mvolt
 from joblib import Parallel, delayed
 from scipy.stats import stats
 
@@ -20,7 +20,7 @@ from BinarySeach import binary_search_for_target_value_precission_in_result_spac
 from iteration_12_transfer_function_of_lif_neurons.SiegertGradientDescent import rate_LIF_whitenoise, SiegertGradients, newton_fsolve_find_mu_for_fixed_sigma
 
 
-def compute_sigma(mu, r_target, lif_config: DiffusionLIFConfig):
+def compute_sigma_necessary_for_given_rate_and_mean(mu, r_target, lif_config: DiffusionLIFConfig):
     """
     Find sigma for a given mu using binary search to hit r_target.
     """
@@ -46,8 +46,28 @@ def compute_sigma(mu, r_target, lif_config: DiffusionLIFConfig):
         print(f"mu={mu}: {e}")
         return np.nan  # fallback if binary search fails
 
+def compute_sigma_necessary_for_given_rate_derivative_and_mean(mu, target_gain, lif_config: DiffusionLIFConfig):
+    """
+    Find sigma for a given mu using binary search to hit r_t
+    """
+    sg = SiegertGradients.for_lif_config(lif_config)
+    look_for_sigma = lambda s: sg.d_rate_d_mu(mu, s)
+    try:
+        sigma, _ = binary_search_for_target_value_precission_in_result_space(
+            lower_value=0.1 * mV,
+            upper_value=20 * mV,
+            func=look_for_sigma,
+            target_result=target_gain,
+            precision=1e-10 * Hz / mV,
+            max_iters=100
+        )
+        return sigma
+    except ValueError as e:
+        print(f"mu={mu}: {e}")
+        return np.nan  # fallback if binary search fails
+
 def binary_search_sigma_at_mu_for_firing_rate(mu, r_target, lif_config: DiffusionLIFConfig):
-    return compute_sigma(mu, r_target, lif_config)
+    return compute_sigma_necessary_for_given_rate_and_mean(mu, r_target, lif_config)
 
 def find_curve_grid(solver, r_target, mu_range, sigma_range, resolution=100):
     """
@@ -215,10 +235,10 @@ def compute_mu_to_sigma_fsolve_scan_sigmas(experiment, r_target):
     return MuToSigmaResult(mus, sigmas, r_target)
 
 def compute_mu_to_sigma_curve_for_experiment(experiment: Experiment, r_target: Quantity):
-    return compute_mu_to_sigma_curve(lif_config=DiffusionLIFConfig.from_experiment(experiment), r_target=r_target)
+    return mu_to_sigma_for_constant_rate(lif_config=DiffusionLIFConfig.from_experiment(experiment), r_target=r_target)
 
 
-def compute_mu_to_sigma_curve(lif_config: DiffusionLIFConfig, r_target: Quantity):
+def mu_to_sigma_for_constant_rate(lif_config: DiffusionLIFConfig, r_target: Quantity):
 
     # scan over mu, keep sigma
     # first, look for max mu i.e. the mu for zero sigma that returns r_target
@@ -236,13 +256,25 @@ def compute_mu_to_sigma_curve(lif_config: DiffusionLIFConfig, r_target: Quantity
 
     # Run in parallel on all mu values
     sigmas = Parallel(n_jobs=-1, backend="loky")(
-        delayed(compute_sigma)(mu, r_target, lif_config) for mu in mu_s
+        delayed(compute_sigma_necessary_for_given_rate_and_mean)(mu, r_target, lif_config) for mu in mu_s
     )
     # Convert to numpy array
     logger.debug("sigma[0] = {}", sigmas[0])
     sigmas = np.array(sigmas/mV) * mV
     logger.debug("sigma[0] = {}. Attention! np.array removes units! This is why I need to re-add units!! Otherwise, bug", sigmas[0])
     return MuToSigmaResult(mus=mu_s, sigmas=sigmas, r_target=r_target, exp_label=lif_config.label)
+
+def mu_to_sigma_for_constant_gain(lif_config: DiffusionLIFConfig, gain: Quantity):
+    mu_s = np.linspace(lif_config.theta - 20 * mV, lif_config.theta - 0.01 * mV, num=1000)
+    sigmas = Parallel(n_jobs=1, backend="loky")(
+        delayed(compute_sigma_necessary_for_given_rate_derivative_and_mean)(mu, gain, lif_config) for mu in mu_s
+    )
+    # Convert to numpy array
+    sigmas = np.array(sigmas / mV) * mV
+    logger.debug(
+        "sigma[0] = {}. Attention! np.array removes units! This is why I need to re-add units!! Otherwise, bug",
+        sigmas[0])
+    return MuToSigmaResult(mus=mu_s, sigmas=sigmas, r_target=gain, exp_label=lif_config.label)
 
 
 def plot_line_computation_vs_fit(results: list[MuToSigmaResult], caller_test_case=None, descriptor="linear_fit", axs=None, colors = ("orange", "black"),

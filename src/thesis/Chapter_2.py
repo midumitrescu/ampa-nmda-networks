@@ -8,7 +8,7 @@ from brian2 import mV, Hz
 from Plotting import show_plots_non_blocking, prepare_bigger_fonts
 from iteration_12_siegert.CorrelationSimulations import label_for_float
 from iteration_12_transfer_function_of_lif_neurons.LookForAllSolutionsMuSigma import \
-    compute_mu_to_sigma_curve, plot_line_computation_vs_fit
+    mu_to_sigma_for_constant_rate, plot_line_computation_vs_fit
 from iteration_12_transfer_function_of_lif_neurons.SiegerGradientDescentTestCases import \
     compute_LIF_curves_for_mus_sigmas
 from iteration_12_transfer_function_of_lif_neurons.SiegertGradientDescent import SiegertGradients, \
@@ -122,14 +122,14 @@ class Chapter2Figures(unittest.TestCase):
 
     def test_plot_sigma_as_function_of_mu_v(self):
 
-        nmda_block_mu_to_sigma = compute_mu_to_sigma_curve(
+        nmda_block_mu_to_sigma = mu_to_sigma_for_constant_rate(
             default_diffusion_lif_config.with_label("MK-801"), r_target=0.05 * Hz
         )
-        control_mu_to_sigma = compute_mu_to_sigma_curve(
+        control_mu_to_sigma = mu_to_sigma_for_constant_rate(
             default_diffusion_lif_config.with_label("Control"), r_target=0.18 * Hz
         )
 
-        large_rate_mu_to_sigma = compute_mu_to_sigma_curve(
+        large_rate_mu_to_sigma = mu_to_sigma_for_constant_rate(
             default_diffusion_lif_config.with_label("Example high rate"), r_target=25 * Hz
         )
         sg = SiegertGradients.for_lif_config(default_diffusion_lif_config)
@@ -233,7 +233,7 @@ class Chapter2Figures(unittest.TestCase):
                        default_diffusion_lif_config.with_label("Control"),
                        default_diffusion_lif_config.with_label("Example high rate")]
         target_rates = [0.05 * Hz, 0.18 * Hz, 25 * Hz]
-        results = [compute_mu_to_sigma_curve(config, r_target=target_rate) for config, target_rate in
+        results = [mu_to_sigma_for_constant_rate(config, r_target=target_rate) for config, target_rate in
                    zip(lif_configs, target_rates)]
         plot_line_computation_vs_fit(results,
                                      colors=("orange", "black", "blue"),
@@ -241,14 +241,14 @@ class Chapter2Figures(unittest.TestCase):
                                      descriptor="linear_fit")
 
     def test_check_integral_limits_and_linear_fit(self):
-        nmda_block_mu_to_sigma = compute_mu_to_sigma_curve(
+        nmda_block_mu_to_sigma = mu_to_sigma_for_constant_rate(
             default_diffusion_lif_config.with_label("MK-801"), r_target=0.05 * Hz
         )
-        control_mu_to_sigma = compute_mu_to_sigma_curve(
+        control_mu_to_sigma = mu_to_sigma_for_constant_rate(
             default_diffusion_lif_config.with_label("Control"), r_target=0.18 * Hz
         )
 
-        large_rate_mu_to_sigma = compute_mu_to_sigma_curve(
+        large_rate_mu_to_sigma = mu_to_sigma_for_constant_rate(
             default_diffusion_lif_config.with_label("Example high rate"), r_target=25 * Hz
         )
         results = [nmda_block_mu_to_sigma, control_mu_to_sigma, large_rate_mu_to_sigma]
@@ -380,7 +380,7 @@ class Chapter2Figures(unittest.TestCase):
             lif_configs = [lif_config.with_label("MK-801"),
                            lif_config.with_label("Control")]
             target_rates = [0.05 * Hz, 0.18 * Hz]
-            results = [compute_mu_to_sigma_curve(config, r_target=target_rate) for config, target_rate in
+            results = [mu_to_sigma_for_constant_rate(config, r_target=target_rate) for config, target_rate in
                        zip(lif_configs, target_rates)]
             nmda_block_mu_to_sigma = results[0]
             control_mu_to_sigma = results[1]

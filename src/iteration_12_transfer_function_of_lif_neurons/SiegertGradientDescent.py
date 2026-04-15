@@ -1,3 +1,5 @@
+import math
+
 import matplotlib.pyplot as plt
 import numpy as np
 from brian2 import mV, ms, Hz, second, have_same_dimensions, Quantity, volt, is_dimensionless
@@ -9,7 +11,7 @@ from scipy.integrate import quad
 from scipy.optimize import fsolve
 
 from Plotting import show_plots_non_blocking, prepare_bigger_fonts
-from iteration_12_transfer_function_of_lif_neurons.config import DiffusionLIFConfig
+from iteration_12_transfer_function_of_lif_neurons.config import DiffusionLIFConfig, default_diffusion_lif_config
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment
 
 mHz = 1e-3 * Hz
@@ -128,7 +130,9 @@ class SiegertGradients:
                                 v_reset=lif_config.V_r,
                                 tau_ref=lif_config.tau_rp, unit='mV')
 
-
+    @staticmethod
+    def default():
+        return SiegertGradients.for_lif_config(default_diffusion_lif_config)
 
     def firing_rate(self, mu_v, sigma_v):
         return rate_LIF_whitenoise(mu=mu_v, tau_membrane=self.tau_m, sigma_v=sigma_v,
@@ -137,7 +141,7 @@ class SiegertGradients:
     def I_mu_sigma(self, mu_v, sigma_v):
         return  I_mu_sigma(mu_v, sigma_v=sigma_v, theta=self.theta, V_reset=self.v_reset)
 
-    def phi(self, z):
+    def E(self, z):
         """Φ(z) = erfcx(z) = exp(z^2)*erfc(z)"""
         return erfcx(z)
 
@@ -149,13 +153,16 @@ class SiegertGradients:
 
     def grad_rate_mu_sigma(self, mu_v, sigma_v):
         f_lif = self.firing_rate(mu_v=mu_v, sigma_v=sigma_v)
-        return - self.tau_m * np.sqrt(np.pi) * f_lif ** 2 * self.grad_I(mu_v=mu_v, sigma_v=sigma_v)
+        grad_I_current = self.grad_I(mu_v=mu_v, sigma_v=sigma_v)
+        if f_lif  < 10**-4 * Hz:
+            return np.array([0, 0]) * Hz / mV
+        return - self.tau_m * np.sqrt(np.pi) * f_lif ** 2 * grad_I_current
 
     def grad_I(self, mu_v, sigma_v):
         lower_limit, upper_limit = integration_limits(V_mean=mu_v, V_reset=self.v_reset, sigma_v=sigma_v,
                                                       theta=self.theta)
 
-        phi_vect = np.array([self.phi(upper_limit), self.phi(lower_limit)]).T
+        phi_vect = np.array([self.E(upper_limit), self.E(lower_limit)]).T
         matrix = np.array([[1, -1],
                            [- upper_limit * np.sqrt(2), lower_limit * np.sqrt(2)]])
 
@@ -163,6 +170,31 @@ class SiegertGradients:
 
     def integration_limits(self, mu_v, sigma_v):
         return integration_limits(V_mean = mu_v, V_reset=self.v_reset, sigma_v=sigma_v, theta=self.theta)
+
+    def d_squared_rate_d_mu_squared(self, mu_v, sigma_v):
+
+        rate = self.firing_rate(mu_v = mu_v, sigma_v = sigma_v)
+        mu_vr, mu_theta = self.integration_limits(mu_v = mu_v, sigma_v=sigma_v)
+
+        d_i_d_mu = 1/(math.sqrt(2) * sigma_v) *(self.E(mu_vr) - self.E(mu_theta))
+
+        d_quared_I_d_mu_squared = (1/(math.sqrt(2) * sigma_v**3)*
+                                   ((mu_v - self.v_reset)* self.E(mu_vr) - (mu_v - self.theta) * self.E(mu_theta)))
+
+        return 2 * self.tau_m**2  * math.pi * rate**3 * d_i_d_mu**2 - self.tau_m * math.sqrt(math.pi) * rate ** 2 * d_quared_I_d_mu_squared
+
+    def d_squared_rate_d_mu_d_sigma(self, mu_v, sigma_v):
+
+        rate = self.firing_rate(mu_v = mu_v, sigma_v = sigma_v)
+        mu_vr, mu_theta = self.integration_limits(mu_v = mu_v, sigma_v=sigma_v)
+        d_i_d_mu = 1 / (math.sqrt(2) * sigma_v) * (self.E(mu_vr) - self.E(mu_theta))
+        d_i_d_sigma = - 1 / (math.sqrt(2) * sigma_v**2) * ((mu_v - self.v_reset) * self.E(mu_vr) - (mu_v - self.theta) * self.E(mu_theta))
+        d_quared_I_d_mu_d_sigma = (1 / (math.sqrt(2) * sigma_v ** 2) *
+                                   (self.E(mu_theta) * (1 + (mu_v - self.theta)**2/sigma_v**2)
+                                    - self.E(mu_vr) * (1 + (mu_v - self.v_reset)**2 /sigma_v**2)
+                                    + math.sqrt(2/math.pi)* (self.theta - self.v_reset)/sigma_v))
+
+        return 2 * self.tau_m**2  * math.pi * rate**3 * d_i_d_sigma * d_i_d_mu - self.tau_m * math.sqrt(math.pi) * rate ** 2 * d_quared_I_d_mu_d_sigma
 
 
 class SiegertGradientDescent(SiegertGradients):

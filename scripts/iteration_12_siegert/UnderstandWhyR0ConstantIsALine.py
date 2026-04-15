@@ -20,7 +20,7 @@ from brian2 import mV, Hz
 from iteration_12_transfer_function_of_lif_neurons.LookForAllSolutionsMuSigma import (
     compute_mu_to_sigma_curve_for_experiment,
     plot_mus_vs_sigmas,
-    compute_mu_to_sigma_curve, binary_search_sigma_at_mu_for_firing_rate,
+    mu_to_sigma_for_constant_rate, binary_search_sigma_at_mu_for_firing_rate,
 )
 from iteration_12_transfer_function_of_lif_neurons.SiegertGradientDescent import (
     SiegertGradients, erfcx, )
@@ -94,7 +94,7 @@ class CheckWhyAllSolutionsAreOnALine(unittest.TestCase):
             target_rates = [0.05 * Hz, 0.18 * Hz, 25 * Hz]
             integral_limits_limits = [(-3, 100), (-3, 100), (-3, 25)]
 
-            results = [compute_mu_to_sigma_curve(condition, rate) for condition, rate in zip(conditions, target_rates)]
+            results = [mu_to_sigma_for_constant_rate(condition, rate) for condition, rate in zip(conditions, target_rates)]
 
             for result, integral_limits_limit in zip(results, integral_limits_limits):
                 int_limits = np.zeros(shape=(2, len(result.mus)))
@@ -105,8 +105,8 @@ class CheckWhyAllSolutionsAreOnALine(unittest.TestCase):
                 for row_index, (mu, sigma) in enumerate(zip(result.mus, result.sigmas)):
                     int_limits[:, row_index] = siegert_gradients.integration_limits(mu_v=mu, sigma_v=sigma)
                     lower_limit, upper_limit = siegert_gradients.integration_limits(mu_v=mu, sigma_v=sigma)
-                    phi[0, row_index] = siegert_gradients.phi(lower_limit)
-                    phi[1, row_index] = siegert_gradients.phi(upper_limit)
+                    phi[0, row_index] = siegert_gradients.E(lower_limit)
+                    phi[1, row_index] = siegert_gradients.E(upper_limit)
 
                     d_sigma_over_d_mus[row_index] = d_sigma_over_d_mu(mu, sigma, siegert_gradients)
                     grad_ratios[row_index] = - siegert_gradients.d_rate_d_mu(mu,
@@ -175,7 +175,7 @@ class CheckWhyAllSolutionsAreOnALine(unittest.TestCase):
             integral_limits_limits = [(-3, 100), (-3, 100), (-3, 25)]
             colors = ("orange", "black", "blue")
 
-            results = [compute_mu_to_sigma_curve(c, r) for c, r in zip(conditions, target_rates)]
+            results = [mu_to_sigma_for_constant_rate(c, r) for c, r in zip(conditions, target_rates)]
 
             # -------------------------
             # PRECOMPUTE EVERYTHING
@@ -192,8 +192,8 @@ class CheckWhyAllSolutionsAreOnALine(unittest.TestCase):
                     lower, upper = siegert_gradients.integration_limits(mu_v=mu, sigma_v=sigma)
 
                     int_limits[:, i] = [lower, upper]
-                    phi[0, i] = siegert_gradients.phi(lower)
-                    phi[1, i] = siegert_gradients.phi(upper)
+                    phi[0, i] = siegert_gradients.E(lower)
+                    phi[1, i] = siegert_gradients.E(upper)
 
                     d_sigma_over_d_mus[i] = d_sigma_over_d_mu(mu, sigma, siegert_gradients)
                     grad_ratios[i] = - siegert_gradients.d_rate_d_mu(mu, sigma) / siegert_gradients.d_rate_d_sigma(mu,
@@ -233,12 +233,11 @@ class CheckWhyAllSolutionsAreOnALine(unittest.TestCase):
                         #ax.set_ylim(data["ylim"])
                         ax.set_title(f"{r.exp_label}")
                         ax.legend()
+                        if x_lim is not None:
+                            ax.set_xlim(x_lim)
 
-                    if x_lim is not None:
-                        ax.set_xlim(x_lim)
-
-                    if y_lim is not None:
-                        ax.set_ylim(y_lim)
+                        if y_lim is not None:
+                            ax.set_ylim(y_lim)
 
                     fig.tight_layout()
                     show_plots_non_blocking(self, descriptor=f"integration_limits_{label}")
@@ -333,7 +332,7 @@ class CheckWhyAllSolutionsAreOnALine(unittest.TestCase):
                       default_diffusion_lif_config.with_label("Example high rate")]
         target_rates = [0.05 * Hz, 0.18 * Hz, 25 * Hz]
 
-        results = [compute_mu_to_sigma_curve(condition, rate) for condition, rate in zip(conditions, target_rates)]
+        results = [mu_to_sigma_for_constant_rate(condition, rate) for condition, rate in zip(conditions, target_rates)]
 
         phi = [None] * len(results)
         int_limits = [None] * len(results)
@@ -344,8 +343,8 @@ class CheckWhyAllSolutionsAreOnALine(unittest.TestCase):
             for row_index, (mu, sigma) in enumerate(zip(result.mus, result.sigmas)):
                 current_integral_limits[:, row_index] = siegert_gradients.integration_limits(mu_v=mu, sigma_v=sigma)
                 lower_x_all_graphs, upper_x_all_graphs = current_integral_limits[:, row_index]
-                current_phi[0, row_index] = siegert_gradients.phi(lower_x_all_graphs)
-                current_phi[1, row_index] = siegert_gradients.phi(upper_x_all_graphs)
+                current_phi[0, row_index] = siegert_gradients.E(lower_x_all_graphs)
+                current_phi[1, row_index] = siegert_gradients.E(upper_x_all_graphs)
 
             int_limits[result_number] = current_integral_limits
             phi[result_number] = current_phi
@@ -464,9 +463,9 @@ class CheckWhyAllSolutionsAreOnALine(unittest.TestCase):
                                    diffusion_config_low_reset.with_label("Control, low reset formula")]
         target_rates = [0.05 * Hz, 0.18 * Hz]
 
-        results_low_reset = [compute_mu_to_sigma_curve(condition, rate) for condition, rate in
+        results_low_reset = [mu_to_sigma_for_constant_rate(condition, rate) for condition, rate in
                              zip(low_vr_reset_conditions, target_rates)]
-        results_normal_formula = [compute_mu_to_sigma_curve(condition, rate) for condition, rate in
+        results_normal_formula = [mu_to_sigma_for_constant_rate(condition, rate) for condition, rate in
                                   zip(normal_formula_conditions, target_rates)]
 
         prepare_bigger_fonts()
@@ -575,8 +574,8 @@ class CheckWhyAllSolutionsAreOnALine(unittest.TestCase):
         #target_rates = [0.05 * Hz, 0.18 * Hz]
         target_rates = [0.05 * Hz]
 
-        results = [compute_mu_to_sigma_curve(condition, rate) for condition, rate in
-                             zip(low_vr_reset_conditions, target_rates)]
+        results = [mu_to_sigma_for_constant_rate(condition, rate) for condition, rate in
+                   zip(low_vr_reset_conditions, target_rates)]
 
         prepare_bigger_fonts()
         fig, (ax_mu_to_sigma, ax_mu_to_firing_rate_standard_formula, ax_mu_to_firing_rate_infty_formula) = plt.subplots(3, 1, figsize=(11, 12), sharex=True)
@@ -643,7 +642,7 @@ class CheckWhyAllSolutionsAreOnALine(unittest.TestCase):
                        lif_config.with_label("Control")]
         #target_rates = [0.05 * Hz, 0.18 * Hz]
         target_rates = [0.05 * Hz]
-        results = [compute_mu_to_sigma_curve(config, r_target=target_rate) for config, target_rate in
+        results = [mu_to_sigma_for_constant_rate(config, r_target=target_rate) for config, target_rate in
                    zip(lif_configs, target_rates)]
         nmda_block_mu_to_sigma = results[0]
 
@@ -656,7 +655,7 @@ class CheckWhyAllSolutionsAreOnALine(unittest.TestCase):
             mu_v_ex, sigma_v_ex = nmda_block_mu_to_sigma.mus[mu_sigma_index], nmda_block_mu_to_sigma.sigmas[mu_sigma_index]
             lower_limit, upper_limit = siegert_gradients.integration_limits(mu_v = mu_v_ex, sigma_v = sigma_v_ex)
 
-            r = siegert_gradients.phi(z = upper_limit) / siegert_gradients.phi(z = lower_limit)
+            r = siegert_gradients.E(z = upper_limit) / siegert_gradients.E(z = lower_limit)
 
             d_mu_d_sigma_zero_approx = sigma_v /  (mu_v - lif_config.theta / mV)
             d_mu_d_sigma_first_approx = sigma_v /  (mu_v - lif_config.theta / mV - (lif_config.theta - lif_config.V_r) / mV * r)

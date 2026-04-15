@@ -22,7 +22,7 @@ from iteration_12_transfer_function_of_lif_neurons.LookForAllSolutionsMuSigma im
     compute_mu_to_sigma_fsolve_scan_mus,
     compute_mu_to_sigma_fsolve_scan_sigmas,
     plot_mus_vs_sigmas,
-    plot_loss_landscape_with_curve, compute_mu_to_sigma_curve, )
+    plot_loss_landscape_with_curve, mu_to_sigma_for_constant_rate, )
 from iteration_12_transfer_function_of_lif_neurons.SiegertGradientDescent import (
     SiegertGradientDescent,
     SiegertGradients, )
@@ -34,8 +34,8 @@ def d_sigma_over_d_mu(mu_v, sigma_v, siegert_gradients: SiegertGradients):
     # Arguments of the CDF
     a, b = siegert_gradients.integration_limits(mu_v, sigma_v)
 
-    Phi_a = siegert_gradients.phi(a)
-    Phi_b = siegert_gradients.phi(b)
+    Phi_a = siegert_gradients.E(a)
+    Phi_b = siegert_gradients.E(b)
 
     # Numerator
     numerator = sigma_v * (Phi_a - Phi_b)
@@ -177,10 +177,10 @@ class LookForAllSolutionsScripts(unittest.TestCase):
         for v_r in [-60, -65, -70, -75, -80, -85, -90]:
             lif_config = default_diffusion_lif_config.with_property(DiffusionLIFConfig.KEY_V_R, v_r)
 
-            nmda_block_mu_to_sigma = compute_mu_to_sigma_curve(
+            nmda_block_mu_to_sigma = mu_to_sigma_for_constant_rate(
                 lif_config.with_label("MK-801"), r_target=0.05 * Hz
             )
-            control_mu_to_sigma = compute_mu_to_sigma_curve(
+            control_mu_to_sigma = mu_to_sigma_for_constant_rate(
                 lif_config.with_label("Control"), r_target=0.18 * Hz
             )
 

@@ -60,8 +60,8 @@ class SiegertBaseComputationsCase(unittest.TestCase):
         self.assertTrue(is_dimensionless(lower_limit))
         self.assertTrue(is_dimensionless(upper_limit))
 
-        self.assertTrue(is_dimensionless(object_under_test.phi(lower_limit)))
-        self.assertTrue(is_dimensionless(object_under_test.phi(upper_limit)))
+        self.assertTrue(is_dimensionless(object_under_test.E(lower_limit)))
+        self.assertTrue(is_dimensionless(object_under_test.E(upper_limit)))
 
     def test_lif_computation_for_multiple_sigmas_returns_correct_shape(self):
         mus = np.linspace(-65, -45, 1001) * mV
