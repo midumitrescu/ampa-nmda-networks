@@ -73,9 +73,9 @@ def __sim_diffusion_process_with_up_down(experiment: Experiment) -> SimulationRe
     sigma_i_down = 0 * siemens * msecond ** 0.5
 
     #sigma_x_up = 0.0005 * msecond ** 0.5
-    sigma_x_up = experiment.network_params.up_state.x_var_mult * sqrt(2) * experiment.network_params.up_state.effective_timeconstant_estimation.std_nmda() * msecond ** 0.5
+    sigma_x_up = experiment.network_params.up_state.x_var_mult * sqrt(2) * experiment.network_params.up_state.effective_timeconstant_estimation.std_g_nmda() * msecond ** 0.5
     #sigma_x_down = experiment.network_params.down_state.x_var_mult * sqrt(2) * experiment.network_params.down_state.effective_timeconstant_estimation.std_nmda() * msecond ** 0.5
-    sigma_x_down = experiment.network_params.up_state.x_var_mult * sqrt(2) * experiment.network_params.down_state.effective_timeconstant_estimation.std_nmda() * msecond ** 0.5
+    sigma_x_down = experiment.network_params.up_state.x_var_mult * sqrt(2) * experiment.network_params.down_state.effective_timeconstant_estimation.std_g_nmda() * msecond ** 0.5
 
     single_neuron = NeuronGroup(1,
                                     model=experiment.diffusion_model,

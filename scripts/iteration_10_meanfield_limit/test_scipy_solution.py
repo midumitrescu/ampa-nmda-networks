@@ -6,9 +6,9 @@ import numpy as np
 from iteration_10_meanfield_limit.compute_equations_root import solve
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment, PlotParams, \
     NeuronModelParams, SynapticParams
-from iteration_7_one_compartment_step_input.one_compartment_with_up_down import \
+from iteration_7_one_compartment_step_input.one_compartment_under_step_input import \
     single_compartment_with_nmda_and_logged_variables
-from iteration_8_compute_mean_steady_state.test_wang_numbers import steady_model
+from iteration_8_compute_mean_steady_state.models_and_configs import steady_model
 
 meanfield_config = {
 

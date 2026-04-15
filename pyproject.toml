@@ -17,7 +17,9 @@ dependencies = [
     "matplotlib",
 
     "brian2",
+    "opencv-python",
 
+    "tdqm",
     "loguru",
     "pytest",
     "pytest-cov",

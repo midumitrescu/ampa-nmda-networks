@@ -26,6 +26,9 @@ share/python-wheels/
 *.egg
 MANIFEST
 
+# Test/script-generated figures (plot_output/ when running from command line)
+plot_output/
+
 dist
 *.egg-info
 

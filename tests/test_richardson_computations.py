@@ -69,6 +69,10 @@ class EffectiveTimeConstantComputationsTestCases(unittest.TestCase):
         self.assertAlmostEqual(object_under_test.effective_timeconstant_estimation.std_inhibitory_conductance() / siemens * cm**2, 2.4E-4)
         self.assertAlmostEqual(object_under_test.effective_timeconstant_estimation.std_voltage() / mV, 1.373188624 )
 
+    def test_mean_g(self):
+        object_under_test = Experiment(wang_recurrent_config)
+        nmda = object_under_test.effective_timeconstant_estimation.compute_mean_g_nmda()
+        self.assertEqual(1, nmda / nsiemens)
 
 
 if __name__ == '__main__':

@@ -201,8 +201,8 @@ R2 = PopulationRateMonitor(popE2)
 E1 = StateMonitor(stiminputE1, 'rates', record=0, dt=1*ms)
 E2 = StateMonitor(stiminputE2, 'rates', record=0, dt=1*ms)
 
-S_NMDA_1 = StateMonitor(popE1, variables=["s_NMDA_tot", "x", "I_NMDA", "s_AMPA", "s_AMPA_ext"], record=True)
-S_NMDA_2 = StateMonitor(popE2, variables=["s_NMDA_tot", "x", "I_NMDA", "s_AMPA", "s_AMPA_ext"], record=True)
+S_NMDA_1 = StateMonitor(popE1, variables=["s_NMDA_tot", "x", "I_NMDA", "s_AMPA", "s_AMPA_ext", "I_GABA", "I_AMPA"], record=True)
+S_NMDA_2 = StateMonitor(popE2, variables=["s_NMDA_tot", "x", "I_NMDA", "s_AMPA", "s_AMPA_ext", "I_GABA", "I_AMPA"], record=True)
 S_N_sum_group = StateMonitor(NMDA_sum_group, variables=["s"], record=True)
 
 
@@ -211,19 +211,19 @@ run(runtime, report='stdout', profile=True)
 print(profiling_summary())
 
 # Show results
-fig, axs = plt.subplots(8, 1, sharex=True, layout='constrained', gridspec_kw={'height_ratios': [2, 2, 2, 1, 1, 1, 1, 1]}, figsize=(20, 15))
+fig, axs = plt.subplots(10, 1, sharex=True, layout='constrained', gridspec_kw={'height_ratios': [2, 2, 1, 1, 1, 1, 1, 1, 1, 1]}, figsize=(30, 20))
 axs[0].plot(SME1.t / ms, SME1.i, '.', markersize=2, color='darkred')
 axs[0].set(ylabel='population 1', ylim=(0, subN))
 
 axs[1].plot(SME2.t / ms, SME2.i, '.', markersize=2, color='darkblue')
 axs[1].set(ylabel='population 2', ylim=(0, subN))
 
-axs[2].plot(R1.t / ms, R1.smooth_rate(window='flat', width=100 * ms) / Hz, color='darkred')
-axs[2].plot(R2.t / ms, R2.smooth_rate(window='flat', width=100 * ms) / Hz, color='darkblue')
+axs[2].plot(R1.t / ms, R1.smooth_rate(window='flat', width=100 * ms) / Hz, color='darkred', label= "Pop 1")
+axs[2].plot(R2.t / ms, R2.smooth_rate(window='flat', width=100 * ms) / Hz, color='darkblue', label= "Pop 2")
 axs[2].set(ylabel='Firing rate (Hz)')
 
-axs[3].plot(E1.t / ms, E1.rates[0] / Hz, color='darkred')
-axs[3].plot(E2.t / ms, E2.rates[0] / Hz, color='darkblue')
+axs[3].plot(E1.t / ms, E1.rates[0] / Hz, color='darkred', label= "Pop 1")
+axs[3].plot(E2.t / ms, E2.rates[0] / Hz, color='darkblue', label= "Pop 2")
 axs[3].set(ylabel='Input (Hz)', xlabel='Time (ms)')
 
 fig.align_ylabels(axs)
@@ -249,7 +249,7 @@ axs[5].plot(S_NMDA_2.t / ms, S_NMDA_2.s_NMDA_tot[1], label='Neuron 1, pop 2', lw
 axs[5].plot(S_N_sum_group.t / ms, S_N_sum_group.s[0], label='Sum pop', lw=2, alpha=0.5)
 axs[5].plot(S_N_sum_group.t / ms, S_N_sum_group.s[1], label='Sum pop', lw=2, alpha=0.5)
 axs[5].plot(S_N_sum_group.t / ms, S_N_sum_group.s[2], label='Sum pop', lw=2, alpha=0.5)
-axs[5].set(ylabel='S')
+axs[5].set(ylabel='S NMDA')
 
 axs[5].legend()
 
@@ -261,10 +261,60 @@ axs[6].set(ylabel='I')
 
 axs[7].plot(S_NMDA_1.t / ms, S_NMDA_1.s_AMPA[0], label='Neuron 0 AMPA recurrent, pop 1', alpha=0.5)
 axs[7].plot(S_NMDA_1.t / ms, S_NMDA_1.s_AMPA_ext[0], label='Neuron 0 AMPA EXT, pop 1', alpha=0.5)
-#axs[7].plot(S_NMDA_2.t / ms, S_NMDA_2.s_AMPA[0], label='Neuron 0, AMPA recurrent, pop 2', alpha=0.5)
-#axs[7].plot(S_NMDA_2.t / ms, S_NMDA_2.s_AMPA_ext[0], label='Neuron 0, AMPA EXT, pop 2', alpha=0.5)
 axs[7].set(ylabel='S AMPA')
+
+# currents smoothened
+# --- Define smoothing window (20 ms) ---
+dt = float(S_NMDA_1.t[1] - S_NMDA_1.t[0]) / ms   # time step in ms
+window_ms = 20
+window_size = int(window_ms / dt)
+
+def smooth(x, w):
+    return np.convolve(x, np.ones(w)/w, mode='same')
+ampa1 = np.mean(S_NMDA_1.I_AMPA, axis=0)
+gaba1 = np.mean(S_NMDA_1.I_GABA, axis=0)
+nmda1 = np.mean(S_NMDA_1.I_NMDA, axis=0)
+
+ampa2 = np.mean(S_NMDA_2.I_AMPA, axis=0)
+gaba2 = np.mean(S_NMDA_2.I_GABA, axis=0)
+nmda2 = np.mean(S_NMDA_2.I_NMDA, axis=0)
+
+# --- Smooth ---
+ampa1_s = smooth(ampa1, window_size)
+gaba1_s = smooth(gaba1, window_size)
+nmda1_s = smooth(nmda1, window_size)
+
+ampa2_s = smooth(ampa2, window_size)
+gaba2_s = smooth(gaba2, window_size)
+nmda2_s = smooth(nmda2, window_size)
+
+# --- Plot ---
+axs[8].set_title("Currents averages/population")
+axs[8].plot(S_NMDA_1.t / ms, ampa1_s, label='AMPA current, Pop 1', alpha=0.8)
+axs[8].plot(S_NMDA_1.t / ms, gaba1_s, label='GABA current, Pop 1', alpha=0.8)
+axs[8].plot(S_NMDA_1.t / ms, nmda1_s, label='NMDA current, Pop 1', alpha=0.8)
+
+axs[8].plot(S_NMDA_2.t / ms, ampa2_s, label='AMPA current, Pop 2', alpha=0.8)
+axs[8].plot(S_NMDA_2.t / ms, gaba2_s, label='GABA current, Pop 2', alpha=0.8)
+axs[8].plot(S_NMDA_2.t / ms, nmda2_s, label='NMDA current, Pop 2', alpha=0.8)
+axs[9].set_ylabel("Pop currents")
+
+# --- Horizontal zero line ---
+axs[8].axhline(0, color='black', linewidth=1, linestyle='--')
+
+axs[9].set_title("Pop2, Currents summed up")
+axs[9].set_ylabel("Resulting currents")
+axs[9].plot(S_NMDA_1.t / ms, ampa1_s + gaba1_s + nmda1_s, label='Pop 1', alpha=0.5, color="darkred")
+axs[9].plot(S_NMDA_2.t / ms, ampa2_s + gaba2_s + nmda2_s, label='Pop 2', alpha=0.5, color="darkblue")
+
+# --- Horizontal zero line ---
+axs[9].axhline(0, color='black', linewidth=1, linestyle='--')
+
+axs[5].legend()
+axs[6].legend()
 axs[7].legend()
+axs[8].legend()
+axs[9].legend()
 
 print("S AMPA averages compared to initially configured values")
 print(f"S AMP, neuron 0, Pop E: {np.mean(S_NMDA_1.s_AMPA[0])}")
@@ -276,6 +326,33 @@ print(f"Difference between expected and simulated: {in_unit(external_ampa_neuron
 
 print(f"S AMP, neuron 0, Pop I: {np.mean(S_NMDA_2.s_AMPA[0])}")
 print(f"S AMPA Ext, neuron 0, Pop I: {np.mean(S_NMDA_2.s_AMPA_ext[0])}")
+
+fig2, axs2 = plt.subplots(2, 1, sharex=True, layout='constrained', figsize=(12, 8))
+# --- Plot ---
+axs2[0].set_title("Currents averages/population")
+axs2[0].plot(S_NMDA_1.t / ms, ampa1_s, label='AMPA current, Pop 1', alpha=0.8)
+axs2[0].plot(S_NMDA_2.t / ms, ampa2_s, label='AMPA current, Pop 2', alpha=0.8)
+axs2[0].plot(S_NMDA_1.t / ms, gaba1_s, label='GABA current, Pop 1', alpha=0.8)
+axs2[0].plot(S_NMDA_2.t / ms, gaba2_s, label='GABA current, Pop 2', alpha=0.8)
+
+axs2[0].plot(S_NMDA_1.t / ms, nmda1_s, label='NMDA current, Pop 1', alpha=0.8)
+axs2[0].plot(S_NMDA_2.t / ms, nmda2_s, label='NMDA current, Pop 2', alpha=0.8)
+
+# --- Horizontal zero line ---
+axs2[1].axhline(0, color='black', linewidth=1, linestyle='--')
+axs2[0].axhline(0, color='black', linewidth=1, linestyle='--')
+axs2[1].set_ylabel("Pop currents")
+
+axs2[1].set_title("Recurrent currents summed up per population")
+axs2[1].set_ylabel("Resulting currents")
+axs2[1].plot(S_NMDA_1.t / ms, ampa1_s + gaba1_s + nmda1_s, label='Pop 1, Winner', alpha=0.5, color="darkred")
+axs2[1].plot(S_NMDA_2.t / ms, ampa2_s + gaba2_s + nmda2_s, label='Pop 2, Looser', alpha=0.5, color="darkblue")
+
+# --- Horizontal zero line ---
+axs2[1].axhline(0, color='black', linewidth=1, linestyle='--')
+
+axs2[0].legend()
+axs2[1].legend()
 
 
 plt.show(block=False)

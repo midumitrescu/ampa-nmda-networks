@@ -2,8 +2,9 @@ import brian2.devices.device
 import matplotlib.pyplot as plt
 import numpy as np
 from brian2 import PopulationRateMonitor, SpikeMonitor, StateMonitor, seed, mpl, start_scope, \
-    defaultclock, kHz, mmole, NeuronGroup, second, mV, run, PoissonInput
+    defaultclock, kHz, mmole, NeuronGroup, second, mV, run, PoissonInput, Hz
 from loguru import logger
+from sympy.physics.units import minute
 
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment
 from iteration_7_one_compartment_step_input.one_compartment_with_up_down import SimulationResults, plot_simulation
@@ -68,7 +69,7 @@ def simulate_with_up_state_and_nmda(experiment: Experiment):
                                 reset="v = V_r",
                                 refractory=experiment.neuron_params.tau_rp,
                                 method=experiment.integration_method)
-    single_neuron.v[:] = -65 * mV
+    single_neuron.v[:] = E_leak
 
     order = [0, 1, 2, 3, 4, 5] if experiment.in_testing else [0] * 5
 
@@ -78,6 +79,8 @@ def simulate_with_up_state_and_nmda(experiment: Experiment):
     P_upstate_inh = PoissonInput(target=single_neuron, target_var="g_i", N=experiment.network_params.up_state.N_I,
                                  rate=experiment.network_params.up_state.nu,
                                  weight=g_gaba, order=order[1])
+    print(f"experiment.network_params.up_state.nu_nmda {experiment.network_params.up_state.nu_nmda / Hz: .5f}")
+    print(f"experiment.network_params.up_state.nu {experiment.network_params.up_state.nu / Hz: .5f}")
     P_upstate_nmda = PoissonInput(target=single_neuron, target_var="x_nmda",
                                   N=experiment.network_params.up_state.N_NMDA,
                                   rate=experiment.network_params.up_state.nu_nmda, weight=g_x, order=order[4])
@@ -100,7 +103,7 @@ def simulate_with_up_state_and_nmda(experiment: Experiment):
     currents_monitor = StateMonitor(source=single_neuron, variables=experiment.plot_params.recorded_currents,
                                     record=True)
     reporting = "text" if experiment.in_testing else None
-    run(experiment.sim_time, report=reporting, report_period=1 * second)
+    run(experiment.sim_time, report=reporting, report_period=60 * second)
 
     return SimulationResults(experiment, rate_monitor, spike_monitor, v_monitor, g_monitor, internal_states_monitor,
                              currents_monitor)
