@@ -2,7 +2,7 @@ import math
 
 import matplotlib.pyplot as plt
 import numpy as np
-from brian2 import mV, ms, Hz, second, have_same_dimensions, Quantity, volt, is_dimensionless
+from brian2 import mV, ms, Hz, second, have_same_dimensions, Quantity, volt, is_dimensionless, get_dimensions
 from loguru import logger
 from matplotlib.collections import LineCollection
 from matplotlib.colors import Normalize
@@ -152,11 +152,26 @@ class SiegertGradients:
         return self.grad_rate_mu_sigma(mu_v=mu_v, sigma_v=sigma_v)[1]
 
     def grad_rate_mu_sigma(self, mu_v, sigma_v):
+        if is_dimensionless(mu_v):
+            mu_v = mu_v * mV
+        if is_dimensionless(sigma_v):
+            sigma_v = sigma_v * mV
+
         f_lif = self.firing_rate(mu_v=mu_v, sigma_v=sigma_v)
         grad_I_current = self.grad_I(mu_v=mu_v, sigma_v=sigma_v)
         if f_lif  < 10**-4 * Hz:
             return np.array([0, 0]) * Hz / mV
         return - self.tau_m * np.sqrt(np.pi) * f_lif ** 2 * grad_I_current
+
+    def d_rate_d_mu_primitive(self, mu_v, sigma_v):
+        assert have_same_dimensions(mu_v, 1*mV)
+        assert have_same_dimensions(sigma_v, 1*mV)
+
+        r_0 = self.firing_rate(mu_v=mu_v, sigma_v=sigma_v)
+        lower_limit, upper_limit = integration_limits(V_mean=mu_v, V_reset=self.v_reset, sigma_v=sigma_v,
+                                                      theta=self.theta)
+
+        return -1 * np.sqrt(np.pi / 2) * self.tau_m / sigma_v * r_0 ** 2 * (self.E(upper_limit) - self.E(lower_limit))
 
     def grad_I(self, mu_v, sigma_v):
         lower_limit, upper_limit = integration_limits(V_mean=mu_v, V_reset=self.v_reset, sigma_v=sigma_v,
@@ -173,14 +188,20 @@ class SiegertGradients:
 
     def d_squared_rate_d_mu_squared(self, mu_v, sigma_v):
 
+        if is_dimensionless(mu_v):
+            mu_v = mu_v * mV
+        if is_dimensionless(sigma_v):
+            sigma_v = sigma_v * mV
+
         rate = self.firing_rate(mu_v = mu_v, sigma_v = sigma_v)
-        mu_vr, mu_theta = self.integration_limits(mu_v = mu_v, sigma_v=sigma_v)
+        mu_theta, mu_vr = self.integration_limits(mu_v = mu_v, sigma_v=sigma_v)
 
-        d_i_d_mu = 1/(math.sqrt(2) * sigma_v) *(self.E(mu_vr) - self.E(mu_theta))
+        d_i_d_mu = 1/(math.sqrt(2) * sigma_v) * (self.E(mu_vr) - self.E(mu_theta)) # 1/mV
 
+        # is_dimensionless(d_i_d_mu * mV) returns true
         d_quared_I_d_mu_squared = (1/(math.sqrt(2) * sigma_v**3)*
                                    ((mu_v - self.v_reset)* self.E(mu_vr) - (mu_v - self.theta) * self.E(mu_theta)))
-
+        # is_dimensionless(d_quared_I_d_mu_squared * mV**2) returns true
         return 2 * self.tau_m**2  * math.pi * rate**3 * d_i_d_mu**2 - self.tau_m * math.sqrt(math.pi) * rate ** 2 * d_quared_I_d_mu_squared
 
     def d_squared_rate_d_mu_d_sigma(self, mu_v, sigma_v):

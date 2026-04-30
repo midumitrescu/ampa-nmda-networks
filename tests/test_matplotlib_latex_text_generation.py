@@ -133,5 +133,30 @@ class ComplexLatexTextsTestCase(unittest.TestCase):
 
         show_plots_non_blocking()
 
+    def test_latex_for_systems_of_equations(self):
+
+        plt.rcParams["text.usetex"] = True
+
+        ax1 = plt.gca()
+        ax1.text(
+            3, 1.1,
+            r"$\{$",
+            transform=ax1.transAxes,
+            fontsize=20,
+            va='top'
+        )
+
+        ax1.text(
+            1, 1,
+            r"$r(\mu,\sigma)=r_{\mathrm{MK801}}$" "\n"
+            r"$\frac{\partial r}{\partial \mu}(\mu,\sigma)=\frac{\Delta r}{\Delta \mu}$",
+            transform=ax1.transAxes,
+            fontsize=16,
+            ha='center',
+            va='center'
+        )
+
+        show_plots_non_blocking()
+
 if __name__ == '__main__':
     unittest.main()

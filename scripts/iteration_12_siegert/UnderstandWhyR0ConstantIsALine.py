@@ -1,4 +1,3 @@
-import itertools
 import sys
 import unittest
 
@@ -19,12 +18,10 @@ from brian2 import mV, Hz
 
 from iteration_12_transfer_function_of_lif_neurons.LookForAllSolutionsMuSigma import (
     compute_mu_to_sigma_curve_for_experiment,
-    plot_mus_vs_sigmas,
     mu_to_sigma_for_constant_rate, binary_search_sigma_at_mu_for_firing_rate,
 )
 from iteration_12_transfer_function_of_lif_neurons.SiegertGradientDescent import (
     SiegertGradients, erfcx, )
-from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import NeuronModelParams
 from iteration_8_compute_mean_steady_state.scripts_with_wang_numbers import palmer_control
 
 class CheckWhyAllSolutionsAreOnALine(unittest.TestCase):
@@ -63,22 +60,6 @@ class CheckWhyAllSolutionsAreOnALine(unittest.TestCase):
         lower_bound, upper_bound = siegert_gradient.integration_limits(mu_v=mu, sigma_v=sigma)
         print(f"lower bound {lower_bound: .7f}. Errfc is {erfcx(lower_bound)}")
         print(f"upper bound {upper_bound: .7f}. Errfc is {erfcx(upper_bound)}")
-
-    def test_understand_d_mu_d_sigma_for_high_rate(self):
-        experiment = palmer_control
-        palmer_control.with_property(NeuronModelParams.KEY_NEURON_V_R, -55)
-        mu_to_sigma_low_rate = compute_mu_to_sigma_curve_for_experiment(
-            experiment.with_label("Low Rate"), r_target=0.3 * Hz
-        )
-
-        mu_to_sigma_high_rate = compute_mu_to_sigma_curve_for_experiment(
-            experiment.with_label("High Rate"), r_target=10 * Hz
-        )
-
-        plot_mus_vs_sigmas(
-            [mu_to_sigma_low_rate, mu_to_sigma_high_rate],
-            caller_test_case=self,
-        )
 
     def test_compare_phi_lower_limit_vs_phi_upper_limit(self):
         with plt.rc_context({

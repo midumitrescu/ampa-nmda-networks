@@ -18,7 +18,7 @@ class DiffusionLIFConfig:
     def __init__(self, params):
         self.params = params
 
-        self.V_r = params.get(DiffusionLIFConfig.KEY_V_R, -65) * mV
+        self.V_r = params.get(DiffusionLIFConfig.KEY_V_R, -55) * mV
         self.tau_rp = params.get(DiffusionLIFConfig.KEY_TAU_REF, 2) * ms
         self.theta = params.get(DiffusionLIFConfig.KEY_NEURON_THRESHOLD, -40) * mV
 

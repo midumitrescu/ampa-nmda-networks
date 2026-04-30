@@ -7,13 +7,14 @@ from brian2 import mV, Hz
 
 from Plotting import show_plots_non_blocking, prepare_bigger_fonts
 from iteration_12_siegert.CorrelationSimulations import label_for_float
+from iteration_12_siegert.GraphicalSolutions import compute_intersection, plot_two_rates_and_one_gain
 from iteration_12_transfer_function_of_lif_neurons.LookForAllSolutionsMuSigma import \
-    mu_to_sigma_for_constant_rate, plot_line_computation_vs_fit
+    mu_to_sigma_for_constant_rate, plot_line_computation_vs_fit, mu_to_sigma_for_constant_gain
 from iteration_12_transfer_function_of_lif_neurons.SiegerGradientDescentTestCases import \
     compute_LIF_curves_for_mus_sigmas
 from iteration_12_transfer_function_of_lif_neurons.SiegertGradientDescent import SiegertGradients, \
     newton_fsolve_find_mu_for_fixed_sigma, I_mu_sigma, integration_limits
-from iteration_12_transfer_function_of_lif_neurons.config import default_diffusion_lif_config
+from iteration_12_transfer_function_of_lif_neurons.config import default_diffusion_lif_config, DiffusionLIFConfig
 
 rate_palmer_control = 0.18 * Hz
 rate_palmer_mk_801 = 0.05 * Hz
@@ -54,9 +55,9 @@ class Chapter2Figures(unittest.TestCase):
             ax.axvline(x=lif_config.theta / mV, color='dimgray', linestyle='-.', label=r'Threshold $\theta$')
 
             for sigma, lif_values in zip(sigmas, rates):
-                ax.plot(mus / mV, lif_values / Hz, label=fr'$\sigma_v={sigma / mV}$ mV', alpha=0.6, lw=3)
+                ax.plot(mus / mV, lif_values / Hz, label=fr'$\sigma={sigma / mV}$ mV', alpha=0.6, lw=3)
 
-            ax.set_xlabel("Driving force $V_m$ ($\mu_v$) [mV]")
+            ax.set_xlabel("Driving force $V_m$ ($\mu$) [mV]")
             ax.set_ylabel("Firing rate [Hz]")
 
             ax.text(
@@ -94,7 +95,7 @@ class Chapter2Figures(unittest.TestCase):
         ax2.text(
             x=(mu_rate_control / mV + mu_rate_mk_801 / mV) / 2,
             y=0.007,
-            s=r"$\Delta \mu_v$",
+            s=r"$\Delta \mu$",
             fontsize=14,
             ha="center",
             va="bottom"
@@ -113,9 +114,9 @@ class Chapter2Figures(unittest.TestCase):
             fontsize=18
         )
 
-        ax1.set_title("Plot of $r_0(\mu_v, \sigma_v)$, including experimental rates to be fitted")
-        ax2.set_title("Detail of $r_0(\mu_v, \sigma_v)$ in the range of the rates to be fitted")
-        fig.suptitle("$r_0(\mu_v, \sigma_v)$ as predicted by Siegert's first passage time formula")
+        ax1.set_title("Plot of $r_0(\mu, \sigma)$, including experimental rates to be fitted")
+        ax2.set_title("Detail of $r_0(\mu, \sigma)$ in the range of the rates to be fitted")
+        fig.suptitle("$r_0(\mu, \sigma)$ as predicted by Siegert's first passage time formula")
 
         fig.tight_layout()
         show_plots_non_blocking(caller_test_case=self)
@@ -172,7 +173,7 @@ class Chapter2Figures(unittest.TestCase):
         ax1.axvline(x=mu_rate_mk_801 / mV, ymin=0.1, ymax=0.8, color='C0', linestyle='--', alpha=0.8)
 
         ax1.axhline(y=example_sigma, xmin=0, xmax=0.4, color='C0', linestyle='--', alpha=0.8,
-                    label=r"$\sigma_v = $" + f"{example_sigma: .2f} mV")
+                    label=r"$\sigma = $" + f"{example_sigma: .2f} mV")
 
         ax1.annotate(
             text="",
@@ -187,7 +188,7 @@ class Chapter2Figures(unittest.TestCase):
         ax1.text(
             x=(mu_rate_control / mV + mu_rate_mk_801 / mV) / 2,
             y=0.2,
-            s=r"$\Delta \mu_v$",
+            s=r"$\Delta \mu$",
             fontsize=14,
             ha="center",
             va="bottom"
@@ -202,8 +203,8 @@ class Chapter2Figures(unittest.TestCase):
         for index, ax in enumerate([ax1, ax2]):
             ax.axvline(x=default_diffusion_lif_config.theta / mV, color='dimgray', linestyle='-.',
                        label=r'Threshold $\theta$')
-            ax.set_xlabel(r"$\mu_v$ [mV]")
-            ax.set_ylabel(r"$\sigma_v$ [mV]")
+            ax.set_xlabel(r"$\mu$ [mV]")
+            ax.set_ylabel(r"$\sigma$ [mV]")
 
             ax.text(
                 0.02, 1.1, f"({chr(ord("A") + index)})",
@@ -220,7 +221,7 @@ class Chapter2Figures(unittest.TestCase):
         ax2.set_title("For comparison low vs high firing rates")
 
         fig.suptitle(
-            r"Predicted $\sigma_v = f(\mu_v)$ curve for $r_0(\mu_v, \sigma_v)$ = constant"
+            r"Predicted $\sigma = f(\mu)$ curve for $r_0(\mu, \sigma)$ = constant"
             "\n"
             r"using Siegert's first passage time formula",
             ha='center'
@@ -319,10 +320,10 @@ class Chapter2Figures(unittest.TestCase):
 
             delta = integral_limits[index][1, :] - integral_limits[index][0, :]
             axs_integral_limits_zoom[index].plot(result.mus,
-                                         ((default_diffusion_lif_config.theta - default_diffusion_lif_config.V_r) / mV) / (
-                                                     np.sqrt(2) * result.sigmas),
-                                         label=r"Closed formula $\frac{V_R - \theta}{\sqrt{2} \cdot \sigma_v}$",
-                                         alpha=0.5, lw=lw, color="red")
+                                                 ((default_diffusion_lif_config.theta - default_diffusion_lif_config.V_r) / mV) / (
+                                                         np.sqrt(2) * result.sigmas),
+                                                 label=r"Closed formula $\frac{V_R - \theta}{\sqrt{2} \cdot \sigma}$",
+                                                 alpha=0.5, lw=lw, color="red")
             axs_integral_limits_zoom[index].plot(nmda_block_mu_to_sigma.mus,
                                                  delta,
                                                  label="upper limit - lower limit",
@@ -345,7 +346,7 @@ class Chapter2Figures(unittest.TestCase):
         ax_rates_computation.set_ylabel(r"predicted rate [Hz]")
 
         for ax in [ax_integral_values, ax_rates_computation]:
-            ax.set_xlabel(r"$\mu_v$ [mV]")
+            ax.set_xlabel(r"$\mu$ [mV]")
             ax.axvline(x=default_diffusion_lif_config.theta / mV, color='dimgray', linestyle='-.',
                        label=r'Threshold $\theta$')
 
@@ -362,13 +363,13 @@ class Chapter2Figures(unittest.TestCase):
             ax.legend()
 
         ax_integral_values.set_title(
-            r"$I(\mu_v, \sigma_v)=\int_{\frac{\mu_v - \theta}{\sqrt{2}\sigma_v}}^{\frac{\mu_v - V_R}{\sqrt{2}\sigma_v}} "
-            r"e^{x^2}\,\mathrm{erfc}(x)\,dx$" + "\n on the set \n" + r"$r_0(\mu_v, \sigma_v)$ = constant"
+            r"$I(\mu, \sigma)=\int_{\frac{\mu - \theta}{\sqrt{2}\sigma}}^{\frac{\mu - V_R}{\sqrt{2}\sigma}} "
+            r"e^{x^2}\,\mathrm{erfc}(x)\,dx$" + "\n on the set \n" + r"$r_0(\mu, \sigma)$ = constant"
         )
         ax_rates_computation.set_title(
-            "$r_0(\mu_v, \sigma_v)$" + " computed with actual numerical values \n returned by Newton's method", y=1.1)
+            "$r_0(\mu, \sigma)$" + " computed with actual numerical values \n returned by Newton's method", y=1.1)
 
-        fig.suptitle("Plot of integral limits \n" +  "upper limit " + r"$\frac{\mu_v - V_R}{\sqrt{2}\sigma_v}$ and lower limit $\frac{\mu_v - \theta}{\sqrt{2}\sigma_v}$" + "\n with check that both integral and rate \n are constant" )
+        fig.suptitle("Plot of integral limits \n" +  "upper limit " + r"$\frac{\mu - V_R}{\sqrt{2}\sigma}$ and lower limit $\frac{\mu - \theta}{\sqrt{2}\sigma}$" + "\n with check that both integral and rate \n are constant" )
         fig.tight_layout()
         show_plots_non_blocking(caller_test_case=self)
 
@@ -399,7 +400,7 @@ class Chapter2Figures(unittest.TestCase):
 
             siegert_gradient = SiegertGradients.for_lif_config(lif_config)
             rate_mk801 = siegert_gradient.firing_rate(mu_v=mu_v_mk801 * mV, sigma_v=sigma_sol * mV)
-            rate_control = siegert_gradient.firing_rate(mu_v=mu_v_control, sigma_v=sigma_sol * mV)
+            rate_control = siegert_gradient.firing_rate(mu_v=mu_v_control * mV, sigma_v=sigma_sol * mV)
             print(f"Predicted MK801 rate: {rate_mk801}, Control rate: {rate_control}")
 
             prepare_bigger_fonts()
@@ -410,22 +411,22 @@ class Chapter2Figures(unittest.TestCase):
             """Plot μ vs σ curves and linear fit. Used by script runners with caller_test_case=self for figure naming."""
             for result, color in zip(results, ["orange", "black"]):
                 ax.plot(result.mus, result.sigmas, color=color, label=f"{result.exp_label}, r = {result.r_target / Hz} Hz",
-                         lw=2)
+                        lw=2)
 
             ax.plot(mu_v_control, sigma_sol,
-                     marker='x', color='C0', markeredgewidth=1, markersize=12, linestyle="", alpha=0.7,
-                     label=r"$\mu_\mathrm{sol} + \Delta \mu_{\mathrm{obs}}$="f"{mu_v_control: .3f} mV")
+                    marker='x', color='C0', markeredgewidth=1, markersize=12, linestyle="", alpha=0.7,
+                    label=r"$\mu_\mathrm{sol} + \Delta \mu_{\mathrm{obs}}$="f"{mu_v_control: .3f} mV")
 
             ax.plot(mu_v_mk801, sigma_sol,
-                     marker='x', color='C0', markeredgewidth=1, markersize=12, linestyle="", alpha=0.7,
-                     label=r"$\mu_\mathrm{sol} =$"f"{mu_v_mk801 : .3f} mV")
+                    marker='x', color='C0', markeredgewidth=1, markersize=12, linestyle="", alpha=0.7,
+                    label=r"$\mu_\mathrm{sol} =$"f"{mu_v_mk801 : .3f} mV")
 
             ax.axvline(x=mu_v_control, ymin=0.2, ymax=0.5, color='C0', linestyle='--', alpha=0.8)
             ax.axvline(x=mu_v_mk801, ymin=0.2, ymax=0.5, color='C0', linestyle='--', alpha=0.8)
 
             x_max = 0.9 - abs((lif_config.theta / mV - mu_v_control))/40
             ax.axhline(y=sigma_sol, xmin=0, xmax=x_max, color='C0', linestyle='--', alpha=0.8,
-                        label=r"$\sigma_{v, \mathrm{sol}} = $" + f"{sigma_sol: .3f} mV")
+                       label=r"$\sigma_{\mathrm{sol}} = $" + f"{sigma_sol: .3f} mV")
             ax.annotate(
                 text="",
                 xy=(mu_v_mk801, 1.1),
@@ -439,19 +440,19 @@ class Chapter2Figures(unittest.TestCase):
             ax.text(
                 x=(mu_v_control + mu_v_mk801) / 2,
                 y=0.6,
-                s=r"$\Delta \mu_v$ = "f"{delta_mu: .1f} mV",
+                s=r"$\Delta \mu$ = "f"{delta_mu: .1f} mV",
                 fontsize=14,
                 ha="center",
                 va="bottom"
             )
 
-            ax.set_xlabel(r"$\mu_v$ [mV]")
-            ax.set_ylabel(r"$\sigma_v$ [mV]")
+            ax.set_xlabel(r"$\mu$ [mV]")
+            ax.set_ylabel(r"$\sigma$ [mV]")
 
             ax.legend()
-            fig.suptitle(f"Found solutions for {r"$r_0(\mu_{v, \mathrm{MK-801}}, \sigma_v) =$ 0.05 Hz"}, {r"$r_0(\mu_{v, \mathrm{Control}}, \sigma_v) =$ 0.18 Hz"}\n"
-                         r"$\mu_{v, \mathrm{MK-801}}$="f"{mu_v_mk801 :.3f} mV, "r"$\mu_{v, \mathrm{Control}}$="f"{mu_v_control :.3f} mV, "r"$\Delta \mu_v$="f"{mu_v_control - mu_v_mk801 : .3f} mV, "r"$\sigma_v$="f"{sigma_sol:.3f} mV \n"
-                         r"$\theta - \mu_{v, \mathrm{Control}}$="f"{default_diffusion_lif_config.theta / mV - mu_v_control: .3f} mV")
+            fig.suptitle(f"Found solutions for {r"$r(\mu_{\mathrm{MK-801}}, \sigma) =$ 0.05 Hz"}, {r"$r(\mu_{\mathrm{Control}}, \sigma) =$ 0.18 Hz"}\n"
+                         r"$\mu_{\mathrm{MK-801}}$="f"{mu_v_mk801 :.3f} mV, "r"$\mu_{\mathrm{Control}}$="f"{mu_v_control :.3f} mV, "r"$\Delta \mu$="f"{mu_v_control - mu_v_mk801 : .3f} mV, "r"$\sigma$="f"{sigma_sol:.3f} mV \n"
+                         r"$\theta - \mu_{\mathrm{Control}}$="f"{default_diffusion_lif_config.theta / mV - mu_v_control: .3f} mV")
 
             fig.tight_layout()
             show_plots_non_blocking(caller_test_case=self, descriptor=f"d_mu_{label_for_float(delta_mu)}")
@@ -462,4 +463,78 @@ class Chapter2Figures(unittest.TestCase):
             print(f"Empirical vs analytical: MK801: {b_mk801 - m_mk801 * lif_config.theta / mV}")
             print(f"Empirical vs analytical: Control: {b_control - m_control * lif_config.theta / mV}")
 
+    def test_solve_graphically_for_rate_and_gain_coming_from_previous_solution(self):
+        gain = 0.09699832465740052 * Hz / mV
+        gain_computations = mu_to_sigma_for_constant_gain(
+            default_diffusion_lif_config.with_label("MK-801"), gain=gain, mu_lims=None
+        )
+
+        rate_computations = mu_to_sigma_for_constant_rate(
+            default_diffusion_lif_config.with_label("MK-801"), r_target=0.05 * Hz, mu_lims=None
+        )
+
+        sg = SiegertGradients.default()
+        x_intersect, y_intersect = compute_intersection(rate_computations, gain_computations)
+        error_nmda_block = np.abs(
+            (rate_computations.r_target - sg.firing_rate(x_intersect * mV, y_intersect * mV)) / Hz)
+        error_gain = np.abs(
+            (gain_computations.r_target - sg.d_rate_d_mu(x_intersect * mV, y_intersect * mV)) / Hz * mV)
+
+        prepare_bigger_fonts()
+
+        plt.figure(figsize=(8, 6))
+
+        plt.xlabel(r"$\mu$ [mV]")
+        plt.ylabel(r"$\sigma$ [mV]")
+        plt.title(
+            "Model-based estimation of " r"($\mu$, $\sigma$)" "\n"
+            r"for $r(\mu, \sigma) = $"f" {rate_palmer_mk_801 / Hz :.2f} Hz "" and "r"$\frac{d r}{d \mu }$ = " f"{gain / Hz * mV:.3f} Hz/mV\n"
+            "predicted by first time passage formula \n"
+            r"$r(\mu_{\mathrm{sol}}, \sigma_{\mathrm{sol}}) =$" f"{sg.firing_rate(x_intersect * mV, y_intersect * mV) / Hz : .3f} +{error_nmda_block: .0E} Hz, "
+            r"$\frac{d r}{d \mu}(\mu_{\mathrm{sol}}, \sigma_{\mathrm{sol}}) =$" f"{sg.d_rate_d_mu(x_intersect * mV, y_intersect * mV) / Hz * mV : .3f} +{error_gain: .0E} Hz/mV")
+
+        plt.vlines(x_intersect, ymin=0, ymax=y_intersect * 1.3, colors='b', linestyles='--', lw=0.9)
+        plt.hlines(y_intersect,
+                   xmin=np.min((rate_computations.mus[0], gain_computations.mus[0])),
+                   xmax=x_intersect + 2, colors='b', linestyles='--', lw=0.9)
+
+        plt.plot(rate_computations.mus, rate_computations.sigmas, color="orange",
+                 label=r"$\sigma = f_1(\mu)$ for $r(\mu, f_1(\mu)) = $"f" {rate_computations.r_target / Hz} Hz")
+        plt.plot(gain_computations.mus, gain_computations.sigmas, color="purple",
+                 label=r"$\sigma = f_3(\mu)$ for $\frac{d r}{d \mu}(\mu, f_3(\mu)) = $"f" {gain / Hz * mV: .4f} Hz/mV")
+        plt.scatter(x_intersect, y_intersect,  s=70, zorder=3, label=f"Solution ({x_intersect: .2f} mV, {y_intersect: .2f} mV)", alpha=0.6, color="blue")
+        plt.legend()
+        plt.subplots_adjust(top=0.75)
+        show_plots_non_blocking(caller_test_case=self)
+
+    def test_solve_graphical_for_rate_and_derivative_numerical_fit(self):
+
+        delta_mu = 0.7 * mV
+        rate_mk801 = 0.05 * Hz
+        rate_control = 0.18 * Hz
+
+        gain = 0.09699832465740052 * Hz / mV
+
+        diffusion_lif_config = DiffusionLIFConfig(params={DiffusionLIFConfig.KEY_V_R: -45})
+        siegert_gradients = SiegertGradients.for_lif_config(diffusion_lif_config)
+        siegert_gradients = SiegertGradients.default()
+
+        gain_computations = mu_to_sigma_for_constant_gain(
+            diffusion_lif_config.with_label(r"$\frac{\Delta r}{ \Delta \mu}$ from numerical computation"),
+            gain=gain
+        )
+
+        mk_801_rate_computations = mu_to_sigma_for_constant_rate(
+            diffusion_lif_config.with_label("MK-801"), r_target=rate_mk801
+        )
+
+        control_rate_computations = mu_to_sigma_for_constant_rate(
+            diffusion_lif_config.with_label("Control"), r_target=rate_control
+        )
+
+        control_rate_computations = control_rate_computations.with_delta_mu(delta_mu)
+
+        plot_two_rates_and_one_gain(mk_801_rate_computations, control_rate_computations, gain_computations,
+                                    siegert_gradients,
+                                    plot_label=r"for $\frac{\Delta r}{\Delta \mu}$ based on numerical fitting", caller_test_case=self)
 

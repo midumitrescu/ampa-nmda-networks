@@ -9,14 +9,15 @@ from iteration_12_siegert.gain_computations import (
 from iteration_12_transfer_function_of_lif_neurons.SiegertGradientDescent import (
     SiegertGradients,
 )
+from iteration_12_transfer_function_of_lif_neurons.config import default_diffusion_lif_config
 
 
 class SiegertGainSanityTests(unittest.TestCase):
     """Unit tests for gain/sigma solving."""
 
     def test_find_sigma_by_f_solve(self):
-        siegert_gradient = SiegertGradients.for_experiment(palmer_control)
-        mu_fixed = palmer_control.neuron_params.theta - 10 * mV
+        siegert_gradient = SiegertGradients.default()
+        mu_fixed = default_diffusion_lif_config.theta - 10 * mV
         gain_target = 2.5 * Hz / mV
         sigma = find_sigma_for_mu_producing_rate_gain(
             palmer_control, mu=mu_fixed, gain=gain_target

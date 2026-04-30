@@ -9,35 +9,35 @@ import unittest
 
 import matplotlib.pyplot as plt
 import numpy as np
-from brian2 import mV, Hz, volt
+from brian2 import mV, Hz, volt, have_same_dimensions
 from loguru import logger
 from scipy.optimize import fsolve
 
 from Plotting import show_plots_non_blocking, prepare_bigger_fonts
-from iteration_12_transfer_function_of_lif_neurons.SiegertGradientDescent import SiegertGradients, I_mu_sigma
-from iteration_12_transfer_function_of_lif_neurons.config import DiffusionLIFConfig
+from iteration_12_transfer_function_of_lif_neurons.SiegerGradientDescentTestCases import \
+    compute_LIF_curves_for_mus_sigmas
+from iteration_12_transfer_function_of_lif_neurons.SiegertGradientDescent import SiegertGradients, \
+    newton_fsolve_find_mu_for_fixed_sigma
+from iteration_12_transfer_function_of_lif_neurons.config import DiffusionLIFConfig, default_diffusion_lif_config
 
 try:
     from utils import ExtendedDict
 except ImportError:
     from src.utils import ExtendedDict
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import Experiment
-from iteration_8_compute_mean_steady_state.models_and_configs import palmer_experiment_0_1_Hz_with_NMDA_block
-from iteration_8_compute_mean_steady_state.scripts_with_wang_numbers import palmer_control
 
 logger.remove()  # remove default handler
 logger.add(sys.stderr, level="INFO")
 
-# Palmer (MK801) experiment: rate 0.18 Hz → 0.05 Hz for Δμ ≈ 0.2 mV → gain = 0.65 Hz/mV
+# Palmer (MK801) experiment: rate 0.18 Hz → 0.05 Hz for Δμ ≈ 0.7 mV → gain = 0.18571428571 Hz/mV
 R_MK801_HZ = 0.05
 R_CONTROL_HZ = 0.18
-D_MU_PALMER_MV = 0.2
-GAIN_PALMER_HZ_PER_MV = (R_CONTROL_HZ - R_MK801_HZ) / D_MU_PALMER_MV  # 0.65
+D_MU_PALMER_MV = 0.7
+GAIN_PALMER_HZ_PER_MV = (R_CONTROL_HZ - R_MK801_HZ) / D_MU_PALMER_MV  # 0.1857
 
-from joblib import Parallel, delayed
 
-def find_sigma_for_mu_producing_rate_gain(experiment: Experiment, mu, gain):
-    siegert_gradient = SiegertGradients.for_experiment(experiment)
+def find_sigma_for_mu_producing_rate_gain(lif_config: DiffusionLIFConfig, mu, gain):
+    siegert_gradient = SiegertGradients.for_lif_config(lif_config)
     sigma_sol = fsolve(func=lambda sigma: [siegert_gradient.d_rate_d_mu(mu_v=mu, sigma_v=sigma[0] * volt) - gain],
            x0=4 * mV)[0] * volt
 
@@ -45,49 +45,53 @@ def find_sigma_for_mu_producing_rate_gain(experiment: Experiment, mu, gain):
         return 0 * mV
     return sigma_sol
 
-class RateGainSearchParams:
+class RateAndRateGainProblem:
 
-    def __init__(self, rate_nmda_block, rate_with_nmda, mu_v_nmda_block, mu_v_with_nmda, d_sigma = 0.2):
-        self.rate_nmda_block_unitless = rate_nmda_block
-        self.rate_with_nmda_unitless = rate_with_nmda
-        self.mu_v_nmda_block_unitless = mu_v_nmda_block
-        self.mu_v_with_nmda_unitless = mu_v_with_nmda
+    def __init__(self, lif_config: DiffusionLIFConfig, rate_control, rate_nmda_block, delta_mu, delta_sigma = 0 * mV):
+        assert have_same_dimensions(rate_control, 1 * Hz)
+        assert have_same_dimensions(rate_nmda_block, 1 * Hz)
+        assert have_same_dimensions(delta_mu, 1 * mV)
+        assert have_same_dimensions(delta_sigma, 1 * mV)
 
-        self.rate_nmda_block = rate_nmda_block * Hz
-        self.rate_with_nmda = rate_with_nmda * Hz
-        self.mu_v_nmda_block = mu_v_nmda_block * mV
-        self.mu_v_with_nmda = mu_v_with_nmda * mV
+        self.lif_config = lif_config
+        self.rate_control = rate_control
+        self.rate_nmda_block = rate_nmda_block
+        self.delta_mu = delta_mu
 
-        self.d_rate = self.rate_with_nmda - self.rate_nmda_block
-        self.d_rate_unitless = self.d_rate / Hz
+        self.gain = (self.rate_control  - self.rate_nmda_block) / self.delta_mu
 
-        self.d_mu = self.mu_v_with_nmda - self.mu_v_nmda_block
-        self.d_mu_unitless = self.d_mu / mV
 
-        self.gain = self.d_rate / self.d_mu
-        self.gain_unitless = self.gain * mV / Hz
 
-        self.d_sigma = d_sigma * mV
-        self.d_sigma_unitless = self.d_sigma / mV
+class RateAndRateGainSolution:
 
-def find_sigma_for_mu_producing_rate_from_lif_config(lif_config: DiffusionLIFConfig, params: RateGainSearchParams):
-    siegert_gradient = SiegertGradients.for_lif_config(lif_config)
-    sigma_sol = fsolve(func=lambda sigma: [siegert_gradient.firing_rate(mu_v=params.mu_v_nmda_block, sigma_v=sigma[0] * volt) - params.rate_nmda_block],
+    def __init__(self, problem: RateAndRateGainProblem, mu_control, sigma_control, mu_nmda_block, sigma_nmda_block):
+        assert have_same_dimensions(mu_control, 1 * mV)
+        assert have_same_dimensions(sigma_control, 1 * Hz)
+        assert have_same_dimensions(mu_nmda_block, 1 * mV)
+        assert have_same_dimensions(sigma_nmda_block, 1 * mV)
+
+        self.lif_config = problem.lif_config
+
+    def __check__(self):
+        pass
+
+
+''' 
+def find_sigma_for_mu_producing_rate(params: RateAndRateGainProblem):
+    siegert_gradient = SiegertGradients.for_lif_config(params.lif_config)
+    sigma_sol = fsolve(func=lambda sigma: [siegert_gradient.firing_rate(mu_v=params., sigma_v=sigma[0] * volt) - params.rate_nmda_block],
                        x0=4 * mV)[0] * volt
     if sigma_sol < 0 * mV:
         return 0 * mV
     return sigma_sol
 
-def find_sigma_for_mu_producing_rate(experiment: Experiment, params: RateGainSearchParams):
-    return find_sigma_for_mu_producing_rate_from_lif_config(DiffusionLIFConfig.from_experiment(experiment), params)
-
 # Parametrizable defaults for "rate at baseline, desired gain, step in mu" plots (ExtendedDict = attribute-style access)
-default_rate_gain_params = RateGainSearchParams(rate_nmda_block=0.05, rate_with_nmda=0.3, mu_v_nmda_block=-60, mu_v_with_nmda=-60 + 0.1)
+default_rate_gain_params = RateGainSearchParams(rate_nmda_block=0.05, rate_with_nmda=0.18, mu_v_nmda_block=-60, mu_v_with_nmda=-60 + 0.7, d_sigma=0)
 
-def solve_mu_sigma_via_fsolve_for_LIF_config(lif_config: DiffusionLIFConfig, params: RateGainSearchParams):
+def solve_mu_sigma_via_fsolve(lif_config: DiffusionLIFConfig, params: RateGainSearchParams):
     sieger_gradient = SiegertGradients.for_lif_config(lif_config)
 
-    sigma = find_sigma_for_mu_producing_rate_from_lif_config(lif_config, params)
+    sigma = find_sigma_for_mu_producing_rate(lif_config, params)
     rate_nmda_block_recomputed = sieger_gradient.firing_rate(mu_v=params.mu_v_nmda_block, sigma_v=sigma)
     print(
         f"mu_v {params.mu_v_nmda_block_unitless: .3f} mV, sigma={sigma: .3f} mV rate computed = {rate_nmda_block_recomputed}")
@@ -110,12 +114,13 @@ def solve_mu_sigma_via_fsolve_for_LIF_config(lif_config: DiffusionLIFConfig, par
         "siegert_gradient": sieger_gradient
     })
 
-def solve_mu_sigma_via_fsolve(experiment: Experiment, params: RateGainSearchParams):
+def solve_mu_sigma_via_fsolve(lif_config: DiffusionLIFConfig, params: RateGainSearchParams):
     """Search for (mu, sigma) using fsolve: fix mu_nmda_block = theta - offset, find sigma such that rate(mu_nmda_block, sigma) = rate_nmda_block_recomputed.
     Returns ExtendedDict with sigma, mu_nmda_block, siegert_gradient, rates and Taylor quantities for plotting."""
 
-    sieger_gradient = SiegertGradients.for_experiment(experiment)
-    sigma = find_sigma_for_mu_producing_rate(experiment, params)
+    sieger_gradient = SiegertGradients.for_lif_config(lif_config)
+
+    sigma = find_sigma_for_mu_producing_rate(lif_config, params)
     rate_nmda_block_recomputed = sieger_gradient.firing_rate(mu_v=params.mu_v_nmda_block, sigma_v=sigma)
     print(f"mu_v {params.mu_v_nmda_block_unitless: .3f} mV, sigma={sigma: .3f} mV rate computed = {rate_nmda_block_recomputed}")
 
@@ -128,7 +133,7 @@ def solve_mu_sigma_via_fsolve(experiment: Experiment, params: RateGainSearchPara
     return ExtendedDict({
         "sigma": sigma,
         "mu_nmda_block": params.mu_v_nmda_block_unitless,
-        "theta": experiment.neuron_params.theta,
+        "theta": lif_config.theta,
         "rate_nmda_block_recomputed": rate_nmda_block_recomputed / Hz,
         "rate_delta_mu_Hz": rate_delta_mu,
         "taylor_error_Hz": rate_nmda_block_recomputed - taylor_rate_actual,
@@ -137,9 +142,9 @@ def solve_mu_sigma_via_fsolve(experiment: Experiment, params: RateGainSearchPara
         "siegert_gradient": sieger_gradient
     })
 
-def compute_rate_gain_at_params(experiment, params=None):
+def compute_rate_gain_at_params(lif_config: DiffusionLIFConfig, params=None):
     """Convenience wrapper: same as solve_mu_sigma_via_fsolve (find sigma via fsolve for rate_baseline at mu_nmda_block)."""
-    return solve_mu_sigma_via_fsolve(experiment, params)
+    return solve_mu_sigma_via_fsolve(lif_config, params)
 
 
 def plot_rate_and_gain_with_taylor(experiment: Experiment, params: RateGainSearchParams, solution: ExtendedDict, test: unittest.TestCase, lim=None):
@@ -241,79 +246,90 @@ def plot_rate_and_gain_combined(params=default_rate_gain_params, test: unittest.
     plot_rate_and_gain_with_taylor(experiment=palmer_control, params=params, solution=solution, test=test)
     plot_rate_and_gain_with_taylor(experiment=palmer_control, params=params, solution=solution, test=test, lim=3)
 
+'''
+
 class GainScripts(unittest.TestCase):
     """Runnable scripts: gain plots and sigma scans. test_scripts_* = run directly in IntelliJ."""
 
-    def test_scripts_plot_gain(self, params=None):
-        """Gain vs μ for several σ; sigma chosen so rate = rate_baseline at mu_nmda_block. Params: rate_nmda_block_recomputed, gain_target_Hz_per_mV, delta_mu_mV, mu_offset_below_theta_mV."""
+    def test_scripts_plot_gain(self):
 
-        coonfig = default_rate_gain_params
-        if params is None:
-            params = default_rate_gain_params
-        p = compute_rate_gain_at_params(palmer_control, params)
-        gradients = p.siegert_gradient
-        sigma_sol = p.sigma
-        gain_target = params.gain_unitless
-        mu_off = params.d_mu_unitless
+        # mu solution: - 47.60912502672166
+        # sigma solution: 1.9036551067748064
+
+        mu_sol =  - 47.60912502672166 * mV
+        sigma_sol = 1.9036551067748064 * mV
+        optimization_problem = RateAndRateGainProblem(lif_config = default_diffusion_lif_config, rate_control= 0.18 * Hz, rate_nmda_block=0.05 * Hz,
+                                                      delta_mu = 0.7 * mV, delta_sigma=0 * mV)
+
+        gradients = SiegertGradients.default()
         mus = np.linspace(-55, -35, 1000) * mV
 
         prepare_bigger_fonts()
         plt.figure(figsize=(15, 8))
-        plt.title(rf"Gain $dr/d\mu$ vs $\mu$ - baseline rate={params.rate_nmda_block_unitless} Hz, target gain={gain_target} Hz/mV, $\Delta\mu$={params.d_mu_unitless} mV")
+        #plt.title(rf"Gain $dr/d\mu$ vs $\mu$ - baseline rate={params.rate_nmda_block_unitless} Hz, target gain={gain_target} Hz/mV, $\Delta\mu$={params.d_mu_unitless} mV")
 
-        for sigma in np.array([0.5, 1, 2, 3, 4]):
+        for sigma in np.array([0.5, 1, 3, 4]):
             gains = [gradients.d_rate_d_mu(mu_v=mu, sigma_v=sigma * mV) for mu in mus] * (mV / Hz)
             plt.plot(mus / mV, gains, label=r'$\sigma_v$=' + f"{sigma} mV")
 
         gains_sol = [gradients.d_rate_d_mu(mu_v=mu, sigma_v=sigma_sol) for mu in mus] * (mV / Hz)
-        plt.axhline(y=gain_target, linestyle='-.', label=f"Target gain {gain_target} Hz/mV")
-        plt.plot(mus / mV, gains_sol, label=r'Sol: $\sigma_v$=' + f"{sigma_sol/mV:.3f} mV, r={p.rate_nmda_block_recomputed:.3f} Hz")
+        gain_target = optimization_problem.gain / Hz * mV
+        plt.axhline(y=gain_target, linestyle='-.', label=f"Target gain {gain_target: .2f} Hz/mV")
+        print("XXXXXX ", gain_target)
+        plt.plot(mus / mV, gains_sol, label=r'Sol: $\sigma_v$=' + f"{sigma_sol/mV:.3f} mV, r={gradients.firing_rate(mu_sol, sigma_sol):.3f} Hz")
 
-        plt.axvline(x=p.theta / mV - mu_off, linestyle='--', label=rf"$\mu$ = $\theta$ - {mu_off} mV")
-        plt.axvline(x=p.theta / mV, linestyle='--', label=r"$\theta$", color='black')
+        #plt.axvline(x=p.theta / mV - mu_off, linestyle='--', label=rf"$\mu$ = $\theta$ - {mu_off} mV")
+        #plt.axvline(x=p.theta / mV, linestyle='--', label=r"$\theta$", color='black')
         plt.xlabel(r"Membrane potential $\mu$ (mV)")
         plt.ylabel(r"Gain [Hz/mV]")
         plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         plt.tight_layout()
         show_plots_non_blocking(caller_test_case=self)
 
-    def test_scripts_plot_LIF_rate_for_interesting_model(self, params=None):
-        """Rate vs μ for sigma that gives rate_baseline at mu_nmda_block; show rate at mu_nmda_block + delta_mu (actual vs Taylor)."""
-        if params is None:
-            params = default_rate_gain_params
-        p = compute_rate_gain_at_params(palmer_control, params)
-        gradients = p.siegert_gradient
-        sigma_sol = p.sigma
-        mu_off = params.d_mu
-        mus = np.linspace(-65, -49.8, 1000) * mV
+    def test_scripts_plot_second_derivative(self):
+        for zoom in [None, (-3, 0.5)]:
 
-        prepare_bigger_fonts()
-        plt.figure(figsize=(10, 8))
+            mu_sol =  - 47.60912502672166 * mV
+            sigma_sol = 1.9036551067748064 * mV
+            optimization_problem = RateAndRateGainProblem(lif_config = default_diffusion_lif_config, rate_control= 0.18 * Hz, rate_nmda_block=0.05 * Hz,
+                                                          delta_mu = 0.7 * mV, delta_sigma=0 * mV)
 
-        for sigma in np.array([0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, sigma_sol / mV]):
-            rates = np.array([gradients.firing_rate(mu_v=mu, sigma_v=sigma * mV) for mu in mus]) / Hz
-            plt.plot(mus / mV, rates, label=r'$\sigma_v$=' + f"{sigma:.3f} mV")
+            gradients = SiegertGradients.default()
+            mus = np.linspace(-55, -35, 1000) * mV
 
-        plt.axhline(y=p.rate_nmda_block_recomputed, linestyle='-.', label=f"Baseline rate {p.rate_nmda_block_recomputed:.3f} Hz")
-        #plt.axhline(y=p.rate_taylor_shifted_Hz, linestyle=':', label=rf"Taylor at $\mu+\Delta\mu$ = {p.rate_taylor_shifted_Hz:.3f} Hz")
-        plt.axhline(y=p.rate_delta_mu_Hz, linestyle='--', label=rf"Actual at $\mu+\Delta\mu$ = {p.rate_delta_mu_Hz:.3f} Hz (err={p.taylor_error_Hz:.4f})")
+            unit_second_derivative = Hz / mV ** 2
+            inverse_unit = mV ** 2 / Hz
 
-        plt.axvline(x=p.theta / mV - mu_off / mV, linestyle='--', label=rf"$\mu$ = $\theta$ - {mu_off / mV} mV")
-        plt.axvline(x=p.theta / mV, linestyle='--', label=r"$\theta$", color='black')
-        #plt.ylim((0, 10))
-        plt.xlabel(r"Membrane potential $\mu$ (mV)")
-        plt.ylabel(r"Rate [Hz]")
-        plt.title(rf"Rate vs $\mu$ - $\sigma$ s.t. r($\theta$-{mu_off}) = TODO Hz; "
-                  rf"at $\mu+{params.d_mu / mV :.3f}$ mV: Taylor=TODO, actual= :.3f, error={p.taylor_error_Hz:.4f} Hz")
-        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-        plt.tight_layout()
-        show_plots_non_blocking(caller_test_case=self)
+            prepare_bigger_fonts()
+            plt.figure(figsize=(15, 8))
+            #plt.title(rf"Gain $dr/d\mu$ vs $\mu$ - baseline rate={params.rate_nmda_block_unitless} Hz, target gain={gain_target} Hz/mV, $\Delta\mu$={params.d_mu_unitless} mV")
 
+            for sigma in np.array([1, 3, 4]):
+                gains = [gradients.d_squared_rate_d_mu_squared(mu_v=mu, sigma_v=sigma * mV) / unit_second_derivative for mu in mus]
+                plt.plot(mus / mV, gains, label=r'$\sigma_v$=' + f"{sigma} mV")
+
+            gains_sol = [gradients.d_squared_rate_d_mu_squared(mu_v=mu, sigma_v=sigma_sol) / unit_second_derivative for mu in mus]
+
+            plt.plot(mus / mV, gains_sol, label=r'Sol: $\sigma_v$=' + f"{sigma_sol/mV:.3f} mV, r={gradients.firing_rate(mu_sol, sigma_sol):.3f} Hz")
+
+            if zoom:
+                plt.ylim(zoom)
+            plt.axhline(y=0, linestyle='--', label=rf"0")
+            plt.ylabel(r"Second derivative [Hz/mV]")
+            plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+            plt.tight_layout()
+            show_plots_non_blocking(caller_test_case=self)
+
+    def test_gain_computation(self):
+        optimization_problem = RateAndRateGainProblem(lif_config=default_diffusion_lif_config, rate_control=0.18 * Hz,
+                                                      rate_nmda_block=0.05 * Hz,
+                                                      delta_mu=0.7 * mV, delta_sigma=0 * mV)
+        self.assertAlmostEqual(0.185, optimization_problem.gain / Hz * mV, places=2)
 
 
     def test_scripts_plot_for_relaxed_conditions(self):
         # actual numbers from the palmer paper
-        plot_rate_and_gain_combined(params=RateGainSearchParams(rate_nmda_block=0.05, rate_with_nmda=0.18, mu_v_nmda_block=-60, mu_v_with_nmda=-60 + 0.4, d_sigma=0.2), test=self)
+        plot_rate_and_gain_combined(params=RateGainSearchParams(rate_nmda_block=0.05, rate_with_nmda=0.18, mu_v_nmda_block=-60, mu_v_with_nmda=-60 + 0.7, d_sigma=0), test=self)
 
 
     def test_scripts_compute_all_sigmas_required_for_our_gain(self):
@@ -335,50 +351,6 @@ class GainScripts(unittest.TestCase):
         plt.ylabel(r"$\sigma_v$ mV]")
 
         plt.plot(delta_mus / mV, sigmas / mV)
-        plt.tight_layout()
-        show_plots_non_blocking(caller_test_case=self)
-
-    @unittest.skip("This returns some stupid graph. Not useful")
-    def test_scripts_compute_all_sigmas_required_for_various_gains(self):
-        delta_mus = np.linspace(15, 1, 1401) * mV
-        mask = delta_mus > 5.6 * mV
-
-        gains = np.arange(0.5, 5.2, step=0.5)
-
-        prepare_bigger_fonts()
-        plt.figure(figsize=(8, 6))
-        plt.title(r'''How much diffusion is required for various gains $\frac{\mathrm{Hz}}{\mathrm{mV}}$?''')
-
-        def compute_sigmas_for_gain(gain):
-            return np.array([
-                find_sigma_for_mu_producing_rate_gain(
-                    palmer_control,
-                    mu=(palmer_control.neuron_params.theta - delta_mu),
-                    gain=gain * Hz / mV
-                )
-                for delta_mu in delta_mus[mask]
-            ]) * volt
-
-        sigmas_list = Parallel(n_jobs=-1)(
-            delayed(compute_sigmas_for_gain)(gain)
-            for gain in gains
-        )
-        '''
-        for gain in gains:
-            sigmas = np.array([find_sigma_for_mu_producing_rate_gain(palmer_control,
-                                                  mu=palmer_control.neuron_params.theta - delta_mu,
-                                                  gain=gain * Hz / mV) for delta_mu in delta_mus]) * volt
-
-            plt.plot(delta_mus / mV, sigmas / mV, label=f"gain={gain}")
-        '''
-        for gain, sigmas in zip(gains, sigmas_list):
-            plt.plot(delta_mus[mask] / mV, sigmas / mV, label=f"gain={gain}")
-
-        plt.xlabel(r" $\Delta V$ below threshold (mV)")
-        plt.ylabel(r"$\sigma_v$ [mV]")
-
-        plt.ylim(1, 15)
-        plt.legend()
         plt.tight_layout()
         show_plots_non_blocking(caller_test_case=self)
 
@@ -448,128 +420,48 @@ class GainScripts(unittest.TestCase):
         print(f"gain (-60, 4 mV)  = 2.2 from image => for 0.1 mV we have 0.22 mV change")
         print(f"rate (-59.9, 4 mV) = {gradients.firing_rate(mu_v=(-60 * mV + 0.1 *mV), sigma_v=4 * mV)}")
 
-    def test_check_derivative_d_rate_d_mu(self):
+    def test_figure_1_plot_lif_firing_with_zoom_in(self):
+        mus = np.linspace(-65, -35, 1001) * mV
+        sigmas = np.array([0, 2., 4., 6.]) * mV
+        lif_config = default_diffusion_lif_config
+        rates = compute_LIF_curves_for_mus_sigmas(mus, sigmas, lif_config=lif_config)
 
-        siegert_gradient = SiegertGradients.for_experiment(palmer_control)
+        sg = SiegertGradients.for_lif_config(lif_config)
+        example_sigma = 4.0 * mV
+        mu_rate_control = newton_fsolve_find_mu_for_fixed_sigma(siegert_gradient=sg, sigma_v=example_sigma,
+                                                                r_target=R_CONTROL_HZ * Hz)
+        mu_rate_mk_801 = newton_fsolve_find_mu_for_fixed_sigma(siegert_gradient=sg, sigma_v=example_sigma,
+                                                               r_target=R_MK801_HZ * Hz)
 
-        sigma = 3 * mV
-        mus = np.linspace(-65, -35, 500) * mV
-        delta = 1e-5 * mV  # 1e-3 mV as requested
 
-        analytical = []
-        numerical = []
-        rel_error = []
+        p = compute_rate_gain_at_params(default_diffusion_lif_config, params)
+        gradients = p.siegert_gradient
+        sigma_sol = p.sigma
+        gain_target = params.gain_unitless
+        mu_off = params.d_mu_unitless
+        mus = np.linspace(-55, -35, 1000) * mV
 
-        for mu in mus:
-            # --- analytical derivative ---
-            dr_analytical = siegert_gradient.d_rate_d_mu(
-                mu_v=mu,
-                sigma_v=sigma
-            )
+        prepare_bigger_fonts()
+        plt.figure(figsize=(15, 8))
+        plt.title(rf"Gain $dr/d\mu$ vs $\mu$ - baseline rate={params.rate_nmda_block_unitless} Hz, target gain={gain_target} Hz/mV, $\Delta\mu$={params.d_mu_unitless} mV")
 
-            # --- numerical central difference ---
-            r_plus = siegert_gradient.firing_rate(mu_v=mu + delta, sigma_v=sigma)
-            r_minus = siegert_gradient.firing_rate(mu_v=mu - delta, sigma_v=sigma)
+        for sigma in np.array([0.5, 1, 2, 3, 4]):
+            gains = [gradients.d_rate_d_mu(mu_v=mu, sigma_v=sigma * mV) for mu in mus] * (mV / Hz)
+            plt.plot(mus / mV, gains, label=r'$\sigma_v$=' + f"{sigma} mV")
 
-            dr_numerical = (r_plus - r_minus) / (2 * delta)
+        gains_sol = [gradients.d_rate_d_mu(mu_v=mu, sigma_v=sigma_sol) for mu in mus] * (mV / Hz)
+        plt.axhline(y=gain_target, linestyle='-.', label=f"Target gain {gain_target} Hz/mV")
+        plt.plot(mus / mV, gains_sol, label=r'Sol: $\sigma_v$=' + f"{sigma_sol/mV:.3f} mV, r={p.rate_nmda_block_recomputed:.3f} Hz")
 
-            # convert to Hz/mV (pure float)
-            dr_a = float(dr_analytical * mV / Hz)
-            dr_n = float(dr_numerical * mV / Hz)
-
-            analytical.append(dr_a)
-            numerical.append(dr_n)
-
-            if abs(dr_n) > 1e-12:
-                rel_error.append((dr_a - dr_n) / dr_n)
-            else:
-                rel_error.append(0.0)
-
-        analytical = np.array(analytical)
-        numerical = np.array(numerical)
-        rel_error = np.array(rel_error)
-
-        # --- plotting ---
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(7, 8), sharex=True)
-
-        ax1.plot(mus / mV, analytical, label="Analytical", linewidth=2)
-        ax1.plot(mus / mV, numerical, "--", label=rf"Numerical ($\Delta$={delta})")
-        ax1.set_ylabel("Gain [Hz/mV]")
-        ax1.set_title(r"Derivative check for $\sigma = 3$ mV")
-        ax1.legend()
-        ax1.grid(True, alpha=0.3)
-
-        ax2.plot(mus / mV, 100 * rel_error)
-        ax2.set_ylabel("Relative error [%]")
-        ax2.set_xlabel(r"$\mu$ (mV)")
-        ax2.grid(True, alpha=0.3)
-
+        plt.axvline(x=p.theta / mV - mu_off, linestyle='--', label=rf"$\mu$ = $\theta$ - {mu_off} mV")
+        plt.axvline(x=p.theta / mV, linestyle='--', label=r"$\theta$", color='black')
+        plt.xlabel(r"Membrane potential $\mu$ (mV)")
+        plt.ylabel(r"Gain [Hz/mV]")
+        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         plt.tight_layout()
-        plt.show()
+        show_plots_non_blocking(caller_test_case=self)
 
-        print("Max abs relative error (%):", np.max(np.abs(100 * rel_error)))
 
-    def test_check_derivative_d_I_d_mu(self):
-
-        experiment = palmer_control
-        siegert_gradient = SiegertGradients.for_experiment(experiment)
-
-        sigma = 3 * mV
-        mus = np.linspace(-65, -35, 500) * mV
-        delta = 1e-5 * mV  # 1e-3 mV as requested
-
-        analytical = []
-        numerical = []
-        rel_error = []
-
-        for mu in mus:
-            # --- analytical derivative ---
-            dr_analytical = siegert_gradient.grad_I(
-                mu_v=mu,
-                sigma_v=sigma
-            )[0]
-
-            # --- numerical central difference ---
-            i_plus = I_mu_sigma(mu_v=mu + delta, sigma_v=sigma, V_reset=experiment.neuron_params.V_r, theta=experiment.neuron_params.theta)
-            i_minus = I_mu_sigma(mu_v=mu - delta, sigma_v=sigma, V_reset=experiment.neuron_params.V_r, theta=experiment.neuron_params.theta)
-
-            dr_numerical = (i_plus - i_minus) / (2 * delta)
-
-            # convert to Hz/mV (pure float)
-            dr_a = float(dr_analytical * mV / Hz)
-            dr_n = float(dr_numerical * mV / Hz)
-
-            analytical.append(dr_a)
-            numerical.append(dr_n)
-
-            if abs(dr_n) > 1e-12:
-                rel_error.append((dr_a - dr_n) / dr_n)
-            else:
-                rel_error.append(0.0)
-
-        analytical = np.array(analytical)
-        numerical = np.array(numerical)
-        rel_error = np.array(rel_error)
-
-        # --- plotting ---
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(7, 8), sharex=True)
-
-        ax1.plot(mus / mV, analytical, label="Analytical", linewidth=2)
-        ax1.plot(mus / mV, numerical, "--", label=rf"Numerical ($\Delta$={delta})")
-        ax1.set_ylabel(r"I($\mu, \sigma$)")
-        ax1.set_title(r"Derivative check for $\sigma = 3$ mV")
-        ax1.legend()
-        ax1.grid(True, alpha=0.3)
-
-        ax2.plot(mus / mV, 100 * rel_error)
-        ax2.set_ylabel("Relative error [%]")
-        ax2.set_xlabel(r"$\mu$ (mV)")
-        ax2.grid(True, alpha=0.3)
-
-        plt.tight_layout()
-        plt.show()
-
-        print("Max abs relative error (%):", np.max(np.abs(100 * rel_error)))
 
 
 
@@ -657,27 +549,6 @@ def find_mu_sigma_for_rate_and_gain(experiment, r_target_hz, gain_hz_per_mv, sig
         bounds=([-80, sigma_bounds[0]], [theta_mv + 5, sigma_bounds[1]]),
     )
     return result.x[0], result.x[1]
-
-
-class SolveForGainAndRateScripts(unittest.TestCase):
-    """Runnable script: LM fit for sigma given rate and gain."""
-
-    def test_scripts_lm(self):
-        sigma_sol = find_sigma_with_levenberg_marquardt(palmer_experiment_0_1_Hz_with_NMDA_block, mu=-60 * mV,
-                                                      desired_rate=0.05 * Hz, desired_gain=2.5 * Hz / mV, weight=100)
-        print(sigma_sol)
-        gradient = SiegertGradients.for_experiment(palmer_experiment_0_1_Hz_with_NMDA_block)
-        print(f"rate mu, sigma = {gradient.firing_rate(mu_v = -60 * mV, sigma_v = sigma_sol) / Hz}" )
-        print(f"gain mu, sigma = {gradient.d_rate_d_mu(mu_v = -60 * mV, sigma_v = sigma_sol) * mV / Hz}" )
-        print(f"rate mu+0.1, sigma = {gradient.firing_rate(mu_v = (-60 + 0.1) * mV, sigma_v = sigma_sol) / Hz}" )
-        print(f"rate mu+0.1, sigma+0.1 = {gradient.firing_rate(mu_v = (-60 + 0.1) * mV, sigma_v = sigma_sol + 0.3 * mV) / Hz}" )
-        print(f"rate mu+0.1, sigma+0.1 = {gradient.firing_rate(mu_v = (-60 + 0.1) * mV, sigma_v = sigma_sol + 0.36 * mV) / Hz}" )
-
-        '''
-        rate mu, sigma = 7.9710060010441355
-        gain mu, sigma = 2.495292619925241
-        rate mu+0.1, sigma = 8.288204181365028
-        '''
 
 
 if __name__ == '__main__':

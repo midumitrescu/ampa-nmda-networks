@@ -53,7 +53,3 @@ class SiegertTestCase(unittest.TestCase):
         self.assertEqual(-50 , object_under_test.theta / mV)
 
         self.assertEqual(0, object_under_test.firing_rate(-50.00000001 * mV, sigma_v = 0 * mV))
-
-
-if __name__ == '__main__':
-    unittest.main()

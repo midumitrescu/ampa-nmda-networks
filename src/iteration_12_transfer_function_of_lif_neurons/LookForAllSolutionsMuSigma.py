@@ -12,7 +12,7 @@ from src.Plotting import show_plots_non_blocking
 logger.remove()  # remove default handler
 logger.add(sys.stderr, level="INFO")
 
-from brian2 import mV, Hz, Quantity, volt, mvolt
+from brian2 import mV, Hz, Quantity, volt, mvolt, is_dimensionless
 from joblib import Parallel, delayed
 from scipy.stats import stats
 
@@ -196,17 +196,42 @@ def plot_loss_landscape_with_curve(solver, r_target, mu_range, sigma_range,
 
 class MuToSigmaResult:
 
-    def __init__(self, mus, sigmas, r_target, exp_label=""):
+    def __init__(self, mus, sigmas, r_target, delta_mu=0 * mV, exp_label=""):
         self.mus = mus / mV
         self.sigmas = sigmas / mV
         self.r_target = r_target
         self.exp_label = exp_label
+        self.delta_mu = delta_mu
 
     def mus_to_sigmas(self):
         return zip(self.mus, self.sigmas)
 
     def linear_fit(self):
         return stats.linregress(self.mus, self.sigmas)
+
+    def __str__(self):
+        return f"{self.__class__}, {self.exp_label}, mus = {len(self.mus)}, sigmas = {len(self.sigmas)}"
+
+    def with_delta_mu(self, delta_mu: Quantity):
+        new_result = MuToSigmaResult(mus=self.mus * mV - delta_mu,
+                                                    sigmas=self.sigmas * mV,
+                                                    r_target=self.r_target,
+                                                    exp_label=self.exp_label)
+        new_result.delta_mu = delta_mu
+        return new_result
+
+    def firing_rates_no_units(self, sg: SiegertGradients):
+        return np.array([sg.firing_rate(mu * mV, sigma * mV) / Hz for mu, sigma in zip(self.mus, self.sigmas)])
+
+    def firing_rates(self, sg: SiegertGradients):
+        return self.firing_rates_no_units(sg) * Hz
+
+    def d_rate_d_mus_no_units(self, sg: SiegertGradients):
+        return np.array([sg.d_rate_d_mu(mu * mV, sigma * mV) / Hz * mV for mu, sigma in zip(self.mus, self.sigmas)])
+
+    def d_rate_d_mus(self, sg: SiegertGradients):
+        return self.d_rate_d_mus_no_units(sg) * Hz / mV
+
 
 def newton_fsolve_find_sigma_for_fixed_mu(siegert_gradient: SiegertGradients, mu_v: Quantity, r_target: Quantity):
     return fsolve(func=lambda sigma: [siegert_gradient.firing_rate(mu_v=mu_v, sigma_v=sigma[0] * volt) - r_target],
@@ -238,7 +263,7 @@ def compute_mu_to_sigma_curve_for_experiment(experiment: Experiment, r_target: Q
     return mu_to_sigma_for_constant_rate(lif_config=DiffusionLIFConfig.from_experiment(experiment), r_target=r_target)
 
 
-def mu_to_sigma_for_constant_rate(lif_config: DiffusionLIFConfig, r_target: Quantity):
+def mu_to_sigma_for_constant_rate(lif_config: DiffusionLIFConfig, r_target: Quantity, mu_lims=None):
 
     # scan over mu, keep sigma
     # first, look for max mu i.e. the mu for zero sigma that returns r_target
@@ -252,7 +277,7 @@ def mu_to_sigma_for_constant_rate(lif_config: DiffusionLIFConfig, r_target: Quan
                                                                           precision=1E-10 * Hz, max_iters=100)
 
     # Prepare mu values
-    mu_s = np.linspace(lif_config.theta - 20 * mV, max_mu-0.01*mV, num=1000)
+    mu_s = get_mu_linspace(lif_config=lif_config, mu_lims=mu_lims)
 
     # Run in parallel on all mu values
     sigmas = Parallel(n_jobs=-1, backend="loky")(
@@ -264,18 +289,30 @@ def mu_to_sigma_for_constant_rate(lif_config: DiffusionLIFConfig, r_target: Quan
     logger.debug("sigma[0] = {}. Attention! np.array removes units! This is why I need to re-add units!! Otherwise, bug", sigmas[0])
     return MuToSigmaResult(mus=mu_s, sigmas=sigmas, r_target=r_target, exp_label=lif_config.label)
 
-def mu_to_sigma_for_constant_gain(lif_config: DiffusionLIFConfig, gain: Quantity):
-    mu_s = np.linspace(lif_config.theta - 20 * mV, lif_config.theta - 0.01 * mV, num=1000)
-    sigmas = Parallel(n_jobs=1, backend="loky")(
+def mu_to_sigma_for_constant_gain(lif_config: DiffusionLIFConfig, gain: Quantity, mu_lims= None):
+    mu_s = get_mu_linspace(lif_config, mu_lims)
+    sigmas = Parallel(n_jobs=-1, backend="loky")(
         delayed(compute_sigma_necessary_for_given_rate_derivative_and_mean)(mu, gain, lif_config) for mu in mu_s
     )
     # Convert to numpy array
-    sigmas = np.array(sigmas / mV) * mV
+    sigmas = np.array(sigmas)
+    mask = np.isfinite(sigmas)
+    sigmas = np.array(sigmas[mask]) * volt
+    mu_s = mu_s[mask]
     logger.debug(
         "sigma[0] = {}. Attention! np.array removes units! This is why I need to re-add units!! Otherwise, bug",
         sigmas[0])
     return MuToSigmaResult(mus=mu_s, sigmas=sigmas, r_target=gain, exp_label=lif_config.label)
 
+
+def get_mu_linspace(lif_config, mu_lims):
+    if mu_lims is None:
+        return np.linspace(lif_config.theta - 20 * mV, lif_config.theta - 0.01 * mV, num=1001)
+
+    if is_dimensionless(mu_lims[0]):
+            mu_lims = (mu_lims[0] * mV, mu_lims[1] * mV)
+
+    return np.linspace(mu_lims[0], mu_lims[1], num=1001)
 
 def plot_line_computation_vs_fit(results: list[MuToSigmaResult], caller_test_case=None, descriptor="linear_fit", axs=None, colors = ("orange", "black"),
                                  config: DiffusionLIFConfig = default_diffusion_lif_config):
