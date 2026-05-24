@@ -5,7 +5,7 @@ from loguru import logger
 
 from Plotting import show_plots_non_blocking, prepare_bigger_fonts
 from iteration_12_transfer_function_of_lif_neurons.SiegertGradientDescent import SiegertGradients
-from iteration_12_transfer_function_of_lif_neurons.config import default_diffusion_lif_config
+from iteration_12_transfer_function_of_lif_neurons.config import default_diffusion_lif_config, DiffusionLIFConfig
 
 logger.remove()  # remove default handler
 logger.add(sys.stderr, level="INFO")
@@ -35,24 +35,38 @@ def print_intersection_statistics(siegert_gradients: SiegertGradients, x: float,
     siegert_error_control = np.abs(r_0_control - control_rate)
 
     grad_error = np.abs(dr_over_dmu - gain)
-
+    precision = 4
     logger.info(f'''
         {label}
-        μ = {x} mV, σ = {y} mV.
+        μ = {x: .{precision}f} mV, σ = {y: .{precision}f} mV.
     Rates:
-    MK801:  Desired {mk801_rate / Hz} Hz. Actual r(μ, σ) = {r_0 / Hz} Hz MK801  
-            Estimation error: {siegert_error_mk801 / Hz} Hz. Relative error {siegert_error_mk801 /  mk801_rate}
+    MK801:  Desired {mk801_rate / Hz: .{precision}f} Hz. Actual r(μ, σ) = {r_0 / Hz: .{precision}f} Hz  
+            Estimation error: {siegert_error_mk801 / Hz: .{precision}f} Hz. Relative error {(siegert_error_mk801 /  mk801_rate): .{precision}f}
             
-    Control:    Desired {control_rate / Hz} Hz. Actual r(μ + Δμ, σ) = {r_0_control / Hz} Hz
-                Control Estimation error: {siegert_error_control / Hz} Hz. Relative error {siegert_error_control/ control_rate}
-    Taylor rate: Actual Control {r_0_control / Hz}. Actual r_est(μ + Δμ) = r_0 + dr/dμ * Δμ = {r_est / Hz} Hz
-                 Taylor Error: {(taylor_error / Hz)} Hz. Relative Taylor Err: {taylor_error / r_0_control}
+    Control:    Desired {control_rate / Hz: .{precision}f} Hz. Actual r(μ + Δμ, σ) = {r_0_control / Hz: .{precision}f} Hz
+                Control Estimation error: {siegert_error_control / Hz: .{precision}f} Hz. Relative error {(siegert_error_control/ control_rate): .{precision}f}
+    Taylor rate: Actual Control {r_0_control / Hz: .{precision}f}. Actual r_est(μ + Δμ) = r_0 + dr/dμ * Δμ = {r_est / Hz: .{precision}f} Hz
+                 Taylor Error: {(taylor_error / Hz): .{precision}f} Hz. Relative Taylor Err: {(taylor_error / r_0_control) : .{precision}f}
                  
-    Gain:   Desired {gain / Hz * mV} Hz/mV. Actual: dr/dμ = {dr_over_dmu / Hz * mV} Hz/mV)
-            Gradient Error: {grad_error / Hz * mV} Hz/mV. Relative error {grad_error / gain}3
+    Gain:   Desired {gain / Hz * mV : .{precision}f} Hz/mV. Actual: dr/dμ = {dr_over_dmu / Hz * mV : .{precision}f} Hz/mV)
+            Gradient Error: {grad_error / Hz * mV : .{precision}f} Hz/mV. Relative error {(grad_error / gain): .{precision}f}
         
             ''')
 
+def solve_for_two_rates(mk801_rate: Quantity = 0.05 * Hz, control_rate: Quantity = 0.18 * Hz,
+                        delta_mu: Quantity = 0.7 * mV, lif_config: DiffusionLIFConfig = default_diffusion_lif_config):
+    nmda_block_mu_to_sigma = mu_to_sigma_for_constant_rate(
+        lif_config.with_label("MK-801"), r_target=mk801_rate
+    )
+    control_mu_to_sigma = mu_to_sigma_for_constant_rate(
+        lif_config.with_label("Control"), r_target=control_rate
+    )
+    control_mu_to_sigma_translated = MuToSigmaResult(mus=control_mu_to_sigma.mus * mV - delta_mu,
+                                                     sigmas=control_mu_to_sigma.sigmas * mV,
+                                                     r_target=control_mu_to_sigma.r_target,
+                                                     exp_label=control_mu_to_sigma.exp_label)
+    x_intersect, y_intersect = compute_intersection(nmda_block_mu_to_sigma, control_mu_to_sigma_translated)
+    return nmda_block_mu_to_sigma, control_mu_to_sigma, x_intersect, y_intersect
 
 def compute_intersection(curve_1: MuToSigmaResult, curve_2: MuToSigmaResult, interval=(-59, -41)):
     # Find solution
@@ -160,66 +174,24 @@ def plot_two_rates_and_one_gain(mk_801_rate_computations, control_rate_computati
                     label="Solution for rate and gain", alpha=0.6)
 
     if show_intersect_mk801_control:
-        x, y = x_intersect_rate, y_intersect_rate
-        r_0 = siegert_gradients.firing_rate(x, y)
-        dr_over_dmu = siegert_gradients.d_rate_d_mu(x * mV, y * mV)
-        r_est = r_0 + dr_over_dmu * control_rate_computations.delta_mu
-        taylor_error = np.abs(control_rate_computations.r_target - r_est)
-
         print_intersection_statistics(siegert_gradients,x = x_intersect_rate, y= y_intersect_rate,
                               mk801_rate=mk_801_rate_computations.r_target, control_rate=control_rate_computations.r_target,
                                       delta_mu=control_rate_computations.delta_mu, gain=gain_computations.r_target,
                                       label="Intersection of MK801 rate and Control rate (1 intersection)")
-        logger.info(f'''
-            Intersection of MK801 rate and Control rate
-            First intersection μ = {x} mV, sigma = {y} mV.
-            r(μ, σ) = {r_0 / Hz} Hz, dr/dμ = {dr_over_dmu / Hz * mV} Hz/mV)
-            r(μ + Δμ, σ) = {siegert_gradients.firing_rate(x_intersect_rate + control_rate_computations.delta_mu / mV, y) / Hz} Hz
-            This produces r_est(μ + Δμ) = r_0 + dr/dμ * Δμ = {r_est / Hz} Hz with a Taylor Error of {(taylor_error / Hz)} Hz. Relative Taylor Err: {taylor_error / control_rate_computations.r_target}
-        ''')
 
     if show_intersect_mk801_gain:
-        x, y = x_intersect_mk801_gain, y_intersect_mk801_gain
-        r_0 = siegert_gradients.firing_rate(x, y)
-        dr_over_dmu = siegert_gradients.d_rate_d_mu(x * mV, y * mV)
-        r_est = r_0 + dr_over_dmu * control_rate_computations.delta_mu
-        taylor_error = np.abs(control_rate_computations.r_target - r_est)
-
         print_intersection_statistics(siegert_gradients, x=x_intersect_mk801_gain, y=y_intersect_mk801_gain,
                                       mk801_rate=mk_801_rate_computations.r_target,
                                       control_rate=control_rate_computations.r_target,
                                       delta_mu=control_rate_computations.delta_mu, gain=gain_computations.r_target,
                                       label="Intersection of MK801 rate and gain (1 intersection)")
-
-        logger.info(f'''
-            Intersection of MK801 rate and gain
-            First intersection μ = {x} mV, sigma = {y} mV.
-            r(μ, σ) = {r_0 / Hz} Hz, dr/dμ = {dr_over_dmu / Hz * mV} Hz/mV)
-            r(μ + Δμ, σ) = {siegert_gradients.firing_rate(x + control_rate_computations.delta_mu / mV, y) / Hz} Hz
-            This produces r_est(μ + Δμ) = r_0 + dr/dμ * Δμ = {r_est / Hz} Hz with a Taylor Error of {(taylor_error / Hz)} Hz. Relative Taylor Err: {taylor_error / control_rate_computations.r_target}
-                ''')
-
     if show_intersect_control_gain:
         for index, (x, y) in enumerate(intersects_control_gain):
-            r_0 = siegert_gradients.firing_rate(x, y)
-            r_0_control = siegert_gradients.firing_rate(x + control_rate_computations.delta_mu / mV, y)
-            dr_over_dmu = siegert_gradients.d_rate_d_mu(x * mV, y * mV)
-            r_est = r_0 + dr_over_dmu * control_rate_computations.delta_mu
-            taylor_error = np.abs(r_0_control - r_est)
-
-            print_intersection_statistics(siegert_gradients, x=x_intersect_mk801_gain, y=y_intersect_mk801_gain,
+            print_intersection_statistics(siegert_gradients, x=x, y=y,
                                           mk801_rate=mk_801_rate_computations.r_target,
                                           control_rate=control_rate_computations.r_target,
                                           delta_mu=control_rate_computations.delta_mu, gain=gain_computations.r_target,
                                           label=f"Intersection of Control rate and gain ({index+1}) intersection")
-
-            logger.info(f'''
-                Intersection of Control rate and gain
-                Intersection {index + 1} μ = {x} mV, sigma = {y} mV.
-                r(μ, σ) = {r_0 / Hz} Hz, dr/dμ = {dr_over_dmu / Hz * mV} Hz/mV)
-                r(μ + Δμ, σ) = {r_0_control / Hz} Hz
-                This produces r_est(μ + Δμ) = r_0 + dr/dμ * Δμ = {r_est / Hz} Hz with a Taylor Error of {(taylor_error / Hz)} Hz. Relative Taylor Err: {taylor_error / control_rate_computations.r_target}
-                    ''')
 
     ax1.set_title(
         r"$r(\mu, \sigma) =$" f"{mk_801_rate_computations.r_target / Hz : .2f} Hz \n"
@@ -276,49 +248,38 @@ def plot_two_rates_and_one_gain(mk_801_rate_computations, control_rate_computati
 
 class SolveByGraphicalSolutionScripts(unittest.TestCase):
 
-    def test_solve_graphical_for_two_rates(self):
+    def test_solve_graphical_for_two_rates(self, lif_config = default_diffusion_lif_config, rates = (0.05 * Hz, 0.18 * Hz)):
         delta_mu = 0.7 * mV
 
-        nmda_block_mu_to_sigma = mu_to_sigma_for_constant_rate(
-            default_diffusion_lif_config.with_label("MK-801"), r_target=0.05 * Hz
-        )
-        control_mu_to_sigma = mu_to_sigma_for_constant_rate(
-            default_diffusion_lif_config.with_label("Control"), r_target=0.18 * Hz
-        )
+        nmda_block_mu_to_sigma, control_mu_to_sigma, mu_sol, sigma_sol = solve_for_two_rates(delta_mu=delta_mu, lif_config=lif_config,
+                                                                                             mk801_rate=rates[0], control_rate=rates[1])
 
-        control_mu_to_sigma_translated = MuToSigmaResult(mus=control_mu_to_sigma.mus * mV - delta_mu,
-                                                         sigmas=control_mu_to_sigma.sigmas * mV,
-                                                         r_target=control_mu_to_sigma.r_target,
-                                                         exp_label=control_mu_to_sigma.exp_label)
+        print("mu solution ", mu_sol)
+        print("sigma solution ", sigma_sol)
 
-        x_intersect, y_intersect = compute_intersection(nmda_block_mu_to_sigma, control_mu_to_sigma_translated)
-
-        print("mu solution ", x_intersect)
-        print("sigma solution ", y_intersect)
-
-        sg = SiegertGradients.default()
+        sg = SiegertGradients.for_lif_config(lif_config=lif_config)
         print(
-            f"First rate: {sg.firing_rate(x_intersect, y_intersect)}. Second rate {sg.firing_rate(x_intersect + delta_mu / mV, y_intersect)}")
-        print("Derivative at sol: ", sg.d_rate_d_mu(x_intersect * mV, y_intersect * mV) / Hz * mV,
+            f"First rate: {sg.firing_rate(mu_sol, sigma_sol)}. Second rate {sg.firing_rate(mu_sol + delta_mu / mV, sigma_sol)}")
+        print("Derivative at sol: ", sg.d_rate_d_mu(mu_sol * mV, sigma_sol * mV) / Hz * mV,
               ". Derivative translated ",
-              sg.d_rate_d_mu((x_intersect + delta_mu / mV) * mV, y_intersect * mV) / Hz * mV)
+              sg.d_rate_d_mu((mu_sol + delta_mu / mV) * mV, sigma_sol * mV) / Hz * mV)
         # Solution found
         d_rate = control_mu_to_sigma.r_target - nmda_block_mu_to_sigma.r_target
         desired_gain = d_rate / delta_mu / Hz * mV
-        actual_gain = sg.d_rate_d_mu(x_intersect * mV, y_intersect * mV) / Hz * mV
+        actual_gain = sg.d_rate_d_mu(mu_sol * mV, sigma_sol * mV) / Hz * mV
         print("Desired gain: ", desired_gain)
         print("Actual gain: ", actual_gain)
         print("Ratio: ", desired_gain / actual_gain)
 
-        print("RAW gain: ", sg.d_rate_d_mu_primitive(x_intersect * mV, y_intersect * mV) / Hz * mV)
+        print("RAW gain: ", sg.d_rate_d_mu_primitive(mu_sol * mV, sigma_sol * mV) / Hz * mV)
 
         print("Taylor expansion: ",
-              nmda_block_mu_to_sigma.r_target + delta_mu * sg.d_rate_d_mu(x_intersect * mV, y_intersect * mV))
+              nmda_block_mu_to_sigma.r_target + delta_mu * sg.d_rate_d_mu(mu_sol * mV, sigma_sol * mV))
 
         error_nmda_block = np.abs(
-            (nmda_block_mu_to_sigma.r_target - sg.firing_rate(x_intersect * mV, y_intersect * mV)) / Hz)
+            (nmda_block_mu_to_sigma.r_target - sg.firing_rate(mu_sol * mV, sigma_sol * mV)) / Hz)
         error_control = np.abs(
-            (control_mu_to_sigma.r_target - sg.firing_rate(x_intersect * mV + delta_mu, y_intersect * mV)) / Hz)
+            (control_mu_to_sigma.r_target - sg.firing_rate(mu_sol * mV + delta_mu, sigma_sol * mV)) / Hz)
 
         prepare_bigger_fonts()
         plt.figure(figsize=(9, 8))
@@ -331,20 +292,20 @@ class SolveByGraphicalSolutionScripts(unittest.TestCase):
                  lw=1.7)
 
         dot_size = 80
-        plt.scatter(x_intersect, y_intersect, color="red", s=dot_size, zorder=3,
-                    label=f"Solution {{{x_intersect: .2f}, {y_intersect: .2f}}} mV", alpha=0.6)
+        plt.scatter(mu_sol, sigma_sol, color="red", s=dot_size, zorder=3,
+                    label=f"Solution {{{mu_sol: .3f}, {sigma_sol: .3f}}} mV", alpha=0.6)
 
-        plt.vlines(x_intersect, ymin=0, ymax=y_intersect * 1.3, colors='b', linestyles='--', lw=0.9)
-        plt.hlines(y_intersect,
+        plt.vlines(mu_sol, ymin=0, ymax=sigma_sol * 1.3, colors='b', linestyles='--', lw=0.9)
+        plt.hlines(sigma_sol,
                    xmin=np.min((nmda_block_mu_to_sigma.mus[0], control_mu_to_sigma.mus[0] - delta_mu / mV)),
-                   xmax=x_intersect + 2, colors='b', linestyles='--', lw=0.9)
+                   xmax=mu_sol + 2, colors='b', linestyles='--', lw=0.9)
 
         plt.xlabel(r"$\mu$ [mV]")
         plt.ylabel(r"$\sigma$ [mV]")
         plt.title(r"{($\mu$, $\sigma$) | $r(\mu, \sigma) = $"" constant} \n"
                   "predicted by first time passage formula \n"
-                  r"$r(\mu_{\mathrm{sol}}, \sigma_{\mathrm{sol}}) =$" f"{sg.firing_rate(x_intersect * mV, y_intersect * mV) / Hz : .3f} +{error_nmda_block: .0E} Hz, "
-                  r"$r(\mu_{\mathrm{sol}} + \Delta \mu, \sigma_{\mathrm{sol}}) =$" f"{sg.firing_rate(x_intersect * mV + delta_mu, y_intersect * mV) / Hz : .3f} +{error_control: .0E} Hz")
+                  r"$r(\mu_{\mathrm{sol}}, \sigma_{\mathrm{sol}}) =$" f"{sg.firing_rate(mu_sol * mV, sigma_sol * mV) / Hz : .3f} +{error_nmda_block: .0E} Hz, "
+                  r"$r(\mu_{\mathrm{sol}} + \Delta \mu, \sigma_{\mathrm{sol}}) =$" f"{sg.firing_rate(mu_sol * mV + delta_mu, sigma_sol * mV) / Hz : .3f} +{error_control: .0E} Hz")
 
         plt.legend()
         show_plots_non_blocking(caller_test_case=self)
@@ -383,6 +344,78 @@ class SolveByGraphicalSolutionScripts(unittest.TestCase):
                                     plot_label=r"for $\frac{\Delta r}{\Delta \mu}$ based on experimental data",
                                     caller_test_case=self)
 
+    def test_show_influence_of_v_r_on_mean_sigma_scan_VRs(self):
+
+        V_Rs = np.linspace(-80, -41, num=1000)
+
+        mus_s = [None] * len(V_Rs)
+        sigmas_s = [None] * len(V_Rs)
+        for index, V_R in enumerate(V_Rs):
+
+            config = default_diffusion_lif_config.with_property(DiffusionLIFConfig.KEY_V_R, V_R)
+
+            _, _, mu, sigma = solve_for_two_rates(lif_config=config)
+            mus_s[index] = mu
+            sigmas_s[index] = sigma
+
+        prepare_bigger_fonts()
+
+        fig, (ax1, ax2) = plt.subplots(1, 2, sharex=True)
+
+        ax1.plot(V_Rs, mus_s)
+        ax1.set_title("$\mu$")
+
+        ax2.plot(V_Rs, sigmas_s)
+        ax2.set_title("$\sigma$")
+
+        fig.suptitle(r"Scan over $V_R")
+        show_plots_non_blocking(self)
+
+
+    def test_show_influence_of_v_r_on_mean_sigma_scan_tau_m(self):
+
+        tau_ms = np.linspace(1, 100, num=101)
+
+        mus_s = [None] * len(tau_ms)
+        sigmas_s = [None] * len(tau_ms)
+        for index, tau_m in enumerate(tau_ms):
+
+            config = default_diffusion_lif_config.with_property(DiffusionLIFConfig.KEY_TAU_MEMBRANE, tau_m)
+
+            _, _, mu, sigma = solve_for_two_rates(lif_config=config)
+            mus_s[index] = mu
+            sigmas_s[index] = sigma
+
+        prepare_bigger_fonts()
+
+        fig, (ax1, ax2) = plt.subplots(1, 2, sharex=True, figsize=(8, 6))
+
+        ax1.plot(tau_ms, mus_s)
+        ax1.set_title("$\mu$")
+
+        ax2.plot(tau_ms, sigmas_s)
+        ax2.set_title("$\sigma$")
+
+        ax1.set_xlabel(r"$\tau_m$ [ms]")
+        ax1.set_ylabel("$\mu$ [mV]")
+
+        ax2.set_xlabel(r"$\tau_m$ [ms]")
+        ax2.set_ylabel("$\sigma$ [mV]")
+
+        ax1.axvline(x=10, label="Default model \n 10 ms", color='b', linestyle='--',)
+        ax2.axvline(x=10, label="Default model \n 10 ms", color='b', linestyle='--',)
+
+        #ax1.legend()
+        #ax2.legend()
+        fig.legend()
+
+        fig.tight_layout()
+
+        fig.suptitle(r"Scan over $\tau_m$")
+
+        show_plots_non_blocking(self)
+
+
     def test_check_components_of_binary_search_1(self):
         lif_config_mk801 = default_diffusion_lif_config.with_label("MK-801")
 
@@ -395,3 +428,8 @@ class SolveByGraphicalSolutionScripts(unittest.TestCase):
         compute_sigma_necessary_for_given_rate_derivative_and_mean(mu=-50 * mvolt,
                                                                    target_gain=target_gain,
                                                                    lif_config=lif_config_mk801)
+
+    def test_fit_new_rates(self):
+        rate_mk801_real = 0.05 * Hz / 0.59
+        rate_control_real = 0.18 * Hz / 0.66
+        self.test_solve_graphical_for_two_rates(rates = [rate_mk801_real, rate_control_real])

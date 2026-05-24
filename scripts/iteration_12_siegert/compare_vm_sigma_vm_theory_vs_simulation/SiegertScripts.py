@@ -89,15 +89,15 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
         plt.show()
 
     def test_plot_only_LIF_rate_theoretical_computation(self):
-        df = self.compute_theoretical_mean_sigma_and_rate(2500, base=palmer_control)
+        df = compute_theoretical_mean_sigma_and_rate(2500, base=palmer_control)
         df = with_elements_between(df, 1700, 2200)
-        self.plot_for_N(df=df, base=palmer_control, plot_simulation=False)
+        plot_theory_vs_simulation(base=palmer_control, df_theory=df)
 
 
     def test_plot_membrane_mean_and_std_with_firing(self):
         experiment = palmer_control.with_property("panel", "Firing rate predicted by Siegert's formula vs brian2 simulation")
         for max_n in [500, 2000, 2500, 3000, 4000]:
-            df = self.compute_theoretical_mean_sigma_and_rate(max_n, base=experiment)
+            df = compute_theoretical_mean_sigma_and_rate(max_n, base=experiment)
             file_control_simulation = "../simulations_2/Control_N_10000_T_60000.csv"
             file_nmda_block_simulation = "../simulations_2/NMDA_block_N_10000_T_60000.csv"
             df_control_simulation = load_df_without_metadata(file_control_simulation)
@@ -106,10 +106,6 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
             df_nmda_block_simulation = without_elements_after_n_max(df_nmda_block_simulation, max_n=max_n)
 
             plot_theory_vs_simulation(base=experiment, df_theory = df, df_control_simulation=df_control_simulation, df_nmda_block_simulation=df_nmda_block_simulation)
-
-        df = with_elements_between(df, 1700, 2200)
-        df_control_simulation = with_elements_between(df, 1700, 2200)
-        df_nmda_block_simulation = with_elements_between(df, 1700, 2200)
 
 
     def test_plot_membrane_mean_and_std_no_firing(self):
@@ -122,7 +118,7 @@ class ScriptsNMDAWithWangNumbers(unittest.TestCase):
         df_control_simulation = load_df_without_metadata(file_control_simulation)
         df_nmda_block_simulation = load_df_without_metadata(file_nmda_block_simulation)
         for max_n in [500, 2000, 2500, 3000, 4000, 6000, 10_000]:
-            df = self.compute_theoretical_mean_sigma_and_rate(max_n, base=experiment)
+            df = compute_theoretical_mean_sigma_and_rate(max_n, base=experiment)
             df_control_snippet = without_elements_after_n_max(df_control_simulation, max_n=max_n)
             df_nmda_block_snippet = without_elements_after_n_max(df_nmda_block_simulation, max_n=max_n)
 

@@ -19,6 +19,8 @@ dependencies = [
     "brian2",
     "opencv-python",
 
+    "h5py",
+
     "tdqm",
     "loguru",
     "pytest",

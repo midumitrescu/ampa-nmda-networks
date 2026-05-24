@@ -3,18 +3,21 @@ from itertools import chain
 
 import matplotlib.pyplot as plt
 import numpy as np
-from brian2 import mV, Hz
+from brian2 import mV, Hz, Quantity
 
 from Plotting import show_plots_non_blocking, prepare_bigger_fonts
 from iteration_12_siegert.CorrelationSimulations import label_for_float
-from iteration_12_siegert.GraphicalSolutions import compute_intersection, plot_two_rates_and_one_gain
+from iteration_12_siegert.GraphicalSolutions import compute_intersection, plot_two_rates_and_one_gain, \
+    SolveByGraphicalSolutionScripts
 from iteration_12_transfer_function_of_lif_neurons.LookForAllSolutionsMuSigma import \
-    mu_to_sigma_for_constant_rate, plot_line_computation_vs_fit, mu_to_sigma_for_constant_gain
+    mu_to_sigma_for_constant_rate, plot_line_computation_vs_fit, mu_to_sigma_for_constant_gain, \
+    sigma_to_mu_for_constant_rate
 from iteration_12_transfer_function_of_lif_neurons.SiegerGradientDescentTestCases import \
     compute_LIF_curves_for_mus_sigmas
 from iteration_12_transfer_function_of_lif_neurons.SiegertGradientDescent import SiegertGradients, \
     newton_fsolve_find_mu_for_fixed_sigma, I_mu_sigma, integration_limits
-from iteration_12_transfer_function_of_lif_neurons.config import default_diffusion_lif_config, DiffusionLIFConfig
+from iteration_12_transfer_function_of_lif_neurons.config import default_diffusion_lif_config, DiffusionLIFConfig, \
+    LifParamFittingProblem
 
 rate_palmer_control = 0.18 * Hz
 rate_palmer_mk_801 = 0.05 * Hz
@@ -229,13 +232,12 @@ class Chapter2Figures(unittest.TestCase):
         fig.tight_layout()
         show_plots_non_blocking(caller_test_case=self)
 
-    def test_plot_line_computation_vs_fit(self):
-        lif_configs = [default_diffusion_lif_config.with_label("MK-801"),
-                       default_diffusion_lif_config.with_label("Control"),
-                       default_diffusion_lif_config.with_label("Example high rate")]
-        target_rates = [0.05 * Hz, 0.18 * Hz, 25 * Hz]
-        results = [mu_to_sigma_for_constant_rate(config, r_target=target_rate) for config, target_rate in
-                   zip(lif_configs, target_rates)]
+    def test_plot_line_computation_vs_fit(self, fitting_problems: list[LifParamFittingProblem] =
+    (default_diffusion_lif_config.fitting(r_target=0.05 * Hz, label="MK801"),
+     default_diffusion_lif_config.fitting(r_target=0.18 * Hz, label="Control"),
+     default_diffusion_lif_config.fitting(r_target=25 * Hz, label="Example high rate"))):
+
+        results = [mu_to_sigma_for_constant_rate(fitting_problem.lif_config, r_target=fitting_problem.r_target) for fitting_problem in fitting_problems]
         plot_line_computation_vs_fit(results,
                                      colors=("orange", "black", "blue"),
                                      caller_test_case=self,
@@ -373,14 +375,14 @@ class Chapter2Figures(unittest.TestCase):
         fig.tight_layout()
         show_plots_non_blocking(caller_test_case=self)
 
-    def test_show_linear_fit_and_compute_mu_sigma(self):
+    def test_show_linear_fit_and_compute_mu_sigma(self, lif_config:DiffusionLIFConfig = default_diffusion_lif_config, rates=(0.05 * Hz, 0.18 * Hz)):
 
-        for delta_mu in [0.4, 0.7]:
-            lif_config = default_diffusion_lif_config
+        #for delta_mu in [0.4, 0.7]:
+        for delta_mu in [0.7]:
 
             lif_configs = [lif_config.with_label("MK-801"),
                            lif_config.with_label("Control")]
-            target_rates = [0.05 * Hz, 0.18 * Hz]
+            target_rates = rates
             results = [mu_to_sigma_for_constant_rate(config, r_target=target_rate) for config, target_rate in
                        zip(lif_configs, target_rates)]
             nmda_block_mu_to_sigma = results[0]
@@ -450,7 +452,7 @@ class Chapter2Figures(unittest.TestCase):
             ax.set_ylabel(r"$\sigma$ [mV]")
 
             ax.legend()
-            fig.suptitle(f"Found solutions for {r"$r(\mu_{\mathrm{MK-801}}, \sigma) =$ 0.05 Hz"}, {r"$r(\mu_{\mathrm{Control}}, \sigma) =$ 0.18 Hz"}\n"
+            fig.suptitle(f"Found solutions for {r"$r(\mu_{\mathrm{MK-801}}, \sigma) =$ "} {rate_mk801 / Hz: .2f} {" Hz"}, {r"$r(\mu_{\mathrm{Control}}, \sigma) =$"}{rate_control/Hz: .2f}{ " Hz"}\n"
                          r"$\mu_{\mathrm{MK-801}}$="f"{mu_v_mk801 :.3f} mV, "r"$\mu_{\mathrm{Control}}$="f"{mu_v_control :.3f} mV, "r"$\Delta \mu$="f"{mu_v_control - mu_v_mk801 : .3f} mV, "r"$\sigma$="f"{sigma_sol:.3f} mV \n"
                          r"$\theta - \mu_{\mathrm{Control}}$="f"{default_diffusion_lif_config.theta / mV - mu_v_control: .3f} mV")
 
@@ -462,6 +464,52 @@ class Chapter2Figures(unittest.TestCase):
 
             print(f"Empirical vs analytical: MK801: {b_mk801 - m_mk801 * lif_config.theta / mV}")
             print(f"Empirical vs analytical: Control: {b_control - m_control * lif_config.theta / mV}")
+
+
+    def test_show_mu_to_sigma_curves_for_constant_rate_and_fit_mu_sigma(self, lif_config:DiffusionLIFConfig = default_diffusion_lif_config, rates=(0.05 * Hz, 0.18 * Hz), delta_mu: Quantity = 0.7 * mV):
+
+        lif_configs = [lif_config.with_label("MK-801"),
+                       lif_config.with_label("Control")]
+        target_rates = rates
+        results = [sigma_to_mu_for_constant_rate(config, r_target=target_rate) for config, target_rate in
+                   zip(lif_configs, target_rates)]
+        mk801_mu_to_sigma = results[0]
+        control_mu_to_sigma = results[1]
+
+
+        prepare_bigger_fonts()
+        fig, (ax_mu_to_sigma, ax_delta_mu) = plt.subplots(1, 2, figsize=(8, 5))
+
+        ax_mu_to_sigma.plot(mk801_mu_to_sigma.mus, mk801_mu_to_sigma.sigmas, color="orange", label="MK-801")
+        ax_mu_to_sigma.plot(control_mu_to_sigma.mus, control_mu_to_sigma.sigmas, color="black", label="Control")
+
+        delta_mus = control_mu_to_sigma.mus - mk801_mu_to_sigma.mus
+        ax_delta_mu.plot(control_mu_to_sigma.sigmas,  delta_mus, label=r"$\Delta \mu(\sigma)$")
+
+        ax_delta_mu.axvline(
+            x=0.7,
+            color="blue",
+            linestyle="--",
+            linewidth=1.5,
+            label=r"$\Delta (\mu)$ = 0.7 mV"
+        )
+
+        ax_mu_to_sigma.set_xlabel(r"$\mu [mV]")
+        ax_mu_to_sigma.set_xlabel(r"$\sigma$ [mV]")
+
+        ax_mu_to_sigma.set_title(r"Isorate curves $r_0(\mu, \sigma)$=constant")
+        ax_delta_mu.set_title(r"$\Delta \mu(\sigma) = \mu_{\text{Control}}(\sigma) - \mu_{\text{MK801}}(\sigma)$")
+
+        fig.tight_layout()
+        fig.legend()
+
+        show_plots_non_blocking()
+
+
+    def test_show_linear_fit_and_compute_mu_sigma_updated_rates(self):
+        rate_mk801_real = 0.05 * Hz / 0.59
+        rate_control_real = 0.18 * Hz / 0.66
+        self.test_show_linear_fit_and_compute_mu_sigma(rates=[rate_mk801_real, rate_control_real])
 
     def test_solve_graphically_for_rate_and_gain_coming_from_previous_solution(self):
         gain = 0.09699832465740052 * Hz / mV
@@ -515,9 +563,8 @@ class Chapter2Figures(unittest.TestCase):
 
         gain = 0.09699832465740052 * Hz / mV
 
-        diffusion_lif_config = DiffusionLIFConfig(params={DiffusionLIFConfig.KEY_V_R: -45})
+        diffusion_lif_config = DiffusionLIFConfig(params={DiffusionLIFConfig.KEY_V_R: -55})
         siegert_gradients = SiegertGradients.for_lif_config(diffusion_lif_config)
-        siegert_gradients = SiegertGradients.default()
 
         gain_computations = mu_to_sigma_for_constant_gain(
             diffusion_lif_config.with_label(r"$\frac{\Delta r}{ \Delta \mu}$ from numerical computation"),
@@ -537,4 +584,7 @@ class Chapter2Figures(unittest.TestCase):
         plot_two_rates_and_one_gain(mk_801_rate_computations, control_rate_computations, gain_computations,
                                     siegert_gradients,
                                     plot_label=r"for $\frac{\Delta r}{\Delta \mu}$ based on numerical fitting", caller_test_case=self)
+
+    def test_graphically(self):
+        SolveByGraphicalSolutionScripts().test_solve_graphical_for_two_rates()
 

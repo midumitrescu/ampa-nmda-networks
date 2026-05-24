@@ -1,4 +1,4 @@
-from brian2 import mV, ms
+from brian2 import mV, ms, Quantity
 
 from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States import NeuronModelParams, Experiment
 
@@ -47,5 +47,15 @@ class DiffusionLIFConfig:
         new_params[key] = value
         return DiffusionLIFConfig(new_params)
 
+    def fitting(self, r_target: Quantity, label: str):
+        return LifParamFittingProblem(r_target=r_target, lif_config=self.with_label(label))
+
 
 default_diffusion_lif_config = DiffusionLIFConfig(params={})
+
+class LifParamFittingProblem:
+
+    def __init__(self, r_target: Quantity, lif_config: DiffusionLIFConfig = default_diffusion_lif_config):
+        self.lif_config = lif_config
+        self.r_target = r_target
+        self.label = lif_config.label

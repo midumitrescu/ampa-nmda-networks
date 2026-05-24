@@ -15,8 +15,8 @@ from iteration_7_one_compartment_step_input.Configuration_with_Up_Down_States im
 
 
 def plot_theory_vs_simulation(base: Experiment, df_theory: pd.DataFrame,
-                              df_control_simulation: pd.DataFrame,
-                              df_nmda_block_simulation: pd.DataFrame):
+                              df_control_simulation: pd.DataFrame = None,
+                              df_nmda_block_simulation: pd.DataFrame = None):
     prepare_bigger_fonts()
 
     fig, axes = plt.subplots(
@@ -108,15 +108,15 @@ def plot_theory_vs_simulation_without_simulation_in_lower_graphs(base: Experimen
 
     alpha = 0.6
     if df_control_simulation is not None:
-        axes[0, 0].plot(df_control_simulation.N, df_control_simulation.v_mean, label="Simulation, With NMDA",
+        axes[0, 0].plot(df_control_simulation.n, df_control_simulation.v_mean, label="Simulation, With NMDA",
                         linestyle="--", alpha=alpha)
-        axes[0, 1].plot(df_control_simulation.N, df_control_simulation.v_var, label="Simulation, Variance, with NMDA",
+        axes[0, 1].plot(df_control_simulation.n, df_control_simulation.v_var, label="Simulation, Variance, with NMDA",
                         linestyle="--", alpha=alpha)
 
     if df_nmda_block_simulation is not None:
-        axes[0, 0].plot(df_nmda_block_simulation.N, df_nmda_block_simulation.v_mean, label="Simulation, No NMDA",
+        axes[0, 0].plot(df_nmda_block_simulation.n, df_nmda_block_simulation.v_mean, label="Simulation, No NMDA",
                         linestyle="--", alpha=alpha)
-        axes[0, 1].plot(df_nmda_block_simulation.N, df_nmda_block_simulation.v_var,
+        axes[0, 1].plot(df_nmda_block_simulation.n, df_nmda_block_simulation.v_var,
                         label="Simulation, Variance, no NMDA", linestyle="--", alpha=alpha)
 
     # Mean membrane voltage

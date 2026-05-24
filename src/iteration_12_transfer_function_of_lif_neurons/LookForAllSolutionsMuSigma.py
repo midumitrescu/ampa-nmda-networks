@@ -1,8 +1,7 @@
 import sys
 
 from loguru import logger
-from scipy.optimize import fsolve
-import numpy as np
+from scipy.optimize import fsolve, root_scalar
 
 from Plotting import prepare_bigger_fonts
 from iteration_12_transfer_function_of_lif_neurons.config import DiffusionLIFConfig, default_diffusion_lif_config
@@ -12,18 +11,27 @@ from src.Plotting import show_plots_non_blocking
 logger.remove()  # remove default handler
 logger.add(sys.stderr, level="INFO")
 
-from brian2 import mV, Hz, Quantity, volt, mvolt, is_dimensionless
+from brian2 import mV, Hz, Quantity, volt, is_dimensionless
 from joblib import Parallel, delayed
+from scipy.optimize import newton
 from scipy.stats import stats
 
 from BinarySeach import binary_search_for_target_value_precission_in_result_space
 from iteration_12_transfer_function_of_lif_neurons.SiegertGradientDescent import rate_LIF_whitenoise, SiegertGradients, newton_fsolve_find_mu_for_fixed_sigma
 
 
-def compute_sigma_necessary_for_given_rate_and_mean(mu, r_target, lif_config: DiffusionLIFConfig):
+def compute_sigma_necessary_for_given_rate_and_mean(mu, r_target, lif_config: DiffusionLIFConfig, sigma_limits: list[Quantity] = (0 * mV, 20 * mV)):
     """
     Find sigma for a given mu using binary search to hit r_target.
     """
+    if is_dimensionless(mu):
+        mu = mu * mV
+    if is_dimensionless(r_target):
+        r_target = r_target * Hz
+
+    if is_dimensionless(sigma_limits[0]):
+        sigma_limits = [sigma_limits[0] * mV, sigma_limits[1] * mV]
+
     look_for_sigma = lambda s: rate_LIF_whitenoise(
         mu,
         tau_membrane=lif_config.tau_m,
@@ -34,8 +42,8 @@ def compute_sigma_necessary_for_given_rate_and_mean(mu, r_target, lif_config: Di
     )
     try:
         sigma, _ = binary_search_for_target_value_precission_in_result_space(
-            lower_value=0 * mV,
-            upper_value=20 * mV,
+            lower_value=sigma_limits[0],
+            upper_value=sigma_limits[1],
             func=look_for_sigma,
             target_result=r_target,
             precision=1e-10 * Hz,
@@ -45,6 +53,78 @@ def compute_sigma_necessary_for_given_rate_and_mean(mu, r_target, lif_config: Di
     except ValueError as e:
         print(f"mu={mu}: {e}")
         return np.nan  # fallback if binary search fails
+
+def compute_mean_necessary_for_given_rate_and_sigma(sigma, r_target, lif_config: DiffusionLIFConfig):
+    """
+    Find sigma for a given mu using binary search to hit r_target.
+    """
+    if is_dimensionless(sigma):
+        sigma = sigma * mV
+    if is_dimensionless(r_target):
+        r_target = r_target * Hz
+
+    mu_max = SiegertGradients.for_lif_config(lif_config).mu_det(rate=r_target)
+
+    rate_for_given_sigma = lambda mu: rate_LIF_whitenoise(
+        mu,
+        tau_membrane=lif_config.tau_m,
+        sigma_v=sigma,
+        theta=lif_config.theta,
+        V_reset=lif_config.V_r,
+        tau_ref=lif_config.tau_rp
+    )
+    try:
+        mu, _ = binary_search_for_target_value_precission_in_result_space(
+            lower_value=-80 * mV,
+            upper_value=mu_max,
+            func=rate_for_given_sigma,
+            target_result=r_target,
+            precision=1e-10 * Hz,
+            max_iters=100
+        )
+        return mu
+    except ValueError as e:
+        logger.error("Error while binary searching mu for sigma={}", sigma, e)
+        return np.nan  # fallback if binary search fails
+
+
+def compute_sigma_necessary_for_given_rate_and_mean_newton(mu: Quantity, r_target: Quantity, lif_config: DiffusionLIFConfig = default_diffusion_lif_config, sigma_init: Quantity = 5 * mV,
+                                                           sigma_limits=(1E-6 * mV, 20  * mV)):
+    if is_dimensionless(mu):
+        mu = mu * mV
+
+    if is_dimensionless(r_target):
+        r_target = r_target * Hz
+
+    def target_rate_eq(sigma_value):
+        if is_dimensionless(sigma_value):
+            sigma_value = sigma_value * mV
+        sigma_q = sigma_value
+
+        r = rate_LIF_whitenoise(
+            mu,
+            tau_membrane=lif_config.tau_m,
+            sigma_v=sigma_q,
+            theta=lif_config.theta,
+            V_reset=lif_config.V_r,
+            tau_ref=lif_config.tau_rp
+        )
+        return (r - r_target) / Hz
+
+    result = root_scalar(
+    target_rate_eq,
+    bracket=[
+        sigma_limits[0] / mV,
+        sigma_limits[1] / mV
+    ],
+    method="brentq",
+    xtol=1e-15
+    )
+
+    if not result.converged:
+        return np.nan
+
+    return result.root * mV
 
 def compute_sigma_necessary_for_given_rate_derivative_and_mean(mu, target_gain, lif_config: DiffusionLIFConfig):
     """
@@ -263,7 +343,40 @@ def compute_mu_to_sigma_curve_for_experiment(experiment: Experiment, r_target: Q
     return mu_to_sigma_for_constant_rate(lif_config=DiffusionLIFConfig.from_experiment(experiment), r_target=r_target)
 
 
+def sigma_to_mu_for_constant_rate(lif_config: DiffusionLIFConfig, r_target: Quantity, mu_lims=None):
+
+    if is_dimensionless(r_target):
+        r_target = r_target * Hz
+    '''
+    # scan over mu, keep sigma
+    # first, look for max mu i.e. the mu for zero sigma that returns r_target
+    look_for_mu = lambda mu: rate_LIF_whitenoise(mu,
+                                                 tau_membrane=lif_config.tau_m,
+                                                 sigma_v=0 * mV, theta=lif_config.theta,
+                                                 V_reset=lif_config.V_r,
+                                                 tau_ref=lif_config.tau_rp)
+    _, max_mu = binary_search_for_target_value_precission_in_result_space(-55 * mV, upper_value=-35 * mV,
+                                                                          func=look_for_mu, target_result=r_target,
+                                                                          precision=1E-10 * Hz, max_iters=100)
+    '''
+    # Prepare mu values
+    sigma_s = np.linspace(0.1, 6, num=100) * mV
+
+    # Run in parallel on all mu values
+    mu_s = Parallel(n_jobs=-1, backend="loky")(
+        delayed(compute_mean_necessary_for_given_rate_and_sigma)(sigma, r_target, lif_config) for sigma in sigma_s
+    )
+    # Convert to numpy array
+    logger.debug("mu[0] = {}", mu_s[0])
+    mu_s = np.array(mu_s) * volt
+    logger.debug("mu[0] = {}. Attention! np.array removes units! This is why I need to re-add units!! Otherwise, bug", mu_s[0])
+    return MuToSigmaResult(mus=mu_s, sigmas=sigma_s, r_target=r_target, exp_label=lif_config.label)
+
+
 def mu_to_sigma_for_constant_rate(lif_config: DiffusionLIFConfig, r_target: Quantity, mu_lims=None):
+
+    if is_dimensionless(r_target):
+        r_target = r_target * Hz
 
     # scan over mu, keep sigma
     # first, look for max mu i.e. the mu for zero sigma that returns r_target
@@ -314,8 +427,7 @@ def get_mu_linspace(lif_config, mu_lims):
 
     return np.linspace(mu_lims[0], mu_lims[1], num=1001)
 
-def plot_line_computation_vs_fit(results: list[MuToSigmaResult], caller_test_case=None, descriptor="linear_fit", axs=None, colors = ("orange", "black"),
-                                 config: DiffusionLIFConfig = default_diffusion_lif_config):
+def plot_line_computation_vs_fit(results: list[MuToSigmaResult], caller_test_case=None, descriptor="linear_fit", axs=None, colors = ("orange", "black")):
 
     should_create_figure = axs is None
 

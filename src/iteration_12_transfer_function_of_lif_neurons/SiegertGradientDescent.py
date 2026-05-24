@@ -217,6 +217,26 @@ class SiegertGradients:
 
         return 2 * self.tau_m**2  * math.pi * rate**3 * d_i_d_sigma * d_i_d_mu - self.tau_m * math.sqrt(math.pi) * rate ** 2 * d_quared_I_d_mu_d_sigma
 
+    def mu_det(self, rate: Quantity) -> Quantity:
+        rates_ratio = (1 / rate - self.tau_ref) / self.tau_m
+
+        if rates_ratio > 700:
+            return self.theta
+
+        return self.theta + (self.theta - self.v_reset) / (math.exp(rates_ratio) - 1)
+
+    def d_delta_mu_d_sigma(self, mu_guess: Quantity, sigma: Quantity) -> Quantity:
+        if is_dimensionless(mu_guess):
+            mu_guess = mu_guess * mV
+        if is_dimensionless(sigma):
+            sigma = sigma * mV
+
+
+        lower, upper = self.integration_limits(mu_v = mu_guess, sigma_v=sigma)
+        if np.isnan(self.E(upper)):
+            logger.exception("NAN exception when computing upper E(x) for x = {}", upper)
+        return math.sqrt(2) * (upper * self.E(upper) - lower * self.E(lower)) / (self.E(upper) - self.E(lower))
+
 
 class SiegertGradientDescent(SiegertGradients):
 
