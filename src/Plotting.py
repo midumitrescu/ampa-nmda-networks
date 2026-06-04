@@ -1,5 +1,7 @@
 import os
 import re
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 from loguru import logger
 from brian2 import ufarad, cm, siemens, mV, ms
@@ -7,17 +9,18 @@ from brian2 import ufarad, cm, siemens, mV, ms
 # Default directory for test/script-generated figures (clear provenance from filename).
 PLOT_OUTPUT_DIR = os.path.join(os.getcwd(), "plot_output")
 
+
 class SynapticParams:
     KEY_SYNAPTIC_STRENGTH = "J"
     KEY_SYNAPTIC_DELAY = "D"
 
     def __init__(self, params: dict):
-
         self.J = params.get(SynapticParams.KEY_SYNAPTIC_STRENGTH, 0.5 * mV)
         self.D = params.get(SynapticParams.KEY_SYNAPTIC_DELAY, 1.5 * ms)
 
     def __str__(self):
         return f"{self.__class__}(J={self.J}, D={self.D})"
+
 
 class NetworkParams:
     KEY_G = "g"
@@ -34,7 +37,6 @@ class NetworkParams:
     KEY_EPSILON = "epsilon"
 
     def __init__(self, params: dict):
-
         self.synaptic_params = SynapticParams(params)
 
         self.g = params.get(NetworkParams.KEY_G, 0)
@@ -63,7 +65,6 @@ class NeuronModelParams:
     KEY_TAU_REF = "tau_ref"
 
     def __init__(self, params: dict, network_params: NetworkParams = NetworkParams):
-
         self.synaptic_params = SynapticParams(params)
 
         self.C = params.get(NeuronModelParams.KEY_NEURON_C, 1 * ufarad * (cm ** -2))
@@ -79,7 +80,8 @@ class NeuronModelParams:
         logger.info("Computed tau membrane = {}, nu threshold = {}", self.tau, self.nu_thr)
 
     def __str__(self):
-        return (f"{self.__class__}({NeuronModelParams.KEY_NEURON_C}={self.C}, {NeuronModelParams.KEY_NEURON_G_L}={self.g_L}, \
+        return (
+            f"{self.__class__}({NeuronModelParams.KEY_NEURON_C}={self.C}, {NeuronModelParams.KEY_NEURON_G_L}={self.g_L}, \
                 {NeuronModelParams.KEY_NEURON_THRESHOLD}={self.theta}, {NeuronModelParams.KEY_NEURON_V_R}={self.V_r}, \
                 {NeuronModelParams.KEY_NEURON_E_L}={self.E_leak}, {NeuronModelParams.KEY_TAU_REF}={self.tau_rp}, nu_thr(computed)={self.nu_thr},\
                 tau membrane(computed)={self.tau})")
@@ -94,7 +96,6 @@ class PlotParams:
     KEY_RATE_TICK_STEP = "rate_tick_step"
 
     KEY_PLOT_SMOOTH_WIDTH = "smoothened_rate_width"
-
 
     def __init__(self, params):
         self.panel = params.get(PlotParams.KEY_PANEL, "")
@@ -127,15 +128,16 @@ class Experiment:
 
         self.sim_clock = params.get(Experiment.KEY_SIMULATION_CLOCK, 0.05 * ms)
 
+
 def prepare_bigger_fonts(zoom=0):
     if zoom == 0:
         plt.rcParams.update({
-        "font.size": 16,
-        "axes.titlesize": 18,
-        "axes.labelsize": 16,
-        "legend.fontsize": 14,
-        "figure.titlesize": 20
-    })
+            "font.size": 16,
+            "axes.titlesize": 18,
+            "axes.labelsize": 16,
+            "legend.fontsize": 14,
+            "figure.titlesize": 20
+        })
     elif zoom == 1:
         plt.rcParams.update({
             "font.size": 20,
@@ -144,6 +146,7 @@ def prepare_bigger_fonts(zoom=0):
             "legend.fontsize": 18,
             "figure.titlesize": 24
         })
+
 
 def _safe_filename_part(s):
     """Replace anything that's not alphanumeric or underscore with underscore."""
@@ -173,12 +176,41 @@ def build_figure_basename(caller_test_case=None, script_file=None, descriptor=No
     return "figure"
 
 
-def save_current_figure(
+def get_or_create_file_base_dir(
     save_name=None,
     out_dir=None,
     caller_test_case=None,
     script_file=None,
     descriptor=None,
+):
+    if out_dir is None:
+        out_dir = PLOT_OUTPUT_DIR
+
+    if save_name is None and (
+        caller_test_case is not None or script_file is not None
+    ):
+        save_name = build_figure_basename(
+            caller_test_case=caller_test_case,
+            script_file=script_file,
+            descriptor=descriptor,
+        )
+
+    if save_name is None:
+        return None
+
+    base_dir = Path(out_dir) / save_name
+
+    base_dir.mkdir(parents=True, exist_ok=True)
+
+    return Path(base_dir)
+
+
+def save_current_figure(
+        save_name=None,
+        out_dir=None,
+        caller_test_case=None,
+        script_file=None,
+        descriptor=None,
 ):
     """
     Save the current matplotlib figure to a PNG file.
@@ -207,6 +239,7 @@ def save_current_figure(
     logger.info("Saved figure: {}", path)
     return os.path.abspath(path)
 
+
 def add_panel_info(ax_iterable, panel_labels=None):
     if panel_labels is None:
         panel_labels = [f"{chr(ord("A") + index)}" for index in range(0, len(ax_iterable))]
@@ -220,13 +253,14 @@ def add_panel_info(ax_iterable, panel_labels=None):
             ha="left"
         )
 
+
 def show_plots_non_blocking(
-    show=True,
-    save_name=None,
-    caller_test_case=None,
-    script_file=None,
-    descriptor=None,
-    out_dir=None,
+        show=True,
+        save_name=None,
+        caller_test_case=None,
+        script_file=None,
+        descriptor=None,
+        out_dir=None,
 ):
     """
     Apply bigger fonts, optionally save current figure to a file with a clear test/script name, then show non-blocking and close.
@@ -248,4 +282,3 @@ def show_plots_non_blocking(
     if show:
         plt.show(block=False)
         plt.close("all")
-

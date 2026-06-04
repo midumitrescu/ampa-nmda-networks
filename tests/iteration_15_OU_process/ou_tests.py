@@ -1,12 +1,7 @@
 import unittest
 
-import matplotlib.pyplot as plt
 import numpy as np
-from brian2 import NeuronGroup, StateMonitor
-from brian2 import run, mV, SpikeMonitor, Hz
-from brian2 import second, ms
 
-from iteration_12_transfer_function_of_lif_neurons.config import default_diffusion_lif_config
 from iteration_15_OU_process.lif_difussion_check import filter_spikes_in_time_window
 
 

@@ -1,10 +1,9 @@
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 from scipy.special import gamma, gammainc
-from scipy.integrate import quad
 
 
-def s_t(t, t0=0, alpha=1.0, tau_rise=2.0, tau_decay=200.0):
+def s_t(t, t0=0, alpha=1.0, tau_rise=2.0, tau_decay=100.0):
     """
     Exact solution for s(t) with a single spike at t0
     """
@@ -42,7 +41,7 @@ t = np.linspace(-5, 50, 5000)
 t0 = 0
 alpha = 0.5
 tau_rise = 2.0
-tau_decay = 200.0
+tau_decay = 100.0
 
 # Compute s(t)
 s_values = np.array([s_t(ti, t0, alpha, tau_rise, tau_decay) for ti in t])

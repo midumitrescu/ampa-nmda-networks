@@ -92,6 +92,15 @@ def find_delta_sigma_newton(current_mu: Quantity, rate_mk801:Quantity = 0.05 * H
 
     return sigma_control - sigma_mk801
 
+def find_delta_sigma_exact_simulation(current_mu: Quantity, rate_mk801:Quantity = 0.05 * Hz, rate_control: Quantity = 0.18 * Hz,
+                            delta_mu:Quantity = 0.7 * mV, lif_config: DiffusionLIFConfig = default_diffusion_lif_config) -> Quantity:
+    sigma_control = compute_sigma_necessary_for_given_rate_and_mean_newton(current_mu + delta_mu, r_target=rate_control,
+                                                                    lif_config=lif_config)
+    sigma_mk801 = compute_sigma_necessary_for_given_rate_and_mean_newton(current_mu, r_target=rate_mk801,
+                                                                  lif_config=lif_config)
+
+    return sigma_control - sigma_mk801
+
 class MyTestCase(unittest.TestCase):
 
     def test_double_binary_search(self):
@@ -136,7 +145,7 @@ class MyTestCase(unittest.TestCase):
             mu, _ = binary_search_for_target_value_precission_in_result_space(
                 lower_value=-41 * mV,
                 upper_value=-70 * mV,
-                func=lambda m: find_delta_sigma_newton(current_mu=m, lower_state=None, upper_state=None),
+                func=lambda m: find_delta_sigma_newton(current_mu=m),
                 target_result=0 * mV,
                 precision=1e-10 * mV,
                 max_iters=100
@@ -201,7 +210,34 @@ class MyTestCase(unittest.TestCase):
         current_delta_mu = find_delta_sigma_newton(current_mu=mu_test, lower_state=None, upper_state=None)
 
 
+    def test_double_binary_search_on_exact_simulation(self):
+        # Test not usign siegert's formula but !!! using real very long simulation
+        rate_mk801 = 0.05 * Hz
+        rate_control = 0.18 * Hz
+        lif_config = default_diffusion_lif_config
+        delta_mu = 0.7 * mV
 
+        sg = SiegertGradients.for_lif_config(lif_config)
+
+        try:
+            mu, _ = binary_search_for_target_value_precission_in_result_space(
+                lower_value=-41 * mV,
+                upper_value=-70 * mV,
+                func=lambda m: find_delta_sigma_newton(current_mu=m),
+                target_result=0 * mV,
+                precision=1e-10 * mV,
+                max_iters=100
+            )
+        except ValueError as e:
+            print(f"mu={mu}: {e}")
+            return np.nan  # fallback if binary search fails
+
+        print(f"mu: {mu}")
+        sigma = compute_sigma_necessary_for_given_rate_and_mean(mu, r_target=rate_mk801,
+                                                        lif_config=lif_config)
+        print(f"sigma={sigma}")
+
+        print(f"MK801 rate: {sg.firing_rate(mu, sigma)}. Control firing rate: {sg.firing_rate(mu + delta_mu, sigma)}")
 
 
 

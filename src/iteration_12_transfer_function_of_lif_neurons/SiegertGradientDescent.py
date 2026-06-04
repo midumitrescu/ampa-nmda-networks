@@ -45,7 +45,7 @@ def I_mu_sigma(mu_v, sigma_v, theta, V_reset):
 
     # Ensure to < upper_limit for integration
     if lower_limit > upper_limit:
-        print("FFFFFFFFFFFFFFFUUUUUUUUUUUUUUUUUUUCCCCCCCCCCCCKKKKKKKKKKKKKKKK lower limit > upper limit. Should not happen")
+        print("Problem: lower limit > upper limit. Should not happen")
         lower_limit, upper_limit = upper_limit, lower_limit
 
     dx = upper_limit - lower_limit

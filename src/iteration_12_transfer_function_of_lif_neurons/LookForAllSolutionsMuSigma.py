@@ -126,6 +126,33 @@ def compute_sigma_necessary_for_given_rate_and_mean_newton(mu: Quantity, r_targe
 
     return result.root * mV
 
+def compute_sigma_necessary_for_given_rate_and_mean_exact_simulation(mu: Quantity, r_target: Quantity, lif_config: DiffusionLIFConfig = default_diffusion_lif_config, sigma_init: Quantity = 5 * mV, sigma_limits: list[Quantity] = (0 * mV, 20 * mV)):
+    """
+       Find sigma for a given mu using binary search to hit r_target.
+       """
+    if is_dimensionless(mu):
+        mu = mu * mV
+    if is_dimensionless(r_target):
+        r_target = r_target * Hz
+
+    if is_dimensionless(sigma_limits[0]):
+        sigma_limits = [sigma_limits[0] * mV, sigma_limits[1] * mV]
+
+    look_for_sigma = lambda s: pass
+    try:
+        sigma, _ = binary_search_for_target_value_precission_in_result_space(
+            lower_value=sigma_limits[0],
+            upper_value=sigma_limits[1],
+            func=look_for_sigma,
+            target_result=r_target,
+            precision=1e-7 * Hz,
+            max_iters=100
+        )
+        return sigma
+    except ValueError as e:
+        print(f"mu={mu}: {e}")
+        return np.nan  # fallback if binary search fails
+
 def compute_sigma_necessary_for_given_rate_derivative_and_mean(mu, target_gain, lif_config: DiffusionLIFConfig):
     """
     Find sigma for a given mu using binary search to hit r_t
