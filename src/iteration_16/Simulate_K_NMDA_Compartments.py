@@ -10,7 +10,7 @@ from iteration_16.model import calibrated_configuration
 from iteration_16.nmda_compartment_model import NMDASimulationWangCompartments
 
 
-def plot_k_sweep_results(result_by_k, k_s, config):
+def plot_k_sweep_results(result_by_k, k_s, config, experiment_title=None):
 
     fig = plt.figure(figsize=(14, 18))
     number_of_axes = len(k_s) + 4
@@ -116,6 +116,9 @@ def plot_k_sweep_results(result_by_k, k_s, config):
     ax_ratio.legend()
 
     ax_ratio.set_xlabel("Time (ms)")
+
+    if experiment_title is not None:
+        fig.suptitle(experiment_title)
 
     plt.tight_layout()
     prepare_bigger_fonts()
