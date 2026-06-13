@@ -22,10 +22,10 @@ from Plotting import show_plots_non_blocking
 from iteration_16.model import ConductanceDiffusionSimulationConfig, WANG_MODEL, WangSimulationResult
 
 
-def create_spike_source(spike_times_ms: np.ndarray | None, poisson_rate: Quantity):
+def create_spike_source(spike_times_ms: np.ndarray | None, poisson_rate: Quantity, N=1):
     if spike_times_ms is None:
         return PoissonGroup(
-            1,
+            N=N,
             rates=poisson_rate
         )
 

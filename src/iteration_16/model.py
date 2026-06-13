@@ -53,9 +53,9 @@ class ConductanceDiffusionSimulationConfig:
 
     # membrane
     membrane_resistance: Quantity = field(default_factory=lambda: 50 * Mohm)  # Ohm
-    membrane_capacitance: Quantity = field(default_factory=lambda: 0.5 * nF) # value from Wang
+    membrane_capacitance: Quantity = field(default_factory=lambda: 0.5 * nF) # value from Wang is 0.5 * nF
 
-    e_L: Quantity = field(default_factory=lambda: -70 * mV)
+    e_L: Quantity = field(default_factory=lambda: -65 * mV)
     resting_voltage: Quantity = field(default_factory=lambda: -70 * mV)
 
     # synaptic reversals
@@ -71,6 +71,12 @@ class ConductanceDiffusionSimulationConfig:
     tau_nmda_decay: Quantity = field(default_factory=lambda: 100 * ms)
 
     alpha_nmda: Quantity = field(default_factory=lambda: 0.5 * kHz)
+
+    N: int | None = None
+    gamma: float = 0.8
+
+    N_E: int | None = None
+    N_I: int | None = None
 
     r_e: Quantity = field(default_factory=lambda: 0 * Hz)
     r_i: Quantity = field(default_factory=lambda: 0 * Hz)
@@ -92,6 +98,14 @@ class ConductanceDiffusionSimulationConfig:
     seed: int | None = None
 
     def with_property(self, **changes):
+
+        if changes.__contains__("N") or changes.__contains__("gamma"):
+            changes["N_E"] = None,
+            changes["N_I"] = None
+
+            if not changes.__contains__("gamma"):
+                changes["gamma"] = 0.8
+
         return replace(
             self,
             ampa_spike_times=copy_of(self.ampa_spike_times),
@@ -100,11 +114,31 @@ class ConductanceDiffusionSimulationConfig:
             **changes,
         )
 
+    def __post_init__(self):
+
+        if self.N_E is not None and self.N_I is not None:
+            object.__setattr__(self, "N", self.N_E + self.N_I)
+            object.__setattr__(self, "gamma", self.N_E / (self.N_E + self.N_I))
+        elif self.N is not None:
+            N_E = int(self.N * self.gamma)
+            N_I = self.N - N_E
+
+            object.__setattr__(self, "N_E", N_E)
+            object.__setattr__(self, "N_I", N_I)
+
+        else:
+            raise ValueError("Must provide either (N, gamma) or (N_E, N_I)")
+
 calibrated_configuration = ConductanceDiffusionSimulationConfig(
     w_ampa=1.84 * nS,
-    w_gaba=4.131 * nS,
-    g_nmda_max= 3.551 * nS
+    w_gaba=8.17 * nS,
+    g_nmda_max= 3.551 * nS,
+    N_E=1,
+    N_I=1
 )
+
+''' for pyramidal cells, g ext,AMPA = 2.1, g rec,AMPA = 0.05, gNMDA = 0.165, and g GABA = 1.3 '''
+''' What are mean g_s in Wang? g_ampa = g ext,AMPA_0 * 2.4 kHz + g rec,AMPA_0'''
 
 @dataclass
 class WangSimulationResult:

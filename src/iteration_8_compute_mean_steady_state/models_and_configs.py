@@ -54,8 +54,8 @@ wang_recurrent_config = {
 
     # VL = -70 mV, the firing threshold Vth = - 50 mV, a reset potential Vreset = -55 mV
     NeuronModelParams.KEY_NEURON_E_L: -70,
-    NeuronModelParams.KEY_NEURON_THRESHOLD: -50,
-    NeuronModelParams.KEY_NEURON_V_R: -55,
+    NeuronModelParams.KEY_NEURON_THRESHOLD: -40,
+    NeuronModelParams.KEY_NEURON_V_R: -45,
     NeuronModelParams.KEY_NEURON_G_L: 25e-9,  # gL = 25 nS for pyramidal
 
     # Wang: I used the following values for the recurrent synaptic conductances (in nS)

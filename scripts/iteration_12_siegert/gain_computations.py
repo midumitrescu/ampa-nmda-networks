@@ -192,40 +192,42 @@ def plot_taylor_expansion(ax_rate, params, sigma_solution, solution):
 
 
 def plot_gain(ax_gain, experiment, params: RateGainSearchParams, solution, lim=None):
-    """Plot (1) gain vs μ with solution σ and (2) actual rate vs μ with Taylor approximations and error shading.
-    solution: ExtendedDict from solve_mu_sigma_via_fsolve (sigma, mu_nmda_block, siegert_gradient, rate_nmda_block_recomputed, etc.).
-    params: ExtendedDict with gain_target_Hz_per_mV, delta_mu_mV, etc."""
-    siegert_gradient = solution.siegert_gradient
-    sigma_solution = solution.sigma
-    gain_target = params.gain_unitless
-    mus = np.linspace(-65, -35, 500) * mV
-    # Left: gain vs mu
-    for sigma in np.array([0.5, 1, 2, 3, 4]):
-        gains = np.array([siegert_gradient.d_rate_d_mu(mu_v=mu, sigma_v=sigma * mV) * mV / Hz for mu in mus])
-        ax_gain.plot(mus / mV, gains, label=rf'$\sigma_v$={sigma} mV')
-    gains_for_sigma_solution = np.array(
-        [siegert_gradient.d_rate_d_mu(mu_v=mu, sigma_v=sigma_solution) * mV / Hz for mu in mus])
-    ax_gain.plot(mus / mV, gains_for_sigma_solution, 'k-', linewidth=2.6,
-                 label=rf'$\sigma_{{sol}}$={sigma_solution / mV:.3f} mV for rate={params.rate_nmda_block_unitless: .2f} Hz')
-    ax_gain.axhline(y=gain_target, linestyle='-.', color='red', label=f'Target gain {gain_target: .2f}')
-    ax_gain.axvline(x=params.mu_v_nmda_block_unitless, linestyle='--', alpha=0.7, label=r'$\mu$ baseline')
-    ax_gain.axvline(x=experiment.neuron_params.theta / mV, linestyle='--', color='black', label=r'$\theta$')
-    ax_gain.set_xlabel(r'$\mu$ (mV)')
-    ax_gain.set_ylabel(r'Gain [Hz/mV]')
-    r_nmda_block = siegert_gradient.firing_rate(mu_v=params.mu_v_nmda_block, sigma_v=sigma_solution) / Hz
-    r_with_nmda = siegert_gradient.firing_rate(mu_v=params.mu_v_with_nmda, sigma_v=sigma_solution) / Hz
-    r_with_nmda_and_d_sigma = siegert_gradient.firing_rate(mu_v=params.mu_v_with_nmda, sigma_v=sigma_solution + params.d_sigma) / Hz
-    ax_gain.set_title(
-        r'Gain vs $\mu$'
-        + rf' \\ $\mu_0$ = {params.mu_v_nmda_block_unitless:.3f} mV, $\sigma_{{sol}}$ = {sigma_solution / mV:.3f} mV, r = {r_nmda_block:.3f} Hz'
-        + rf' \\ $\mu_0 + \Delta\mu$ = {params.mu_v_with_nmda_unitless:.3f} mV, $\sigma_{{sol}}$ = {sigma_solution / mV:.3f} mV, r = {r_with_nmda:.3f} Hz'
-        + rf' \\ $\mu_0 + \Delta\mu$ = {params.mu_v_with_nmda_unitless:.3f} mV, $\sigma_{{sol}} + \Delta\sigma $ = {(sigma_solution + params.d_sigma) / mV:.3f} mV, r = {r_with_nmda_and_d_sigma:.3f} Hz'
-    )
-    ax_gain.legend(loc='upper right')
-    if lim is not None:
-        ax_gain.set_ylim((0, lim))
-    ax_gain.grid(True, alpha=0.3)
-    return siegert_gradient, sigma_solution
+
+    for current_lim in [None, lim]:
+        """Plot (1) gain vs μ with solution σ and (2) actual rate vs μ with Taylor approximations and error shading.
+        solution: ExtendedDict from solve_mu_sigma_via_fsolve (sigma, mu_nmda_block, siegert_gradient, rate_nmda_block_recomputed, etc.).
+        params: ExtendedDict with gain_target_Hz_per_mV, delta_mu_mV, etc."""
+        siegert_gradient = solution.siegert_gradient
+        sigma_solution = solution.sigma
+        gain_target = params.gain_unitless
+        mus = np.linspace(-65, -35, 500) * mV
+        # Left: gain vs mu
+        for sigma in np.array([0.5, 1, 2, 3, 4]):
+            gains = np.array([siegert_gradient.d_rate_d_mu(mu_v=mu, sigma_v=sigma * mV) * mV / Hz for mu in mus])
+            ax_gain.plot(mus / mV, gains, label=rf'$\sigma_v$={sigma} mV')
+        gains_for_sigma_solution = np.array(
+            [siegert_gradient.d_rate_d_mu(mu_v=mu, sigma_v=sigma_solution) * mV / Hz for mu in mus])
+        ax_gain.plot(mus / mV, gains_for_sigma_solution, 'k-', linewidth=2.6,
+                     label=rf'$\sigma_{{sol}}$={sigma_solution / mV:.3f} mV for rate={params.rate_nmda_block_unitless: .2f} Hz')
+        ax_gain.axhline(y=gain_target, linestyle='-.', color='red', label=f'Target gain {gain_target: .2f}')
+        ax_gain.axvline(x=params.mu_v_nmda_block_unitless, linestyle='--', alpha=0.7, label=r'$\mu$ baseline')
+        ax_gain.axvline(x=experiment.neuron_params.theta / mV, linestyle='--', color='black', label=r'$\theta$')
+        ax_gain.set_xlabel(r'$\mu$ (mV)')
+        ax_gain.set_ylabel(r'Gain [Hz/mV]')
+        r_nmda_block = siegert_gradient.firing_rate(mu_v=params.mu_v_nmda_block, sigma_v=sigma_solution) / Hz
+        r_with_nmda = siegert_gradient.firing_rate(mu_v=params.mu_v_with_nmda, sigma_v=sigma_solution) / Hz
+        r_with_nmda_and_d_sigma = siegert_gradient.firing_rate(mu_v=params.mu_v_with_nmda, sigma_v=sigma_solution + params.d_sigma) / Hz
+        ax_gain.set_title(
+            r'Gain vs $\mu$'
+            + rf' \\ $\mu_0$ = {params.mu_v_nmda_block_unitless:.3f} mV, $\sigma_{{sol}}$ = {sigma_solution / mV:.3f} mV, r = {r_nmda_block:.3f} Hz'
+            + rf' \\ $\mu_0 + \Delta\mu$ = {params.mu_v_with_nmda_unitless:.3f} mV, $\sigma_{{sol}}$ = {sigma_solution / mV:.3f} mV, r = {r_with_nmda:.3f} Hz'
+            + rf' \\ $\mu_0 + \Delta\mu$ = {params.mu_v_with_nmda_unitless:.3f} mV, $\sigma_{{sol}} + \Delta\sigma $ = {(sigma_solution + params.d_sigma) / mV:.3f} mV, r = {r_with_nmda_and_d_sigma:.3f} Hz'
+        )
+        ax_gain.legend(loc='upper right')
+        if current_lim is not None:
+            ax_gain.set_ylim((0, lim))
+        #ax_gain.grid(True, alpha=0.3)
+        return siegert_gradient, sigma_solution
 
 def plot_rate_and_gain_combined(params=default_rate_gain_params, test: unittest.TestCase=None):
     """Single figure: (1) solve for (μ, σ) via fsolve, (2) plot gain vs μ and rate vs μ with Taylor approximations."""

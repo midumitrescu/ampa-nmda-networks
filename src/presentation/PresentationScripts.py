@@ -273,8 +273,8 @@ class PresentationScripts(unittest.TestCase):
 
     def test_plot_gain(self):
         plot_rate_and_gain_combined(
-            params=RateGainSearchParams(rate_nmda_block=0.05, rate_with_nmda=0.18, mu_v_nmda_block=-57.4,
-                                        mu_v_with_nmda=-57.4 + 0.4, d_sigma=0.08))
+            params=RateGainSearchParams(rate_nmda_block=0.05, rate_with_nmda=0.18, mu_v_nmda_block=-47.4,
+                                        mu_v_with_nmda=-47.4 + 0.4, d_sigma=0.08))
 
     def test_plot_LIF_curve_in_ROI(self):
         experiment = palmer_control
@@ -335,13 +335,13 @@ class PresentationScripts(unittest.TestCase):
 
     def test_plot_gain_with_fitted_solution(self):
         plot_rate_and_gain_combined(
-            params=RateGainSearchParams(rate_nmda_block=0.05, rate_with_nmda=0.18, mu_v_nmda_block=-57.33,
-                                        mu_v_with_nmda=-57.33 + 0.4, d_sigma=0.08))
+            params=RateGainSearchParams(rate_nmda_block=0.05, rate_with_nmda=0.18, mu_v_nmda_block=-47.33,
+                                        mu_v_with_nmda=-47.33 + 0.4, d_sigma=0.08))
 
     def test_plot_gain_with_fitted_solution_2(self):
         plot_rate_and_gain_combined(
-            params=RateGainSearchParams(rate_nmda_block=0.05, rate_with_nmda=0.18, mu_v_nmda_block=-54.12,
-                                        mu_v_with_nmda=-54.12 + 0.4, d_sigma=0))
+            params=RateGainSearchParams(rate_nmda_block=0.05, rate_with_nmda=0.18, mu_v_nmda_block=-44.12,
+                                        mu_v_with_nmda=-44.12 + 0.4, d_sigma=0))
 
 
 if __name__ == '__main__':

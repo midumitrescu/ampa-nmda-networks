@@ -164,7 +164,7 @@ class ConductanceDiffusionTestCase(unittest.TestCase):
 
         self.assertIsNone(result.ampa_spike_delta_v())
         self.assertIsNone(result.nmda_spike_delta_v())
-        self.assertAlmostEqual(-0.062458218298758084, result.gaba_spike_delta_v())
+        self.assertAlmostEqual(-0.03158342087972699, result.gaba_spike_delta_v())
 
 
     def test_one_nmda_spike(self):

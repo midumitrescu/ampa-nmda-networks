@@ -340,3 +340,25 @@ if sim_s[-1] > 0:
 print("\n" + "=" * 60)
 print("ANALYSIS COMPLETE")
 print("=" * 60)
+
+# Remove means
+s0 = sim_s - np.mean(sim_s)
+x0 = sim_x - np.mean(sim_x)
+
+xcorr = np.correlate(s0, x0, mode='full')
+
+# Normalize
+xcorr /= np.sqrt(np.sum(s0**2) * np.sum(x0**2))
+
+# Lag axis
+dt = sim_t[1] - sim_t[0]  # ms
+lags = np.arange(-len(sim_s)+1, len(sim_s)) * dt
+
+
+plt.figure(figsize=(8,4))
+plt.plot(lags, xcorr)
+plt.xlabel(r'$\tau$ (ms)')
+plt.ylabel('Cross-correlation')
+plt.title('Cross-correlation between s and x \n' r'$C_{s, x}(\tau)$')
+plt.tight_layout()
+plt.show()

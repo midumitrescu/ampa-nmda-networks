@@ -43,7 +43,8 @@ class CalibratePresynapticDVs(unittest.TestCase):
         dv_result = WangSimulation.run(target_config)
         plot(dv_result)
 
-        self.assertAlmostEqual(4.131385296583174, lower / nS)
+        #self.assertAlmostEqual(4.131385296583174, lower / nS)
+        self.assertAlmostEqual(8.173081420361994, lower / nS)
         self.assertAlmostEqual(-0.5, dv_result.gaba_spike_delta_v())
 
     '''

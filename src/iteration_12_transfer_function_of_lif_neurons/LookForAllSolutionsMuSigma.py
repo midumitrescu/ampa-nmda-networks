@@ -138,7 +138,7 @@ def compute_sigma_necessary_for_given_rate_and_mean_exact_simulation(mu: Quantit
     if is_dimensionless(sigma_limits[0]):
         sigma_limits = [sigma_limits[0] * mV, sigma_limits[1] * mV]
 
-    look_for_sigma = lambda s: pass
+    look_for_sigma = lambda s: _
     try:
         sigma, _ = binary_search_for_target_value_precission_in_result_space(
             lower_value=sigma_limits[0],
