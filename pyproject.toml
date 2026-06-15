@@ -15,6 +15,7 @@ dependencies = [
     "numpy",
     "scipy",
     "matplotlib",
+    "pyqt6",
 
     "brian2",
     "opencv-python",

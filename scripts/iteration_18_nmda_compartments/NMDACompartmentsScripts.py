@@ -320,6 +320,11 @@ class NMDAWithCompartmentScripts(unittest.TestCase):
                 loc="upper right"
             )
 
+            ax.set_title(
+                "Schematics of iso-potential single-compartment model with NMDA Clusters",
+                fontsize=14,
+                pad=12
+            )
 
             return fig, ax
 

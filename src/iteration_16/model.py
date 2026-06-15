@@ -73,7 +73,8 @@ class ConductanceDiffusionSimulationConfig:
     alpha_nmda: Quantity = field(default_factory=lambda: 0.5 * kHz)
 
     N: int | None = None
-    gamma: float = 0.8
+    # in our manuscript, this is actually k
+    k: float = 0.8
 
     N_E: int | None = None
     N_I: int | None = None
@@ -86,7 +87,7 @@ class ConductanceDiffusionSimulationConfig:
     gaba_spike_times: np.ndarray | None = None
     nmda_spike_times: np.ndarray | None = None
 
-    g_L: Quantity = field(default_factory=lambda: 25 * nS)
+    g_L: Quantity = field(default_factory=lambda: 20 * nS)
     w_ampa: Quantity = field(default_factory=lambda: 0.5 * nS)
     w_gaba: Quantity = field(default_factory=lambda: 0.5 * nS)
     w_x: Quantity = field(default_factory=lambda: 1)
@@ -96,6 +97,10 @@ class ConductanceDiffusionSimulationConfig:
     magnesium_concentration: float = 1.0
 
     seed: int | None = None
+
+    # from script \frac{g_{i, 0}}{g_{e, 0}} =  \gamma \\
+    def g(self):
+        return self.tau_ampa * self.w_ampa * self.N_E
 
     def with_property(self, **changes):
 
@@ -120,7 +125,7 @@ class ConductanceDiffusionSimulationConfig:
             object.__setattr__(self, "N", self.N_E + self.N_I)
             object.__setattr__(self, "gamma", self.N_E / (self.N_E + self.N_I))
         elif self.N is not None:
-            N_E = int(self.N * self.gamma)
+            N_E = int(self.N * self.k)
             N_I = self.N - N_E
 
             object.__setattr__(self, "N_E", N_E)

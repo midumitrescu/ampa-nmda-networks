@@ -1,7 +1,7 @@
 import unittest
 
 import numpy as np
-from brian2 import mV, have_same_dimensions, siemens, nS, Hz, ms
+from brian2 import mV, have_same_dimensions, siemens, nS, Hz, ms, nF, pF
 from matplotlib import pyplot as plt
 
 from Plotting import show_plots_non_blocking
@@ -472,10 +472,65 @@ class MyTestCase(unittest.TestCase):
             )
             plt.show()
 
-    def test_understand_components_of_e_0(self):
-        pass
-        
+    def test_solve_cubic_equation(self):
+        mu_v_unitless = mu_v / mV
+        sigma_v_unitless = sigma_v / mV
 
+        cfg = calibrated_configuration
+
+        gL = cfg.g_L
+
+        Ee = cfg.e_ampa
+        Ei = cfg.e_gaba
+        EL = cfg.e_L
+
+        # --- shifted potentials ---
+        bar_EL = EL - mu_v
+        bar_Ee = Ee - mu_v
+        bar_Ei = Ei - mu_v
+
+        A = cfg.g_L * (Ei - EL) / bar_Ei
+        B = (Ei - Ee) / bar_Ei
+
+        assert have_same_dimensions(bar_EL, 1*mV)
+
+        assert  have_same_dimensions(A, 1*nS)
+        assert  have_same_dimensions(B, 1)
+        assert  have_same_dimensions(cfg.membrane_capacitance, 1*nF)
+        assert  have_same_dimensions(cfg.membrane_capacitance, 1 * ms * A)
+
+        P = gL * bar_EL
+        K_e = cfg.w_ampa**2 * bar_Ee**2 * cfg.tau_ampa # nS**2 * mV**2 * ms
+        K_i = cfg.w_gaba**2 * cfg.tau_gaba
+
+        assert have_same_dimensions(K_e, 1 * nS**2 * mV**2 * ms)
+        assert have_same_dimensions(K_i, 1 * nS**2 * ms)
+
+        D_e = cfg.membrane_capacitance + cfg.tau_ampa * A
+        F_e = cfg.tau_ampa * B
+        D_i = cfg.membrane_capacitance + cfg.tau_gaba * A # fahrad pF
+        F_i = cfg.tau_gaba * B
+
+        assert have_same_dimensions(D_e, 1 * pF)
+        assert have_same_dimensions(D_i, 1 * pF)
+        assert have_same_dimensions(F_e, 1 * ms)
+        assert have_same_dimensions(F_i, 1 * ms)
+
+        # check units of equation 1.33 \tau_e(A+Bx)+C &= D_e + F_e \cdot  x
+        assert have_same_dimensions(ms * nS, pF)
+        assert have_same_dimensions(D_i, F_i * nS)
+
+        assert have_same_dimensions(4 * sigma_v**2 * B * F_e * F_i, mV**2 * ms**2)
+        assert have_same_dimensions(K_e * F_i, nS**2 * mV**2 * ms * ms)
+
+        print(4 * sigma_v**2 * B * F_e * F_i - K_e * F_i)
+
+        C_3 = 4 * sigma_v**2 * B * F_e * F_i - K_e * F_i - K_i * bar_Ee**2 * F_e
+        C_2 = 4 * sigma_v**2 * (A * F_e * F_i  + B * (D_e * F_i + D_i * F_e) ) - K_e * D_i - 2 * K_i * P * bar_Ee * F_e - K_i * bar_Ee**2 * D_e
+        C_1 = 4 * sigma_v**2 * (A * (D_e * F_i + D_i * F_e) + B * D_e * D_i) - K_i * (P**2 * F_e + 2 * P * bar_Ee * D_e)
+        C_0 = 4 * sigma_v**2 * A * D_e * D_i - K_i * P**2 * D_e
+
+        print(f"C 0 = {C_0}, C_1 = {C_1}, C_2 = {C_2}, C_3 = {C_3}")
 
 if __name__ == '__main__':
     unittest.main()
