@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 from matplotlib.gridspec import GridSpec
 from matplotlib.widgets import Slider
 
-from iteration_16.model import calibrated_configuration, ConductanceDiffusionSimulationConfig
+from iteration_16.model import calibrated_configuration, ConductanceDiffusionSimulationConfig, Chapter1Results
 
 logger.remove()  # remove default handler
 
@@ -30,13 +30,16 @@ logger.add(
     diagnose=True
 )
 
-def polynomial_x(r, cfg: ConductanceDiffusionSimulationConfig, gamma, sigma_v):
+def polynomial_r(r, cfg: ConductanceDiffusionSimulationConfig, gamma, sigma_v):
+    if is_dimensionless(r):
+        r = r * Hz
+
     """
     Returns P(x) where x = g r
     """
 
-    g = cfg.k * cfg.w_gaba * cfg.tau_gaba * cfg.N_I
-    x = gamma * g * r
+    g = cfg.g()
+    x = g * r
 
     gL = cfg.g_L
     C = cfg.membrane_capacitance
@@ -57,18 +60,14 @@ def polynomial_x(r, cfg: ConductanceDiffusionSimulationConfig, gamma, sigma_v):
 
     assert have_same_dimensions(a3, 1*ms**2 * mV**2)
 
-    a2 = (
-        2 * sigma_v**2 * C * (te + ti) * (1 + gamma)**2
-        - (1 + gamma) * (K_e * ti + gamma * K_i * te)
+    a2 = (1 + gamma) * (
+        2 * sigma_v**2 * (1 + gamma ) * (3 * te * ti * gL + C * (te + ti)) - K_e * ti - gamma * K_i * te
     )
     assert have_same_dimensions(a2, 1 * nS * ms ** 2 * mV ** 2)
 
     a1 = (
-        2 * sigma_v**2 * C**2 * (1 + gamma)
-        - (
-            K_e * (ti * gL + C)
-            + gamma * K_i * (te * gL + C)
-        )
+        2 * sigma_v**2 * (1 + gamma) * (3 * te * ti * gL**2 + 2 *C * (te + ti) * gL + C**2) -
+        K_e * (ti * gL + C) - gamma * K_i * (te * gL + C)
     )
     assert have_same_dimensions(a1, 1 * nS**2 * ms ** 2 * mV ** 2)
 
@@ -85,7 +84,33 @@ def polynomial_x(r, cfg: ConductanceDiffusionSimulationConfig, gamma, sigma_v):
     result = a3*x**3 + a2*x**2 + a1*x + a0
     assert have_same_dimensions(result[0], 1 * nS **3 * ms ** 2 * mV**2)
 
-    return result / (nS **3 * ms ** 2 * mV**2)
+    coeffs = np.array([
+        a3 / (ms ** 2 * mV ** 2),
+        a2 / (nS * ms ** 2 * mV ** 2),
+        a1 / (nS ** 2 * ms ** 2 * mV ** 2),
+        a0 / (nS ** 3 * ms ** 2 * mV ** 2),
+    ], dtype=float)
+
+    roots = np.roots(coeffs)
+
+    print("roots to COEF with units", np.roots([a3, a2, a1, a0]))
+    print("roots to COEF without units", np.roots(coeffs))
+
+    for root in roots:
+        print("Polyn of coeffff")
+        print(np.polyval([a3, a2, a1, a0], root))
+        root = root * nS
+        val = (
+            a3*root**3 +
+            a2*root**2 +
+            a1*root +
+            a0
+        )
+        print(root, val)
+
+    #assert have_same_dimensions(roots[0], 1 * nS)
+    assert have_same_dimensions(roots[0], 1)
+    return result / (nS **3 * ms ** 2 * mV**2), roots
 
 def E_0(r, cfg: ConductanceDiffusionSimulationConfig, gamma):
 
@@ -107,6 +132,9 @@ def E_0(r, cfg: ConductanceDiffusionSimulationConfig, gamma):
     return num / g0
 
 def sigma_sq(r, cfg: ConductanceDiffusionSimulationConfig, gamma):
+    if is_dimensionless(r):
+        r = r * Hz
+
     gL = cfg.g_L
     Ee = cfg.e_ampa
     Ei = cfg.e_gaba
@@ -121,6 +149,9 @@ def sigma_sq(r, cfg: ConductanceDiffusionSimulationConfig, gamma):
     g0 = gL + ge + gi
     assert have_same_dimensions(g0, 1 * nS)
 
+    tau_0  = C / g0
+    assert have_same_dimensions(tau_0, 1 * ms)
+
     sigma_e_sq = 0.5 * cfg.w_ampa * ge
     sigma_i_sq = 0.5 * cfg.w_gaba * gi
     assert  have_same_dimensions(sigma_e_sq, 1 * nS**2)
@@ -129,9 +160,8 @@ def sigma_sq(r, cfg: ConductanceDiffusionSimulationConfig, gamma):
     E_0_comp = E_0(r, cfg, gamma)
     assert have_same_dimensions(E_0_comp[1], 1 * mV)
 
-
-    sigma_term_e = sigma_e_sq / (g0 ** 2) * (Ee - E_0_comp) ** 2 * cfg.tau_gaba /  (cfg.tau_ampa + C / g0)
-    sigma_term_i = sigma_i_sq / (g0 ** 2) * (Ei - E_0_comp) ** 2 * cfg.tau_gaba / (cfg.tau_gaba + C / g0)
+    sigma_term_e = sigma_e_sq / (g0 ** 2) * (Ee - E_0_comp) ** 2 * cfg.tau_ampa /  (cfg.tau_ampa + tau_0)
+    sigma_term_i = sigma_i_sq / (g0 ** 2) * (Ei - E_0_comp) ** 2 * cfg.tau_gaba / (cfg.tau_gaba + tau_0)
 
     assert is_dimensionless(cfg.tau_gaba /  (cfg.tau_ampa + C / g0))
     assert have_same_dimensions(sigma_term_e[1], 1 * mV**2)
@@ -147,7 +177,7 @@ def plot_poly(gamma=0.5, sigma_v=2 * mV, cfg: ConductanceDiffusionSimulationConf
     g = cfg.k * cfg.w_gaba * cfg.tau_gaba * cfg.N_I
     x = gamma * g * r
 
-    y = polynomial_x(x, cfg, gamma, sigma_v)
+    y = polynomial_r(x, cfg, gamma, sigma_v)
 
     plt.figure(figsize=(6,4))
     plt.plot(r, y)
@@ -163,14 +193,13 @@ class TripleExplorer:
     def __init__(self, cfg):
 
         self.cfg = cfg
-
         # parameters
         self.gamma = 0.5
 
         self.r = np.linspace(0, 2000, 2000) * Hz
 
         self.mu_v = - 47.61595645 * mV
-        self.sigma_v = 1.9 * mV
+        self.sigma_v = 1.90531046 * mV
 
         self.fig = plt.figure(figsize=(12, 12))
 
@@ -213,7 +242,7 @@ class TripleExplorer:
         self.ax3.set_xlabel("r (Hz)")
 
         self.ax1.axhline(self.mu_v / mV, color="black", lw=1, linestyle="--")
-        self.ax2.axhline(self.sigma_v / mV, color="black", lw=1, linestyle="--")
+        self.ax2.axhline((self.sigma_v / mV)**2, color="black", lw=1, linestyle="--")
         self.ax3.axhline(0, color="black", lw=1, linestyle="--")
 
         self.s_gamma = Slider(ax_gamma, "γ", 0.1, 2.0, valinit=0.5)
@@ -241,7 +270,7 @@ class TripleExplorer:
         return sigma_sq(r, self.cfg, self.gamma)
 
     def P(self, r):
-        return polynomial_x(r, self.cfg, self.gamma, self.sigma_v)
+        return polynomial_r(r, self.cfg, self.gamma, self.sigma_v)
 
     def update(self, val):
         try:
@@ -292,25 +321,36 @@ class TripleExplorer:
             logger.exception("Exception inside update()", e)
 
     def get_title(self):
-            return ("Search for parameters such that"r"$\mu_v=$"f"{self.mu_v / mV :.2f}, "r"$\sigma_v=$"f"{self.sigma_v / mV :.2f} \n" 
-                "Our model:" r"$R_{\mathrm{in}}=$" f"{(1 / self.cfg.g_L) / Mohm : .2f} MΩ, " r"$N_E$="f"{self.cfg.N_E} "r"$N_I$="f"{self.cfg.N_I}\n")
+            return ("Search for parameters such that"r"$\mu_v=$"f"{self.mu_v / mV :.2f}, "r"$\sigma_v=$"f"{self.sigma_v / mV :.2f} \n"
+                    f"{cubic_solution_title(self.cfg)}")
 
-
+def cubic_solution_title(cfg: ConductanceDiffusionSimulationConfig):
+    return "Our model:" r"$R_{\mathrm{in}}=$" f"{(1 / cfg.g_L) / Mohm : .2f} MΩ, " r"$N_E$="f"{cfg.N_E} "r"$N_I$="f"{cfg.N_I}\n"
 
 class MyTestCase(unittest.TestCase):
 
     def test_plot_e_0_sigma_0_p_of_x(self):
-        cfg = calibrated_configuration
+        cfg = calibrated_configuration.with_property(N_E=1000)
 
         gamma = 0.5
         sigma_v = 1.9 * mV
 
-        r = np.linspace(0, 2000, 1000)
+        r = np.linspace(0.1, 110, 1000) * Hz
+
+        #x = (cfg.g() / (nS * second)) * r
+        #x = (cfg.g() / (nS * second)) * r
+
+        P_vals, roots = polynomial_r(r, cfg, gamma, sigma_v)
+
+        a3 = (2 * sigma_v ** 2 * cfg.tau_ampa * cfg.tau_gaba * (1 + gamma) ** 3) / (ms**2 * mV**2)
+        assert is_dimensionless(a3)
+
+        x = (cfg.g() / (nS * second))  * r / Hz
+        polyn_from_roots = a3 * ( x - roots[0]) * (x - roots[1]) * (x - roots[2])
+
 
         E_vals = E_0(r, cfg, gamma)
-        #sigma_vals = sigma_sq(r, cfg, gamma)
-        #P_vals = polynomial_x(r, cfg, gamma, sigma_v)
-
+        sigma_vals = sigma_sq(r, cfg, gamma)
         fig, (ax1, ax2, ax3) = plt.subplots(
             3,
             1,
@@ -318,17 +358,21 @@ class MyTestCase(unittest.TestCase):
             sharex=True,
         )
 
-        ax1.plot(r / Hz, E_vals)
+        ax1.plot(r, E_vals / mV)
 
         ax1.set_title(r"$E_0(r)$")
         ax1.set_ylabel("mV")
+        ax1.axhline(Chapter1Results.mu_v / mV, color="black", lw=1, linestyle="--")
 
-        #ax2.plot(r / Hz, sigma_vals)
+        ax2.plot(r, sigma_vals / mV**2)
+        ax2.axhline((Chapter1Results.sigma_v / mV) ** 2, color="black", lw=1, linestyle="--")
 
         ax2.set_title(r"$\sigma_v^2(r)$")
         ax2.set_ylabel(r"$mV^2$")
+        #ax2.set_ylim(-1, 20)
 
-        #ax3.plot(r / Hz, P_vals)
+        ax3.plot(r, P_vals, label="equation")
+        ax3.plot(r, polyn_from_roots, label="poynomial from roots", lw=2, color="red", linestyle="--")
 
         ax3.axhline(
             0,
@@ -336,17 +380,20 @@ class MyTestCase(unittest.TestCase):
             lw=1,
         )
 
-
-
         ax3.set_title(r"$P(x)$")
         ax3.set_xlabel("r (Hz)")
+
+        fig.suptitle(cubic_solution_title(cfg))
 
         plt.tight_layout()
         plt.show()
 
+        g_unitless = cfg.g() / (nS * second)
+        print(sigma_sq(roots / g_unitless, cfg, gamma) / mV**2)
+        np.testing.assert_allclose(sigma_v**2, sigma_sq(roots / g_unitless, cfg, gamma))
 
 
-    def test_ui(self):
+    def test_run_ui(self):
         matplotlib.use("QtAgg")
         cfg = calibrated_configuration.with_property(N_E = 800, N_I = 200)
         ui = TripleExplorer(cfg)
@@ -356,6 +403,10 @@ class MyTestCase(unittest.TestCase):
     def test_check_E_0_units_match_brian2(self):
         cfg = calibrated_configuration
         gamma = 1
+
+        self.assertEqual(-65 * mV, E_0(0 * Hz, cfg, gamma))
+        self.assertEqual(-40 * mV, E_0(10**100 * Hz, cfg, gamma))
+
         r = np.linspace(0, 1000, 101) * Hz
 
         e_0_np = E_0(r, cfg, gamma)
@@ -384,8 +435,8 @@ class MyTestCase(unittest.TestCase):
             test_compare[index] = current_e_0 / mV
 
 
-        plt.plot(r / Hz, test_compare, label="Brian 2 units")
-        plt.plot(r / Hz, e_0_np / mV, label="no units")
+        plt.plot(r / Hz, test_compare, label="Brian 2 units", alpha=0.6)
+        plt.plot(r / Hz, e_0_np / mV, label="no units", alpha=0.6)
         plt.legend()
         plt.tight_layout()
         plt.show()
@@ -395,17 +446,131 @@ class MyTestCase(unittest.TestCase):
     def test_check_sigma_v_sq_units_match_brian2(self):
         cfg = calibrated_configuration
         gamma = 1
+
+        sq = sigma_sq([0, 0] * Hz, cfg, gamma) / mV ** 2
+        np.testing.assert_array_almost_equal(sq, [0, 0])
+
         r = np.linspace(0, 1000, 101) * Hz
 
+        one_rate = r[10]
+        one_rate_no_unit = one_rate / Hz
+
+        g = cfg.g()
+        g_e0 = g * one_rate
+        g_i0 = gamma * g * one_rate
+        g_0 = cfg.g_L + g_e0 + g_i0
+        assert have_same_dimensions(g_e0, 1 * nS)
+        assert have_same_dimensions(g_i0, 1 * nS)
+        assert have_same_dimensions(g_0, 1 * nS)
+
+        current_e_0 = (cfg.g_L * cfg.e_L + g_e0 * cfg.e_ampa + g_i0 * cfg.e_gaba) / g_0
+        tau_0 = cfg.membrane_capacitance / g_0
+
+        assert have_same_dimensions(g_0, 1 * nS)
+        assert have_same_dimensions(current_e_0, 1 * mV)
+        assert have_same_dimensions(tau_0, 1 * ms)
+
+        sigma_e_sq = 0.5 * cfg.w_ampa * g_e0
+        sigma_i_sq = 0.5 * cfg.w_gaba * g_i0
+
+        one_sigma_e_sq_with_units = sigma_e_sq / g_0**2 * (cfg.e_ampa - current_e_0) **2 * (cfg.tau_ampa / (cfg.tau_ampa + tau_0))
+        one_sigma_i_sq_with_units = sigma_i_sq / g_0**2 * (cfg.e_gaba - current_e_0) **2 * (cfg.tau_gaba / (cfg.tau_gaba + tau_0))
+
+        sigma_sq_test = one_sigma_e_sq_with_units + one_sigma_i_sq_with_units
+
+        assert have_same_dimensions(sigma_sq_test, 1 * mV**2)
+
+        g_e_0_no_units = (g / (second * nS)) * one_rate_no_unit
+        g_i_0_no_units = gamma * (g / (second * nS)) * one_rate_no_unit
+        g_0_no_units = cfg.g_L / nS + g_e_0_no_units + g_i_0_no_units
+
+        assert is_dimensionless(g_e_0_no_units)
+        assert is_dimensionless(g_i_0_no_units)
+        assert is_dimensionless(g_0_no_units)
+
+        self.assertAlmostEqual(g_0_no_units, g_0 / nS)
+
+        tau_0_no_units = (cfg.membrane_capacitance / nF) / g_0_no_units * 1000 # because nF / nS returns 1 s
+        tau_ampa_no_units = cfg.tau_ampa / ms
+        tau_gaba_no_units = cfg.tau_gaba / ms
+
+        self.assertAlmostEqual(tau_0_no_units, tau_0 / ms)
+
+        sigma_e_sq_no_units = 0.5 * (cfg.w_ampa / nS) * g_e_0_no_units
+        sigma_i_sq_no_units = 0.5 * (cfg.w_gaba / nS) * g_i_0_no_units
+
+        E_e_no_units = cfg.e_ampa / mV
+        E_i_no_units = cfg.e_gaba / mV
+        E_L_no_units = cfg.e_L / mV
+        E_0_no_units = ((cfg.g_L / nS) * E_L_no_units + g_e_0_no_units * E_e_no_units + g_i_0_no_units * E_i_no_units) / g_0_no_units
+
+        assert is_dimensionless(E_e_no_units)
+        assert is_dimensionless(E_i_no_units)
+        assert is_dimensionless(E_L_no_units)
+        assert is_dimensionless(E_0_no_units)
+
+        one_sigma_v_e_sq_no_units = sigma_e_sq_no_units / g_0_no_units ** 2 * (E_0_no_units - E_e_no_units) ** 2 * (tau_ampa_no_units / (tau_ampa_no_units + tau_0_no_units))
+        one_sigma_v_i_sq_no_units = sigma_i_sq_no_units / g_0_no_units ** 2 * (E_0_no_units - E_i_no_units) ** 2 * (tau_gaba_no_units / (tau_gaba_no_units + tau_0_no_units))
+
+        assert is_dimensionless(one_sigma_v_e_sq_no_units)
+        assert is_dimensionless(one_sigma_v_i_sq_no_units)
+
+        one_sigma_v_sq_no_units = one_sigma_v_e_sq_no_units + one_sigma_v_i_sq_no_units
+
+        self.assertAlmostEqual(one_sigma_v_sq_no_units, sigma_sq_test / mV**2)
+
+        test_compare = [None] * len(r)
+        for index, rate in enumerate(r):
+            g = calibrated_configuration.g()
+            g_e0 = g * rate
+            g_i0 = gamma * g * rate
+            g_0 = cfg.g_L + g_e0 + g_i0
+            assert have_same_dimensions(g_e0, 1 * nS)
+            assert have_same_dimensions(g_i0, 1 * nS)
+            assert have_same_dimensions(g_0, 1 * nS)
+
+            current_e_0 = (cfg.g_L * cfg.e_L + g_e0 * cfg.e_ampa + g_i0 * cfg.e_gaba) / g_0
+            tau_0 = cfg.membrane_capacitance / g_0
+
+            assert have_same_dimensions(g_0, 1 * nS)
+            assert have_same_dimensions(current_e_0, 1 * mV)
+            assert have_same_dimensions(tau_0, 1 * ms)
+
+            sigma_e_sq = 0.5 * cfg.w_ampa * g_e0
+            sigma_i_sq = 0.5 * cfg.w_gaba * g_i0
+
+            one_sigma_e_sq_with_units = sigma_e_sq / g_0 ** 2 * (cfg.e_ampa - current_e_0) ** 2 * (
+                        cfg.tau_ampa / (cfg.tau_ampa + tau_0))
+            one_sigma_i_sq_with_units = sigma_i_sq / g_0 ** 2 * (cfg.e_gaba - current_e_0) ** 2 * (
+                        cfg.tau_gaba / (cfg.tau_gaba + tau_0))
+
+            sigma_sq_test = one_sigma_e_sq_with_units + one_sigma_i_sq_with_units
+            test_compare[index] = sigma_sq_test / mV**2
 
         sigma_np_result = sigma_sq(r, cfg, gamma)
-
-
-        #plt.plot(r / Hz, test_compare, label="Brian 2 units")
-        plt.plot(r / Hz, sigma_np_result / (mV**2), label="no units")
+        plt.plot(r / Hz, test_compare, label="Test computation")
+        plt.plot(r / Hz, sigma_np_result / (mV**2), label="method")
         plt.legend()
         plt.tight_layout()
         plt.show()
+        np.testing.assert_allclose(test_compare, sigma_np_result / mV ** 2)
+
+    def test_config_with_large_N_E(self):
+        with self.assertRaises(ValueError):
+            calibrated_configuration.with_property(N_E=1000, k=0.5)
+
+        object_under_test_1 = calibrated_configuration.with_property(N_E = 1000, N_I = 1000)
+
+        self.assertEqual(1000, object_under_test_1.N_E)
+        self.assertEqual(1000, object_under_test_1.N_I)
+        self.assertEqual(2000, object_under_test_1.N)
+        self.assertEqual(1, object_under_test_1.k)
+
+        object_under_test_2 = calibrated_configuration.with_property(N = 1000)
+        self.assertEqual(1000, object_under_test_2.N)
+        self.assertEqual(1, object_under_test_2.k)
+        self.assertEqual(500, object_under_test_2.N_E)
+        self.assertEqual(500, object_under_test_2.N_I)
 
 
 

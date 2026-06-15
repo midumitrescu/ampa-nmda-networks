@@ -1,21 +1,12 @@
 from dataclasses import dataclass, field, replace
 
 import numpy as np
-import matplotlib.pyplot as plt
-
 from brian2 import (
     ms,
     mV,
     nS,
-    pF,
     Hz,
-    second,
-    start_scope,
-    NeuronGroup,
-    StateMonitor,
-    run,
-    defaultclock,
-    seed, Quantity, Mohm, kHz, nF,
+    Quantity, Mohm, kHz, nF,
 )
 
 WANG_MODEL = """
@@ -42,6 +33,10 @@ ds_nmda/dt = -s_nmda / tau_nmda_decay + alpha_nmda * x_nmda * (1 - s_nmda): 1
 
 def copy_of(arr: np.ndarray):
     return  None if arr is None else arr.copy()
+
+class Chapter1Results:
+    mu_v = - 47.61595645 * mV
+    sigma_v = 1.9 * mV
 
 @dataclass(frozen=True)
 class ConductanceDiffusionSimulationConfig:
@@ -74,7 +69,7 @@ class ConductanceDiffusionSimulationConfig:
 
     N: int | None = None
     # in our manuscript, this is actually k
-    k: float = 0.8
+    k: float = 1
 
     N_E: int | None = None
     N_I: int | None = None
@@ -104,12 +99,15 @@ class ConductanceDiffusionSimulationConfig:
 
     def with_property(self, **changes):
 
-        if changes.__contains__("N") or changes.__contains__("gamma"):
+        if "k" in changes and ("N_E" or "N_I") in changes:
+            raise ValueError("Either (N, k) or (N E, N I)")
+
+        if changes.__contains__("N") or changes.__contains__("k"):
             changes["N_E"] = None,
             changes["N_I"] = None
 
-            if not changes.__contains__("gamma"):
-                changes["gamma"] = 0.8
+        elif changes.__contains__("N_E"):
+            changes["N"] = None
 
         return replace(
             self,
@@ -123,9 +121,9 @@ class ConductanceDiffusionSimulationConfig:
 
         if self.N_E is not None and self.N_I is not None:
             object.__setattr__(self, "N", self.N_E + self.N_I)
-            object.__setattr__(self, "gamma", self.N_E / (self.N_E + self.N_I))
+            object.__setattr__(self, "k", self.N_E / self.N_I)
         elif self.N is not None:
-            N_E = int(self.N * self.k)
+            N_E = int(self.N / (1 + self.k))
             N_I = self.N - N_E
 
             object.__setattr__(self, "N_E", N_E)
