@@ -3,12 +3,15 @@ import unittest
 
 import matplotlib
 import numpy as np
-from brian2 import mV, have_same_dimensions, nS, Hz, ms, farad, nF, second, is_dimensionless, Mohm
+from brian2 import mV, have_same_dimensions, nS, Hz, ms, farad, nF, second, is_dimensionless, Mohm, Quantity
 from loguru import logger
 from matplotlib import pyplot as plt
 from matplotlib.gridspec import GridSpec
 from matplotlib.widgets import Slider
 
+import sympy as sp
+
+from build.lib.source.BinarySeach import binary_search_for_target_value
 from iteration_16.model import calibrated_configuration, ConductanceDiffusionSimulationConfig, Chapter1Results
 
 logger.remove()  # remove default handler
@@ -30,7 +33,7 @@ logger.add(
     diagnose=True
 )
 
-def polynomial_r(r, cfg: ConductanceDiffusionSimulationConfig, gamma, sigma_v):
+def polynomial_r(r, cfg: ConductanceDiffusionSimulationConfig, gamma, mu_v: Quantity, sigma_v: Quantity):
     if is_dimensionless(r):
         r = r * Hz
 
@@ -45,8 +48,8 @@ def polynomial_r(r, cfg: ConductanceDiffusionSimulationConfig, gamma, sigma_v):
     C = cfg.membrane_capacitance
 
     # synaptic weights
-    K_e = cfg.w_ampa * cfg.tau_ampa * (cfg.e_ampa - cfg.e_L)**2
-    K_i = cfg.w_gaba * cfg.tau_gaba * (cfg.e_gaba - cfg.e_L)**2
+    K_e = cfg.w_ampa * cfg.tau_ampa * (cfg.e_ampa - mu_v)**2
+    K_i = cfg.w_gaba * cfg.tau_gaba * (cfg.e_gaba - mu_v)**2
 
     assert have_same_dimensions(K_e , 1 * farad * mV**2)
     assert have_same_dimensions(K_i, 1 * farad * mV ** 2)
@@ -91,25 +94,22 @@ def polynomial_r(r, cfg: ConductanceDiffusionSimulationConfig, gamma, sigma_v):
         a0 / (nS ** 3 * ms ** 2 * mV ** 2),
     ], dtype=float)
 
-    roots = np.roots(coeffs)
-
-    print("roots to COEF with units", np.roots([a3, a2, a1, a0]))
-    print("roots to COEF without units", np.roots(coeffs))
+    roots = np.roots(coeffs) * nS
 
     for root in roots:
-        print("Polyn of coeffff")
-        print(np.polyval([a3, a2, a1, a0], root))
-        root = root * nS
-        val = (
-            a3*root**3 +
-            a2*root**2 +
-            a1*root +
-            a0
+        residual =  a3 * root **3 + a2 * root ** 2 + a1 * root **1 + a0
+        scale = (
+                abs(a3 * root ** 3)
+                + abs(a2 * root ** 2)
+                + abs(a1 * root)
+                + abs(a0)
         )
-        print(root, val)
 
-    #assert have_same_dimensions(roots[0], 1 * nS)
-    assert have_same_dimensions(roots[0], 1)
+        print(residual / scale)
+
+
+    assert have_same_dimensions(roots[0], 1 * nS)
+    #assert have_same_dimensions(roots[0], 1)
     return result / (nS **3 * ms ** 2 * mV**2), roots
 
 def E_0(r, cfg: ConductanceDiffusionSimulationConfig, gamma):
@@ -143,9 +143,6 @@ def sigma_sq(r, cfg: ConductanceDiffusionSimulationConfig, gamma):
     ge = cfg.g() * r
     gi = gamma * cfg.g() * r
 
-    assert have_same_dimensions(ge[1], 1 * nS)
-    assert have_same_dimensions(gi[1], 1 * nS)
-
     g0 = gL + ge + gi
     assert have_same_dimensions(g0, 1 * nS)
 
@@ -158,14 +155,18 @@ def sigma_sq(r, cfg: ConductanceDiffusionSimulationConfig, gamma):
     assert  have_same_dimensions(sigma_i_sq, 1 * nS**2)
 
     E_0_comp = E_0(r, cfg, gamma)
-    assert have_same_dimensions(E_0_comp[1], 1 * mV)
 
     sigma_term_e = sigma_e_sq / (g0 ** 2) * (Ee - E_0_comp) ** 2 * cfg.tau_ampa /  (cfg.tau_ampa + tau_0)
     sigma_term_i = sigma_i_sq / (g0 ** 2) * (Ei - E_0_comp) ** 2 * cfg.tau_gaba / (cfg.tau_gaba + tau_0)
 
     assert is_dimensionless(cfg.tau_gaba /  (cfg.tau_ampa + C / g0))
-    assert have_same_dimensions(sigma_term_e[1], 1 * mV**2)
-    assert have_same_dimensions(sigma_term_i[1], 1 * mV**2)
+
+    if isinstance(r, list):
+        assert have_same_dimensions(ge[1], 1 * nS)
+        assert have_same_dimensions(gi[1], 1 * nS)
+        assert have_same_dimensions(E_0_comp[1], 1 * mV)
+        assert have_same_dimensions(sigma_term_e[1], 1 * mV**2)
+        assert have_same_dimensions(sigma_term_i[1], 1 * mV**2)
 
     sigma_v_squared = sigma_term_e + sigma_term_i
     return sigma_v_squared
@@ -187,6 +188,28 @@ def plot_poly(gamma=0.5, sigma_v=2 * mV, cfg: ConductanceDiffusionSimulationConf
     plt.title("Cubic intersection landscape")
     plt.show()
 
+def evaluate_sympy_solution(solution, config: ConductanceDiffusionSimulationConfig, mu_v_target: Quantity, sigma_target: Quantity):
+    values = {
+        'gL': float(config.g_L / nS),
+        "EL": float(config.e_L / mV),
+        "Ee": float(config.e_ampa / mV),
+        "Ei": float(config.e_gaba / mV),
+        "we": float(config.w_ampa / nS),
+        "wi": float(config.w_gaba / nS),
+        "taue": float(config.tau_ampa / ms),
+        "taui": float(config.tau_gaba / ms),
+        "C": float(config.membrane_capacitance / nF),
+        'E_target': float(mu_v_target / mV),
+        'sigma_target': float(sigma_target / mV)
+    }
+    x_val = solution.subs(values)
+    x_val = x_val.evalf()
+    if abs(sp.im(x_val)) < 1e-10:
+        x_val = sp.re(x_val)
+    else:
+        print("Imaginary value of our solution: ", sp.im(x_val))
+
+    return x_val
 
 class TripleExplorer:
 
@@ -329,6 +352,16 @@ def cubic_solution_title(cfg: ConductanceDiffusionSimulationConfig):
 
 class MyTestCase(unittest.TestCase):
 
+    def test_find_solution_by_binary_search(self):
+        cfg = calibrated_configuration.with_property(N_E=1000)
+
+        gamma = 0.5
+        sigma_v = 1.9 * mV
+
+        comp_sigma = lambda r: sigma_sq(r, cfg, gamma)
+        binary_search_for_target_value()
+
+
     def test_plot_e_0_sigma_0_p_of_x(self):
         cfg = calibrated_configuration.with_property(N_E=1000)
 
@@ -340,14 +373,16 @@ class MyTestCase(unittest.TestCase):
         #x = (cfg.g() / (nS * second)) * r
         #x = (cfg.g() / (nS * second)) * r
 
-        P_vals, roots = polynomial_r(r, cfg, gamma, sigma_v)
+        P_vals, roots = polynomial_r(r, cfg, gamma, mu_v = Chapter1Results.mu_v, sigma_v = Chapter1Results.sigma_v)
 
         a3 = (2 * sigma_v ** 2 * cfg.tau_ampa * cfg.tau_gaba * (1 + gamma) ** 3) / (ms**2 * mV**2)
         assert is_dimensionless(a3)
 
-        x = (cfg.g() / (nS * second))  * r / Hz
-        polyn_from_roots = a3 * ( x - roots[0]) * (x - roots[1]) * (x - roots[2])
+        x = cfg.g() * r
 
+        print('XXXX')
+        print(roots / cfg.g(), "Produce sigma sq ", sigma_sq(roots / cfg.g(), cfg, gamma))
+        polyn_from_roots = a3 * ( x - roots[0]) * (x - roots[1]) * (x - roots[2]) / (nS **3)
 
         E_vals = E_0(r, cfg, gamma)
         sigma_vals = sigma_sq(r, cfg, gamma)
@@ -389,8 +424,8 @@ class MyTestCase(unittest.TestCase):
         plt.show()
 
         g_unitless = cfg.g() / (nS * second)
-        print(sigma_sq(roots / g_unitless, cfg, gamma) / mV**2)
-        np.testing.assert_allclose(sigma_v**2, sigma_sq(roots / g_unitless, cfg, gamma))
+        print(sigma_sq(roots / cfg.g(), cfg, gamma) / mV**2)
+        np.testing.assert_allclose(sigma_v**2, sigma_sq(roots / cfg.g(), cfg, gamma))
 
 
     def test_run_ui(self):
@@ -572,7 +607,37 @@ class MyTestCase(unittest.TestCase):
         self.assertEqual(500, object_under_test_2.N_E)
         self.assertEqual(500, object_under_test_2.N_I)
 
+    def test_numerical_simpy_solution(self):
+        gr = 367.327808891460
+        gamma = 1.44112462343384
+        def compute_solution(cfg: ConductanceDiffusionSimulationConfig):
+            rate_sol = gr / (cfg.g() / (nS * second))  * Hz
 
+            print(E_0(rate_sol, cfg, gamma))
+            print(sigma_sq(rate_sol, cfg, gamma))
+            print(rate_sol)
+            print("==================")
+
+        compute_solution(calibrated_configuration)
+        compute_solution(calibrated_configuration.with_property(N = 1000))
+
+    def test_sympy_solutions_solve_e_0_and_sigma_sq_0(self):
+        with open("solution.txt") as f:
+            solutions = sp.sympify(f.read())
+            cfg = calibrated_configuration
+            for index, solution in enumerate(solutions):
+                x_sol = evaluate_sympy_solution(solution, cfg, mu_v_target=Chapter1Results.mu_v, sigma_target=Chapter1Results.sigma_v)
+                print(x_sol)
+                g_no_units = cfg.g() / (nS * second)
+
+                rate_sol_no_units = x_sol/g_no_units
+
+                rate_sol = float(rate_sol_no_units) * Hz
+
+                print(rate_sol)
+                print(E_0(rate_sol, cfg, gamma))
+                print(sigma_sq(rate_sol, cfg, gamma))
+                print("==================")
 
 
 
