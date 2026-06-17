@@ -144,7 +144,7 @@ class ConductanceDiffusionTestCase(unittest.TestCase):
         self.assertIsNone(result.gaba_spike_delta_v())
         self.assertIsNone(result.nmda_spike_delta_v())
 
-        self.assertAlmostEqual(0.13622910229318563, result.ampa_spike_delta_v())
+        self.assertAlmostEqual(0.10485572212694194, result.ampa_spike_delta_v())
 
     def test_one_gaba_spike(self):
         config = ConductanceDiffusionSimulationConfig(
@@ -164,7 +164,7 @@ class ConductanceDiffusionTestCase(unittest.TestCase):
 
         self.assertIsNone(result.ampa_spike_delta_v())
         self.assertIsNone(result.nmda_spike_delta_v())
-        self.assertAlmostEqual(-0.03158342087972699, result.gaba_spike_delta_v())
+        self.assertAlmostEqual(-0.05025750639670434, result.gaba_spike_delta_v())
 
 
     def test_one_nmda_spike(self):
@@ -187,7 +187,7 @@ class ConductanceDiffusionTestCase(unittest.TestCase):
         self.assertIsNone(result.ampa_spike_delta_v())
         self.assertIsNone(result.gaba_spike_delta_v())
 
-        self.assertAlmostEqual(0, result.nmda_spike_delta_v())
+        self.assertAlmostEqual(1.2946114420009067, result.nmda_spike_delta_v())
 
     def test_nmda_spike_with_full_activation_has_to_be_considerably_lerger(self):
         usual_config = ConductanceDiffusionSimulationConfig(
@@ -203,6 +203,8 @@ class ConductanceDiffusionTestCase(unittest.TestCase):
 
         print("Full NMDA ", full_activation_result.nmda_spike_delta_v())
         print("Usual NMDA ", result.nmda_spike_delta_v())
+
+        self.assertLess(result.nmda_spike_delta_v(), full_activation_result.nmda_spike_delta_v())
 
 
     def test_can_change_one_property(self):
@@ -224,8 +226,8 @@ class ConductanceDiffusionTestCase(unittest.TestCase):
         print(result.ampa_spike_delta_v())
         print(result_of_copy_config.ampa_spike_delta_v())
 
-        self.assertEqual(0.13622910229318563, result.ampa_spike_delta_v())
-        self.assertEqual(0.27216277359521257, result_of_copy_config.ampa_spike_delta_v())
+        self.assertEqual(0.10485572212694194, result.ampa_spike_delta_v())
+        self.assertEqual(0.20952561298761907, result_of_copy_config.ampa_spike_delta_v())
 
 
 

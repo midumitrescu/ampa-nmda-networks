@@ -146,6 +146,14 @@ def prepare_bigger_fonts(zoom=0):
             "legend.fontsize": 18,
             "figure.titlesize": 24
         })
+    elif zoom == 2:
+        plt.rcParams.update({
+            "font.size": 24,
+            "axes.titlesize": 24,
+            "axes.labelsize": 22,
+            "legend.fontsize": 20,
+            "figure.titlesize": 28
+        })
 
 
 def _safe_filename_part(s):

@@ -1,0 +1,137 @@
+
+## What did we find? C/tau_0 is in seconds, but we have our ti's in miliseconds. Brian2 takes care correctly of this, but
+when we go to a library without units, we have to make sure these match!
+
+def compare_two_impl(solution, cfg, mu_v_target, sigma_target):
+    from sympy.abc import x, y
+    gL, Ee, Ei, EL, E_target = sp.symbols('gL Ee Ei EL E_target')
+    g0 = gL + x * (1 + y)
+
+    E0 = (gL * EL + x * Ee + y * x * Ei) / g0
+    equation_e_0 = E0 - E_target
+
+    y_expr = sp.solve(equation_e_0, y)[0]
+
+    values = {
+        'gL': float(cfg.g_L / nS),
+        "EL": float(cfg.e_L / mV),
+        "Ee": float(cfg.e_ampa / mV),
+        "Ei": float(cfg.e_gaba / mV),
+        "we": float(cfg.w_ampa / nS),
+        "wi": float(cfg.w_gaba / nS),
+        "taue": float(cfg.tau_ampa / second),
+        "taui": float(cfg.tau_gaba / second),
+        "C": float(cfg.membrane_capacitance / nF),
+        'E_target': float(mu_v_target / mV),
+        'sigma_target': float(sigma_target / mV)
+    }
+    x_val = solution.subs(values)
+    x_val = x_val.evalf()
+    if abs(sp.im(x_val)) < 1e-10:
+        x_val = sp.re(x_val)
+    else:
+        print("Imaginary value of our solution: ", sp.im(x_val))
+    y_val = y_expr.subs(x, x_val).subs(values).evalf()
+
+
+    r = float(x_val) / ( cfg.g() / nS)
+    gamma = float(y_val)
+    gL_python = cfg.g_L
+    Ee_python = cfg.e_ampa
+    Ei_python = cfg.e_gaba
+    C_python = cfg.membrane_capacitance
+
+    ge_python = cfg.g() * r
+    gi_python = gamma * cfg.g() * r
+
+    g0_python = gL_python + ge_python + gi_python
+    tau_0_python = C_python / g0_python
+
+    sigma_e_sq_python = 0.5 * cfg.w_ampa * ge_python
+    sigma_i_sq_python = 0.5 * cfg.w_gaba * gi_python
+
+    E_0_comp = E_0(r, cfg, gamma)
+
+    print("Check computation of E0")
+    print(f"Sympy x {x_val} vs gr = x {ge_python}")
+    print(f"Sympy yx {x_val * y_val} vs gamma gr = gamma x {gamma * ge_python}")
+    print(f"E_0 simpy {E0.subs({"x": x_val, "y": y_val}).subs(values).evalf()} vs python native {E_0_comp}")
+    print(f"g_0 simpy {g0.subs({"x": x_val, "y": y_val}).subs(values).evalf()} vs python native {g0_python}")
+
+
+    sigma_term_e_python = sigma_e_sq_python / (g0_python ** 2) * (Ee_python - E_0_comp) ** 2 * cfg.tau_ampa / (cfg.tau_ampa + tau_0_python)
+    sigma_term_i_python = sigma_i_sq_python / (g0_python ** 2) * (Ei_python - E_0_comp) ** 2 * cfg.tau_gaba / (cfg.tau_gaba + tau_0_python)
+
+    sigma_v_squared_python = sigma_term_e_python + sigma_term_i_python
+
+    ##################################
+    we, wi = sp.symbols('we wi')
+    taue, taui = sp.symbols('taue taui')
+    C = sp.symbols('C')
+    sigma_sq = (
+            we / 2 * x / g0 ** 2 * (Ee - E0) ** 2 *
+            taue / (taue + C / g0)
+            +
+            wi / 2 * y * x / g0 ** 2 * (Ei - E0) ** 2 *
+            taui / (taui + C / g0)
+    )
+
+    sigma_e_sq = we / 2 * x / g0 ** 2 * (Ee - E0) ** 2 * taue / (taue + C / g0)
+    sigma_i_sq = wi / 2 * y * x / g0 ** 2 * (Ei - E0) ** 2 * taui / (taui + C / g0)
+
+    sigma_e_sq_tree = sigma_e_sq.subs({"x": x_val, "y": y_val, "E0": mu_v_target / mV}).subs(values)
+    sigma_i_sq_tree = sigma_i_sq.subs({"x": x_val, "y": y_val, "E0": mu_v_target / mV}).subs(values)
+    print("------------------------------------------")
+    sp.pprint(sigma_e_sq)
+    print("------------------------------------------")
+    #sp.srepr(sigma_e_sq)
+
+    print("Check computation of sigma squared")
+    print(f"tau 0 simpy {(C / g0).subs({"x": x_val, "y": y_val}).subs(values).evalf()} vs python native {tau_0_python}")
+    print(f"tau e / tau e + tau 0 simpy {(taue / (taue + C / g0)).subs({"x": x_val, "y": y_val}).subs(values).evalf()} vs python native {cfg.tau_ampa / (cfg.tau_ampa + tau_0_python)}")
+    print(f"Sympy s e sq {sigma_e_sq_tree.evalf()} vs python = {sigma_term_e_python / (mV**2)}")
+    print(f"Sympy s i sq {sigma_i_sq_tree} vs python {sigma_term_i_python / (mV**2)}" )
+    print(f"Sympy s sq {sigma_sq.subs({"x": x_val, "y": y_val}).subs(values).evalf()} vs python {sigma_v_squared_python}")
+
+    print(f"Python used values 'gL:' {cfg.g_L}, 'EL': {cfg.e_L}, 'Ee': {cfg.e_ampa}, 'Ei': {cfg.e_gaba}, 'we': {cfg.w_ampa}, 'wi': {cfg.w_gaba}, 'taue': {cfg.tau_ampa}, 'taui': {cfg.tau_gaba}, 'C': {cfg.membrane_capacitance}")
+    print(f"Sympy used values {values}")
+
+    print("===================================================")
+
+    A_sym = (we / 2 * x).subs(values)
+    B_sym = (1 / g0 ** 2).subs(values)
+    C_sym = ((Ee - E0) ** 2).subs(values)
+    D_sym = (taue / (taue + C / g0)).subs(values)
+
+    A_sym = A_sym.subs({"x": x_val, "y": y_val}).evalf()
+    B_sym = B_sym.subs({"x": x_val, "y": y_val}).evalf()
+    C_sym = C_sym.subs({"x": x_val, "y": y_val}).evalf()
+    D_sym = D_sym.subs({"x": x_val, "y": y_val}).evalf()
+
+    A_nat = 0.5 * cfg.w_ampa * ge_python
+    B_nat = 1 / (g0_python ** 2)
+    C_nat = (Ee_python - E_0_comp) ** 2
+    D_nat = cfg.tau_ampa / (cfg.tau_ampa + tau_0_python)
+
+    sigma_nat = A_nat * B_nat * C_nat * D_nat
+
+    print(f"SYM A {A_sym}, NAT A {A_nat}")
+    print(f"SYM B {B_sym}, NAT B {B_nat}")
+    print(f"SYM C {C_sym}, NAT C {C_nat}")
+    print(f"SYM D {D_sym}, NAT D {D_nat}")
+
+
+    print("SYM sigma", A_sym * B_sym * C_sym * D_sym, "NAT sigma ", sigma_nat)
+
+    print("===================================================")
+
+
+
+
+
+
+
+
+
+    print("===================================================")
+

@@ -158,13 +158,13 @@ class WangSimulation:
         return result
 
     @staticmethod
-    def run_and_plot(config: ConductanceDiffusionSimulationConfig):
+    def run_and_plot(config: ConductanceDiffusionSimulationConfig, plot_title = None):
         result = WangSimulation.run(config)
-        plot(result)
+        plot(result, plot_title=plot_title)
         return result
 
 
-def plot(result: WangSimulationResult):
+def plot(result: WangSimulationResult, plot_title):
     fig, axes = plt.subplots(
         5,
         1,
@@ -203,7 +203,10 @@ def plot(result: WangSimulationResult):
     axes[4].set_ylabel("xNMDA (nS)")
     axes[4].set_xlabel("Time (ms)")
 
-    plt.tight_layout()
+    if plot_title is not None:
+        fig.suptitle(plot_title)
+
+    fig.tight_layout()
     show_plots_non_blocking()
 
 

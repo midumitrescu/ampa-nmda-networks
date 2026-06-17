@@ -6,7 +6,7 @@ from brian2 import Hz, ms
 from numpy.testing import assert_array_equal, assert_allclose
 
 from Plotting import show_plots_non_blocking, prepare_bigger_fonts
-from iteration_16.model import calibrated_configuration
+from iteration_16.model import config_with_weak_synapses
 from iteration_16.nmda_compartment_model import NMDASimulationWangCompartments
 
 
@@ -127,21 +127,21 @@ def plot_k_sweep_results(result_by_k, k_s, config, experiment_title=None):
 class NMDACompartmentsSanityTestCases(unittest.TestCase):
 
     def test_config_can_be_initialized_with_NE_and_NI(self):
-        object_under_test = calibrated_configuration.with_property(r_e=50 * Hz, r_i=100 * Hz, N_E=1, N_I=1)
+        object_under_test = config_with_weak_synapses.with_property(r_e=50 * Hz, r_i=100 * Hz, N_E=1, N_I=1)
         self.assertEqual(1, object_under_test.N_E)
         self.assertEqual(1, object_under_test.N_I)
         self.assertEqual(2, object_under_test.N)
         self.assertEqual(0.5, object_under_test.gamma)
 
     def test_config_can_be_initialized_with_N_and_default_gamma(self):
-        object_under_test = calibrated_configuration.with_property(r_e=50 * Hz, r_i=100 * Hz, N=10)
+        object_under_test = config_with_weak_synapses.with_property(r_e=50 * Hz, r_i=100 * Hz, N=10)
         self.assertEqual(10, object_under_test.N)
         self.assertEqual(0.8, object_under_test.gamma)
         self.assertEqual(8, object_under_test.N_E)
         self.assertEqual(2, object_under_test.N_I)
 
     def test_presynaptic_spikes_and_indes_in_compartments_are_disjoint_two_compartments(self):
-        config = calibrated_configuration.with_property(r_e=2 * Hz, r_i = 2 * Hz, N_E = 10, N_I = 5, seed=200)
+        config = config_with_weak_synapses.with_property(r_e=2 * Hz, r_i =2 * Hz, N_E = 10, N_I = 5, seed=200)
         object_under_test = NMDASimulationWangCompartments.run_and_plot(config, k=2)
 
         ampa_spikes = object_under_test.ampa_spikes
@@ -193,7 +193,7 @@ class NMDACompartmentsSanityTestCases(unittest.TestCase):
             )
 
     def test_simulation_results_are_correctly_extracted_to_numpy(self):
-        config = calibrated_configuration.with_property(r_e=2 * Hz, r_i = 2 * Hz, N_E = 10, N_I = 5, seed=200)
+        config = config_with_weak_synapses.with_property(r_e=2 * Hz, r_i =2 * Hz, N_E = 10, N_I = 5, seed=200)
         object_under_test = NMDASimulationWangCompartments.run_and_plot(config, k=2)
 
         ampa_spikes = object_under_test.ampa_spikes
@@ -221,7 +221,7 @@ class NMDACompartmentsSanityTestCases(unittest.TestCase):
         assert_allclose([0, 0, 1, 1, 1, 1, 1], object_under_test.nmda_spikes.compartments)
 
     def test_simulation_works_when_k_equals_N_E(self):
-        config = calibrated_configuration.with_property(r_e=2 * Hz, r_i = 2 * Hz, N_E = 10, N_I = 5, seed=200)
+        config = config_with_weak_synapses.with_property(r_e=2 * Hz, r_i =2 * Hz, N_E = 10, N_I = 5, seed=200)
         object_under_test = NMDASimulationWangCompartments.run_and_plot(config, k=10)
 
 

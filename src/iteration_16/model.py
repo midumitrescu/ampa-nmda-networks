@@ -6,7 +6,7 @@ from brian2 import (
     mV,
     nS,
     Hz,
-    Quantity, Mohm, kHz, nF,
+    Quantity, Mohm, kHz, nF, is_dimensionless,
 )
 
 WANG_MODEL = """
@@ -34,9 +34,19 @@ ds_nmda/dt = -s_nmda / tau_nmda_decay + alpha_nmda * x_nmda * (1 - s_nmda): 1
 def copy_of(arr: np.ndarray):
     return  None if arr is None else arr.copy()
 
-class Chapter1Results:
-    mu_v = - 47.61595645 * mV
-    sigma_v = 1.9 * mV
+
+class Results:
+
+    def __init__(self, mu_v: Quantity, sigma_v: Quantity):
+        if is_dimensionless(mu_v):
+            mu_v = mu_v * mV
+        if is_dimensionless(sigma_v):
+            sigma_v = sigma_v * mV
+
+        self.mu_v = mu_v
+        self.sigma_v = sigma_v
+
+chapter1Results = Results(mu_v=- 47.61595645 * mV, sigma_v=1.9 * mV)
 
 @dataclass(frozen=True)
 class ConductanceDiffusionSimulationConfig:
@@ -51,7 +61,7 @@ class ConductanceDiffusionSimulationConfig:
     membrane_capacitance: Quantity = field(default_factory=lambda: 0.5 * nF) # value from Wang is 0.5 * nF
 
     e_L: Quantity = field(default_factory=lambda: -65 * mV)
-    resting_voltage: Quantity = field(default_factory=lambda: -70 * mV)
+    resting_voltage: Quantity = field(default_factory=lambda: -65 * mV)
 
     # synaptic reversals
     e_ampa: Quantity = field(default_factory=lambda: 0 * mV)
@@ -67,7 +77,7 @@ class ConductanceDiffusionSimulationConfig:
 
     alpha_nmda: Quantity = field(default_factory=lambda: 0.5 * kHz)
 
-    N: int | None = None
+    N: int | None = 1
     # in our manuscript, this is actually k
     k: float = 1
 
@@ -109,11 +119,24 @@ class ConductanceDiffusionSimulationConfig:
         elif changes.__contains__("N_E"):
             changes["N"] = None
 
+
+        if "ampa_spike_times" in changes:
+            changes["ampa_spike_times"] = copy_of(changes["ampa_spike_times"])
+        else:
+            changes["ampa_spike_times"] = copy_of(self.ampa_spike_times)
+
+        if "gaba_spike_times" in changes:
+            changes["gaba_spike_times"] = copy_of(changes["gaba_spike_times"])
+        else:
+            changes["gaba_spike_times"] = copy_of(self.gaba_spike_times)
+
+        if "nmda_spike_times" in changes:
+            changes["nmda_spike_times"] = copy_of(changes["nmda_spike_times"])
+        else:
+            changes["nmda_spike_times"] = copy_of(self.nmda_spike_times)
+
         return replace(
             self,
-            ampa_spike_times=copy_of(self.ampa_spike_times),
-            gaba_spike_times=copy_of(self.gaba_spike_times),
-            nmda_spike_times=copy_of(self.nmda_spike_times),
             **changes,
         )
 
@@ -132,10 +155,18 @@ class ConductanceDiffusionSimulationConfig:
         else:
             raise ValueError("Must provide either (N, gamma) or (N_E, N_I)")
 
-calibrated_configuration = ConductanceDiffusionSimulationConfig(
-    w_ampa=1.84 * nS,
-    w_gaba=8.17 * nS,
-    g_nmda_max= 3.551 * nS,
+config_with_weak_synapses = ConductanceDiffusionSimulationConfig(
+    w_ampa=2.399104714393616 * nS,
+    w_gaba=5.077383026480675 * nS,
+    g_nmda_max= 4.074575871229172 * nS,
+    N_E=1,
+    N_I=1
+)
+
+config_with_medium_synapses = ConductanceDiffusionSimulationConfig(
+    w_ampa=9.7228533 * nS,
+    w_gaba=21.6878134 * nS,
+    g_nmda_max= 4.074575871229172 * nS,
     N_E=1,
     N_I=1
 )

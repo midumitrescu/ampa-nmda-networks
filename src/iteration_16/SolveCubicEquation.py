@@ -3,16 +3,16 @@ import unittest
 
 import matplotlib
 import numpy as np
+import sympy as sp
 from brian2 import mV, have_same_dimensions, nS, Hz, ms, farad, nF, second, is_dimensionless, Mohm, Quantity
 from loguru import logger
 from matplotlib import pyplot as plt
 from matplotlib.gridspec import GridSpec
 from matplotlib.widgets import Slider
 
-import sympy as sp
-
-from build.lib.source.BinarySeach import binary_search_for_target_value
-from iteration_16.model import calibrated_configuration, ConductanceDiffusionSimulationConfig, Chapter1Results
+from Plotting import show_plots_non_blocking
+from iteration_16.model import config_with_weak_synapses, ConductanceDiffusionSimulationConfig, chapter1Results, \
+    config_with_medium_synapses
 
 logger.remove()  # remove default handler
 
@@ -33,6 +33,7 @@ logger.add(
     diagnose=True
 )
 
+
 def polynomial_r(r, cfg: ConductanceDiffusionSimulationConfig, gamma, mu_v: Quantity, sigma_v: Quantity):
     if is_dimensionless(r):
         r = r * Hz
@@ -48,10 +49,10 @@ def polynomial_r(r, cfg: ConductanceDiffusionSimulationConfig, gamma, mu_v: Quan
     C = cfg.membrane_capacitance
 
     # synaptic weights
-    K_e = cfg.w_ampa * cfg.tau_ampa * (cfg.e_ampa - mu_v)**2
-    K_i = cfg.w_gaba * cfg.tau_gaba * (cfg.e_gaba - mu_v)**2
+    K_e = cfg.w_ampa * cfg.tau_ampa * (cfg.e_ampa - mu_v) ** 2
+    K_i = cfg.w_gaba * cfg.tau_gaba * (cfg.e_gaba - mu_v) ** 2
 
-    assert have_same_dimensions(K_e , 1 * farad * mV**2)
+    assert have_same_dimensions(K_e, 1 * farad * mV ** 2)
     assert have_same_dimensions(K_i, 1 * farad * mV ** 2)
 
     # shorthand
@@ -59,33 +60,33 @@ def polynomial_r(r, cfg: ConductanceDiffusionSimulationConfig, gamma, mu_v: Quan
     ti = cfg.tau_gaba
 
     # coefficients
-    a3 = 2 * sigma_v**2 * te * ti * (1 + gamma)**3
+    a3 = 2 * sigma_v ** 2 * te * ti * (1 + gamma) ** 3
 
-    assert have_same_dimensions(a3, 1*ms**2 * mV**2)
+    assert have_same_dimensions(a3, 1 * ms ** 2 * mV ** 2)
 
     a2 = (1 + gamma) * (
-        2 * sigma_v**2 * (1 + gamma ) * (3 * te * ti * gL + C * (te + ti)) - K_e * ti - gamma * K_i * te
+            2 * sigma_v ** 2 * (1 + gamma) * (3 * te * ti * gL + C * (te + ti)) - K_e * ti - gamma * K_i * te
     )
     assert have_same_dimensions(a2, 1 * nS * ms ** 2 * mV ** 2)
 
     a1 = (
-        2 * sigma_v**2 * (1 + gamma) * (3 * te * ti * gL**2 + 2 *C * (te + ti) * gL + C**2) -
-        K_e * (ti * gL + C) - gamma * K_i * (te * gL + C)
+            2 * sigma_v ** 2 * (1 + gamma) * (3 * te * ti * gL ** 2 + 2 * C * (te + ti) * gL + C ** 2) -
+            K_e * (ti * gL + C) - gamma * K_i * (te * gL + C)
     )
-    assert have_same_dimensions(a1, 1 * nS**2 * ms ** 2 * mV ** 2)
+    assert have_same_dimensions(a1, 1 * nS ** 2 * ms ** 2 * mV ** 2)
 
     a0 = (
-        2 * sigma_v**2
-        * (
-            te * ti * gL**3
-            + C * (te + ti) * gL**2
-            + C**2 * gL
-        )
+            2 * sigma_v ** 2
+            * (
+                    te * ti * gL ** 3
+                    + C * (te + ti) * gL ** 2
+                    + C ** 2 * gL
+            )
     )
-    assert have_same_dimensions(a0, 1 * nS **3 * ms ** 2 * mV**2)
+    assert have_same_dimensions(a0, 1 * nS ** 3 * ms ** 2 * mV ** 2)
 
-    result = a3*x**3 + a2*x**2 + a1*x + a0
-    assert have_same_dimensions(result[0], 1 * nS **3 * ms ** 2 * mV**2)
+    result = a3 * x ** 3 + a2 * x ** 2 + a1 * x + a0
+    assert have_same_dimensions(result[0], 1 * nS ** 3 * ms ** 2 * mV ** 2)
 
     coeffs = np.array([
         a3 / (ms ** 2 * mV ** 2),
@@ -97,7 +98,7 @@ def polynomial_r(r, cfg: ConductanceDiffusionSimulationConfig, gamma, mu_v: Quan
     roots = np.roots(coeffs) * nS
 
     for root in roots:
-        residual =  a3 * root **3 + a2 * root ** 2 + a1 * root **1 + a0
+        residual = a3 * root ** 3 + a2 * root ** 2 + a1 * root ** 1 + a0
         scale = (
                 abs(a3 * root ** 3)
                 + abs(a2 * root ** 2)
@@ -107,13 +108,12 @@ def polynomial_r(r, cfg: ConductanceDiffusionSimulationConfig, gamma, mu_v: Quan
 
         print(residual / scale)
 
-
     assert have_same_dimensions(roots[0], 1 * nS)
-    #assert have_same_dimensions(roots[0], 1)
-    return result / (nS **3 * ms ** 2 * mV**2), roots
+    # assert have_same_dimensions(roots[0], 1)
+    return result / (nS ** 3 * ms ** 2 * mV ** 2), roots
+
 
 def E_0(r, cfg: ConductanceDiffusionSimulationConfig, gamma):
-
     if is_dimensionless(r):
         r = r * Hz
 
@@ -131,6 +131,7 @@ def E_0(r, cfg: ConductanceDiffusionSimulationConfig, gamma):
 
     return num / g0
 
+
 def sigma_sq(r, cfg: ConductanceDiffusionSimulationConfig, gamma):
     if is_dimensionless(r):
         r = r * Hz
@@ -146,41 +147,40 @@ def sigma_sq(r, cfg: ConductanceDiffusionSimulationConfig, gamma):
     g0 = gL + ge + gi
     assert have_same_dimensions(g0, 1 * nS)
 
-    tau_0  = C / g0
+    tau_0 = C / g0
     assert have_same_dimensions(tau_0, 1 * ms)
 
     sigma_e_sq = 0.5 * cfg.w_ampa * ge
     sigma_i_sq = 0.5 * cfg.w_gaba * gi
-    assert  have_same_dimensions(sigma_e_sq, 1 * nS**2)
-    assert  have_same_dimensions(sigma_i_sq, 1 * nS**2)
+    assert have_same_dimensions(sigma_e_sq, 1 * nS ** 2)
+    assert have_same_dimensions(sigma_i_sq, 1 * nS ** 2)
 
     E_0_comp = E_0(r, cfg, gamma)
 
-    sigma_term_e = sigma_e_sq / (g0 ** 2) * (Ee - E_0_comp) ** 2 * cfg.tau_ampa /  (cfg.tau_ampa + tau_0)
+    sigma_term_e = sigma_e_sq / (g0 ** 2) * (Ee - E_0_comp) ** 2 * cfg.tau_ampa / (cfg.tau_ampa + tau_0)
     sigma_term_i = sigma_i_sq / (g0 ** 2) * (Ei - E_0_comp) ** 2 * cfg.tau_gaba / (cfg.tau_gaba + tau_0)
 
-    assert is_dimensionless(cfg.tau_gaba /  (cfg.tau_ampa + C / g0))
+    assert is_dimensionless(cfg.tau_gaba / (cfg.tau_ampa + C / g0))
 
     if isinstance(r, list):
         assert have_same_dimensions(ge[1], 1 * nS)
         assert have_same_dimensions(gi[1], 1 * nS)
         assert have_same_dimensions(E_0_comp[1], 1 * mV)
-        assert have_same_dimensions(sigma_term_e[1], 1 * mV**2)
-        assert have_same_dimensions(sigma_term_i[1], 1 * mV**2)
+        assert have_same_dimensions(sigma_term_e[1], 1 * mV ** 2)
+        assert have_same_dimensions(sigma_term_i[1], 1 * mV ** 2)
 
     sigma_v_squared = sigma_term_e + sigma_term_i
     return sigma_v_squared
 
 
-def plot_poly(gamma=0.5, sigma_v=2 * mV, cfg: ConductanceDiffusionSimulationConfig = calibrated_configuration):
-
+def plot_poly(gamma=0.5, sigma_v=2 * mV, cfg: ConductanceDiffusionSimulationConfig = config_with_weak_synapses):
     r = np.linspace(0, 50000, 1000) * Hz
     g = cfg.k * cfg.w_gaba * cfg.tau_gaba * cfg.N_I
     x = gamma * g * r
 
     y = polynomial_r(x, cfg, gamma, sigma_v)
 
-    plt.figure(figsize=(6,4))
+    plt.figure(figsize=(6, 4))
     plt.plot(r, y)
     plt.axhline(0, color='black', linewidth=1)
     plt.xlabel("r (Hz)")
@@ -188,7 +188,19 @@ def plot_poly(gamma=0.5, sigma_v=2 * mV, cfg: ConductanceDiffusionSimulationConf
     plt.title("Cubic intersection landscape")
     plt.show()
 
-def evaluate_sympy_solution(solution, config: ConductanceDiffusionSimulationConfig, mu_v_target: Quantity, sigma_target: Quantity):
+
+def evaluate_sympy_solution(solution, config: ConductanceDiffusionSimulationConfig, mu_v_target: Quantity,
+                            sigma_target: Quantity):
+    from sympy.abc import x, y
+
+    gL, Ee, Ei, EL, E_target = sp.symbols('gL Ee Ei EL E_target')
+    g0 = gL + x * (1 + y)
+
+    E0 = (gL * EL + x * Ee + y * x * Ei) / g0
+    equation_e_0 = E0 - E_target
+
+    y_expr = sp.solve(equation_e_0, y)[0]
+
     values = {
         'gL': float(config.g_L / nS),
         "EL": float(config.e_L / mV),
@@ -196,20 +208,20 @@ def evaluate_sympy_solution(solution, config: ConductanceDiffusionSimulationConf
         "Ei": float(config.e_gaba / mV),
         "we": float(config.w_ampa / nS),
         "wi": float(config.w_gaba / nS),
-        "taue": float(config.tau_ampa / ms),
-        "taui": float(config.tau_gaba / ms),
+        "taue": float(config.tau_ampa / second),
+        "taui": float(config.tau_gaba / second),
         "C": float(config.membrane_capacitance / nF),
         'E_target': float(mu_v_target / mV),
         'sigma_target': float(sigma_target / mV)
     }
-    x_val = solution.subs(values)
-    x_val = x_val.evalf()
+    x_val = solution.subs(values).evalf()
     if abs(sp.im(x_val)) < 1e-10:
         x_val = sp.re(x_val)
     else:
         print("Imaginary value of our solution: ", sp.im(x_val))
+    y_val = y_expr.subs(x, x_val).subs(values).evalf()
+    return float(x_val), float(y_val)
 
-    return x_val
 
 class TripleExplorer:
 
@@ -231,7 +243,7 @@ class TripleExplorer:
 
         gs = GridSpec(
             graphs + sliders, 1,
-            height_ratios=[3] * graphs +  [0.3] * sliders
+            height_ratios=[3] * graphs + [0.3] * sliders
         )
 
         self.ax1 = self.fig.add_subplot(gs[0])
@@ -265,18 +277,17 @@ class TripleExplorer:
         self.ax3.set_xlabel("r (Hz)")
 
         self.ax1.axhline(self.mu_v / mV, color="black", lw=1, linestyle="--")
-        self.ax2.axhline((self.sigma_v / mV)**2, color="black", lw=1, linestyle="--")
+        self.ax2.axhline((self.sigma_v / mV) ** 2, color="black", lw=1, linestyle="--")
         self.ax3.axhline(0, color="black", lw=1, linestyle="--")
 
         self.s_gamma = Slider(ax_gamma, "γ", 0.1, 2.0, valinit=0.5)
-        self.s_C     = Slider(ax_C, "C", 0.1, valinit=0.5, valmax=10, valstep=0.1)
-        self.s_g_L     = Slider(ax_g_L, "$g_L$ (nS)", 5, valinit=20, valmax=100, valstep=1)
-        self.s_we    = Slider(ax_we, r"$w_e$ (nS)", 0.01, valinit=0.5, valmax=10)
-        self.s_wi    = Slider(ax_wi, r"$w_i$ (nS)", 0.01, valinit=0.5, valmax=10)
-        self.s_r_max    = Slider(ax_r_max, r"$r_\mathrm{max}$", valmin=0, valinit=1000, valstep=50, valmax=2000)
+        self.s_C = Slider(ax_C, "C", 0.1, valinit=0.5, valmax=10, valstep=0.1)
+        self.s_g_L = Slider(ax_g_L, "$g_L$ (nS)", 5, valinit=20, valmax=100, valstep=1)
+        self.s_we = Slider(ax_we, r"$w_e$ (nS)", 0.01, valinit=0.5, valmax=10)
+        self.s_wi = Slider(ax_wi, r"$w_i$ (nS)", 0.01, valinit=0.5, valmax=10)
+        self.s_r_max = Slider(ax_r_max, r"$r_\mathrm{max}$", valmin=0, valinit=1000, valstep=50, valmax=2000)
 
         self.fig_title = self.fig.suptitle(self.get_title())
-
 
         self.fig.tight_layout()
         self.fig.subplots_adjust(top=0.85)
@@ -308,7 +319,7 @@ class TripleExplorer:
             r_max_new = self.s_r_max.val
             self.r = np.linspace(0, r_max_new, 2000) * Hz
 
-            self.cfg = self.cfg.with_property(membrane_capacitance = new_C, w_ampa = new_w_e, w_gaba = new_w_i, g_L = new_g_L)
+            self.cfg = self.cfg.with_property(membrane_capacitance=new_C, w_ampa=new_w_e, w_gaba=new_w_i, g_L=new_g_L)
 
             E_vals = self.E0(self.r) / mV
             S_vals = self.sigma2(self.r) / (mV ** 2)
@@ -344,45 +355,89 @@ class TripleExplorer:
             logger.exception("Exception inside update()", e)
 
     def get_title(self):
-            return ("Search for parameters such that"r"$\mu_v=$"f"{self.mu_v / mV :.2f}, "r"$\sigma_v=$"f"{self.sigma_v / mV :.2f} \n"
-                    f"{cubic_solution_title(self.cfg)}")
+        return (
+            "Search for parameters such that"r"$\mu_v=$"f"{self.mu_v / mV :.2f}, "r"$\sigma_v=$"f"{self.sigma_v / mV :.2f} \n"
+            f"{cubic_solution_title(self.cfg)}")
+
 
 def cubic_solution_title(cfg: ConductanceDiffusionSimulationConfig):
     return "Our model:" r"$R_{\mathrm{in}}=$" f"{(1 / cfg.g_L) / Mohm : .2f} MΩ, " r"$N_E$="f"{cfg.N_E} "r"$N_I$="f"{cfg.N_I}\n"
 
+
+def plot_one_cubic_solution(solutions: list, config: ConductanceDiffusionSimulationConfig, r_max=10_000, title="Check cubic solutions"):
+    valid_solutions = []
+
+    for index, solution in enumerate(solutions):
+        x_sol, y_sol = evaluate_sympy_solution(solution, config, mu_v_target=chapter1Results.mu_v,
+                                               sigma_target=chapter1Results.sigma_v)
+        rate_sol = x_sol / (config.g() / nS)
+
+        if rate_sol > 0 and y_sol > 0:
+            print(rate_sol, y_sol)
+            valid_solutions.append((rate_sol, y_sol))
+
+    r = np.linspace(0.1, 100, r_max) * Hz
+
+    fig, (ax1, ax2) = plt.subplots(
+        2,
+        1,
+        figsize=(10, 10),
+        sharex=True,
+    )
+
+    for index, solution in enumerate(valid_solutions):
+        r_sol, gamma = solution
+        ax1.plot(r, E_0(r, config, gamma) / mV, label=r"$\gamma=$"f"{gamma:.2f}")
+
+        ax2.plot(r, sigma_sq(r, config, gamma) / mV ** 2, label=r"$\gamma=$"f"{gamma:.2f}")
+        ax2.axhline((chapter1Results.sigma_v / mV) ** 2, color="black", lw=1, linestyle="--")
+
+        print(f"E_0 of solution: {E_0(r_sol, config, gamma)}, sigma v of solution {sigma_sq(r_sol, config, gamma)}")
+        ax1.axvline(x=r_sol / Hz, linestyle="--", label=f"Sol {index + 1}")
+        ax2.axvline(x=r_sol / Hz, linestyle="--", label=f"Sol {index + 1}")
+
+    ax1.axhline(chapter1Results.mu_v / mV, color="black", lw=1, linestyle="--")
+    ax1.set_title(r"$E_0(r)$")
+    ax1.set_ylabel("mV")
+
+    ax2.set_title(r"$\sigma_v^2(r)$")
+    ax2.set_ylabel(r"$mV^2$")
+
+    ax2.set_xlabel(r"rate (Hz)")
+
+    ax1.legend()
+    ax2.legend()
+
+    if title is None:
+        title = "Solutions of cubic polynomial equation"
+    fig.suptitle(f"{title} \n {cubic_solution_title(config)}")
+    show_plots_non_blocking()
+
+
+
 class MyTestCase(unittest.TestCase):
 
-    def test_find_solution_by_binary_search(self):
-        cfg = calibrated_configuration.with_property(N_E=1000)
-
-        gamma = 0.5
-        sigma_v = 1.9 * mV
-
-        comp_sigma = lambda r: sigma_sq(r, cfg, gamma)
-        binary_search_for_target_value()
-
-
     def test_plot_e_0_sigma_0_p_of_x(self):
-        cfg = calibrated_configuration.with_property(N_E=1000)
+        cfg = config_with_weak_synapses.with_property(N_E=1000)
 
         gamma = 0.5
         sigma_v = 1.9 * mV
 
         r = np.linspace(0.1, 110, 1000) * Hz
 
-        #x = (cfg.g() / (nS * second)) * r
-        #x = (cfg.g() / (nS * second)) * r
+        # x = (cfg.g() / (nS * second)) * r
+        # x = (cfg.g() / (nS * second)) * r
 
-        P_vals, roots = polynomial_r(r, cfg, gamma, mu_v = Chapter1Results.mu_v, sigma_v = Chapter1Results.sigma_v)
+        P_vals, roots = polynomial_r(r, cfg, gamma, mu_v=chapter1Results.mu_v, sigma_v=chapter1Results.sigma_v)
 
-        a3 = (2 * sigma_v ** 2 * cfg.tau_ampa * cfg.tau_gaba * (1 + gamma) ** 3) / (ms**2 * mV**2)
+        a3 = (2 * sigma_v ** 2 * cfg.tau_ampa * cfg.tau_gaba * (1 + gamma) ** 3) / (ms ** 2 * mV ** 2)
         assert is_dimensionless(a3)
 
         x = cfg.g() * r
 
         print('XXXX')
         print(roots / cfg.g(), "Produce sigma sq ", sigma_sq(roots / cfg.g(), cfg, gamma))
-        polyn_from_roots = a3 * ( x - roots[0]) * (x - roots[1]) * (x - roots[2]) / (nS **3)
+        polyn_from_roots = a3 * (x - roots[0]) * (x - roots[1]) * (x - roots[2]) / (nS ** 3)
 
         E_vals = E_0(r, cfg, gamma)
         sigma_vals = sigma_sq(r, cfg, gamma)
@@ -397,14 +452,14 @@ class MyTestCase(unittest.TestCase):
 
         ax1.set_title(r"$E_0(r)$")
         ax1.set_ylabel("mV")
-        ax1.axhline(Chapter1Results.mu_v / mV, color="black", lw=1, linestyle="--")
+        ax1.axhline(chapter1Results.mu_v / mV, color="black", lw=1, linestyle="--")
 
-        ax2.plot(r, sigma_vals / mV**2)
-        ax2.axhline((Chapter1Results.sigma_v / mV) ** 2, color="black", lw=1, linestyle="--")
+        ax2.plot(r, sigma_vals / mV ** 2)
+        ax2.axhline((chapter1Results.sigma_v / mV) ** 2, color="black", lw=1, linestyle="--")
 
         ax2.set_title(r"$\sigma_v^2(r)$")
         ax2.set_ylabel(r"$mV^2$")
-        #ax2.set_ylim(-1, 20)
+        # ax2.set_ylim(-1, 20)
 
         ax3.plot(r, P_vals, label="equation")
         ax3.plot(r, polyn_from_roots, label="poynomial from roots", lw=2, color="red", linestyle="--")
@@ -424,29 +479,28 @@ class MyTestCase(unittest.TestCase):
         plt.show()
 
         g_unitless = cfg.g() / (nS * second)
-        print(sigma_sq(roots / cfg.g(), cfg, gamma) / mV**2)
-        np.testing.assert_allclose(sigma_v**2, sigma_sq(roots / cfg.g(), cfg, gamma))
-
+        print(sigma_sq(roots / cfg.g(), cfg, gamma) / mV ** 2)
+        # snp.testing.assert_allclose(sigma_v**2, sigma_sq(roots / cfg.g(), cfg, gamma))
 
     def test_run_ui(self):
         matplotlib.use("QtAgg")
-        cfg = calibrated_configuration.with_property(N_E = 800, N_I = 200)
+        cfg = config_with_weak_synapses.with_property(N_E=800, N_I=200)
         ui = TripleExplorer(cfg)
         plt.tight_layout()
         plt.show()
 
     def test_check_E_0_units_match_brian2(self):
-        cfg = calibrated_configuration
+        cfg = config_with_weak_synapses
         gamma = 1
 
         self.assertEqual(-65 * mV, E_0(0 * Hz, cfg, gamma))
-        self.assertEqual(-40 * mV, E_0(10**100 * Hz, cfg, gamma))
+        self.assertEqual(-40 * mV, E_0(10 ** 100 * Hz, cfg, gamma))
 
         r = np.linspace(0, 1000, 101) * Hz
 
         e_0_np = E_0(r, cfg, gamma)
         test_compare = [None] * len(r)
-        g = calibrated_configuration.g()
+        g = config_with_weak_synapses.g()
         one_rate = r[3]
         one_rate_no_unit = one_rate / Hz
 
@@ -455,8 +509,7 @@ class MyTestCase(unittest.TestCase):
         self.assertAlmostEqual(one_rate_computed_with_brian2_units, one_rate_computed_unitless)
 
         for index, rate in enumerate(r):
-
-            g = calibrated_configuration.g()
+            g = config_with_weak_synapses.g()
             assert have_same_dimensions(g, 1 * nS * ms)
 
             g_e0 = g * rate
@@ -469,7 +522,6 @@ class MyTestCase(unittest.TestCase):
             assert have_same_dimensions(current_e_0, 1 * mV)
             test_compare[index] = current_e_0 / mV
 
-
         plt.plot(r / Hz, test_compare, label="Brian 2 units", alpha=0.6)
         plt.plot(r / Hz, e_0_np / mV, label="no units", alpha=0.6)
         plt.legend()
@@ -479,7 +531,7 @@ class MyTestCase(unittest.TestCase):
         np.testing.assert_array_almost_equal(e_0_np / mV, test_compare)
 
     def test_check_sigma_v_sq_units_match_brian2(self):
-        cfg = calibrated_configuration
+        cfg = config_with_weak_synapses
         gamma = 1
 
         sq = sigma_sq([0, 0] * Hz, cfg, gamma) / mV ** 2
@@ -508,12 +560,14 @@ class MyTestCase(unittest.TestCase):
         sigma_e_sq = 0.5 * cfg.w_ampa * g_e0
         sigma_i_sq = 0.5 * cfg.w_gaba * g_i0
 
-        one_sigma_e_sq_with_units = sigma_e_sq / g_0**2 * (cfg.e_ampa - current_e_0) **2 * (cfg.tau_ampa / (cfg.tau_ampa + tau_0))
-        one_sigma_i_sq_with_units = sigma_i_sq / g_0**2 * (cfg.e_gaba - current_e_0) **2 * (cfg.tau_gaba / (cfg.tau_gaba + tau_0))
+        one_sigma_e_sq_with_units = sigma_e_sq / g_0 ** 2 * (cfg.e_ampa - current_e_0) ** 2 * (
+                cfg.tau_ampa / (cfg.tau_ampa + tau_0))
+        one_sigma_i_sq_with_units = sigma_i_sq / g_0 ** 2 * (cfg.e_gaba - current_e_0) ** 2 * (
+                cfg.tau_gaba / (cfg.tau_gaba + tau_0))
 
         sigma_sq_test = one_sigma_e_sq_with_units + one_sigma_i_sq_with_units
 
-        assert have_same_dimensions(sigma_sq_test, 1 * mV**2)
+        assert have_same_dimensions(sigma_sq_test, 1 * mV ** 2)
 
         g_e_0_no_units = (g / (second * nS)) * one_rate_no_unit
         g_i_0_no_units = gamma * (g / (second * nS)) * one_rate_no_unit
@@ -525,7 +579,7 @@ class MyTestCase(unittest.TestCase):
 
         self.assertAlmostEqual(g_0_no_units, g_0 / nS)
 
-        tau_0_no_units = (cfg.membrane_capacitance / nF) / g_0_no_units * 1000 # because nF / nS returns 1 s
+        tau_0_no_units = (cfg.membrane_capacitance / nF) / g_0_no_units * 1000  # because nF / nS returns 1 s
         tau_ampa_no_units = cfg.tau_ampa / ms
         tau_gaba_no_units = cfg.tau_gaba / ms
 
@@ -537,26 +591,29 @@ class MyTestCase(unittest.TestCase):
         E_e_no_units = cfg.e_ampa / mV
         E_i_no_units = cfg.e_gaba / mV
         E_L_no_units = cfg.e_L / mV
-        E_0_no_units = ((cfg.g_L / nS) * E_L_no_units + g_e_0_no_units * E_e_no_units + g_i_0_no_units * E_i_no_units) / g_0_no_units
+        E_0_no_units = ((
+                                cfg.g_L / nS) * E_L_no_units + g_e_0_no_units * E_e_no_units + g_i_0_no_units * E_i_no_units) / g_0_no_units
 
         assert is_dimensionless(E_e_no_units)
         assert is_dimensionless(E_i_no_units)
         assert is_dimensionless(E_L_no_units)
         assert is_dimensionless(E_0_no_units)
 
-        one_sigma_v_e_sq_no_units = sigma_e_sq_no_units / g_0_no_units ** 2 * (E_0_no_units - E_e_no_units) ** 2 * (tau_ampa_no_units / (tau_ampa_no_units + tau_0_no_units))
-        one_sigma_v_i_sq_no_units = sigma_i_sq_no_units / g_0_no_units ** 2 * (E_0_no_units - E_i_no_units) ** 2 * (tau_gaba_no_units / (tau_gaba_no_units + tau_0_no_units))
+        one_sigma_v_e_sq_no_units = sigma_e_sq_no_units / g_0_no_units ** 2 * (E_0_no_units - E_e_no_units) ** 2 * (
+                tau_ampa_no_units / (tau_ampa_no_units + tau_0_no_units))
+        one_sigma_v_i_sq_no_units = sigma_i_sq_no_units / g_0_no_units ** 2 * (E_0_no_units - E_i_no_units) ** 2 * (
+                tau_gaba_no_units / (tau_gaba_no_units + tau_0_no_units))
 
         assert is_dimensionless(one_sigma_v_e_sq_no_units)
         assert is_dimensionless(one_sigma_v_i_sq_no_units)
 
         one_sigma_v_sq_no_units = one_sigma_v_e_sq_no_units + one_sigma_v_i_sq_no_units
 
-        self.assertAlmostEqual(one_sigma_v_sq_no_units, sigma_sq_test / mV**2)
+        self.assertAlmostEqual(one_sigma_v_sq_no_units, sigma_sq_test / mV ** 2)
 
         test_compare = [None] * len(r)
         for index, rate in enumerate(r):
-            g = calibrated_configuration.g()
+            g = config_with_weak_synapses.g()
             g_e0 = g * rate
             g_i0 = gamma * g * rate
             g_0 = cfg.g_L + g_e0 + g_i0
@@ -575,16 +632,16 @@ class MyTestCase(unittest.TestCase):
             sigma_i_sq = 0.5 * cfg.w_gaba * g_i0
 
             one_sigma_e_sq_with_units = sigma_e_sq / g_0 ** 2 * (cfg.e_ampa - current_e_0) ** 2 * (
-                        cfg.tau_ampa / (cfg.tau_ampa + tau_0))
+                    cfg.tau_ampa / (cfg.tau_ampa + tau_0))
             one_sigma_i_sq_with_units = sigma_i_sq / g_0 ** 2 * (cfg.e_gaba - current_e_0) ** 2 * (
-                        cfg.tau_gaba / (cfg.tau_gaba + tau_0))
+                    cfg.tau_gaba / (cfg.tau_gaba + tau_0))
 
             sigma_sq_test = one_sigma_e_sq_with_units + one_sigma_i_sq_with_units
-            test_compare[index] = sigma_sq_test / mV**2
+            test_compare[index] = sigma_sq_test / mV ** 2
 
         sigma_np_result = sigma_sq(r, cfg, gamma)
         plt.plot(r / Hz, test_compare, label="Test computation")
-        plt.plot(r / Hz, sigma_np_result / (mV**2), label="method")
+        plt.plot(r / Hz, sigma_np_result / (mV ** 2), label="method")
         plt.legend()
         plt.tight_layout()
         plt.show()
@@ -592,16 +649,16 @@ class MyTestCase(unittest.TestCase):
 
     def test_config_with_large_N_E(self):
         with self.assertRaises(ValueError):
-            calibrated_configuration.with_property(N_E=1000, k=0.5)
+            config_with_weak_synapses.with_property(N_E=1000, k=0.5)
 
-        object_under_test_1 = calibrated_configuration.with_property(N_E = 1000, N_I = 1000)
+        object_under_test_1 = config_with_weak_synapses.with_property(N_E=1000, N_I=1000)
 
         self.assertEqual(1000, object_under_test_1.N_E)
         self.assertEqual(1000, object_under_test_1.N_I)
         self.assertEqual(2000, object_under_test_1.N)
         self.assertEqual(1, object_under_test_1.k)
 
-        object_under_test_2 = calibrated_configuration.with_property(N = 1000)
+        object_under_test_2 = config_with_weak_synapses.with_property(N=1000)
         self.assertEqual(1000, object_under_test_2.N)
         self.assertEqual(1, object_under_test_2.k)
         self.assertEqual(500, object_under_test_2.N_E)
@@ -610,37 +667,94 @@ class MyTestCase(unittest.TestCase):
     def test_numerical_simpy_solution(self):
         gr = 367.327808891460
         gamma = 1.44112462343384
+
         def compute_solution(cfg: ConductanceDiffusionSimulationConfig):
-            rate_sol = gr / (cfg.g() / (nS * second))  * Hz
+            rate_sol = gr / (cfg.g() / (nS * second)) * Hz
 
             print(E_0(rate_sol, cfg, gamma))
             print(sigma_sq(rate_sol, cfg, gamma))
             print(rate_sol)
             print("==================")
 
-        compute_solution(calibrated_configuration)
-        compute_solution(calibrated_configuration.with_property(N = 1000))
+        compute_solution(config_with_weak_synapses)
+        compute_solution(config_with_weak_synapses.with_property(N=1000))
 
     def test_sympy_solutions_solve_e_0_and_sigma_sq_0(self):
+
+        cfgs = [config_with_weak_synapses, config_with_weak_synapses.with_property(N=100),
+                config_with_weak_synapses.with_property(N=1000), config_with_weak_synapses.with_property(N=10000), ]
+
         with open("solution.txt") as f:
             solutions = sp.sympify(f.read())
-            cfg = calibrated_configuration
+            for cfg in cfgs:
+                for index, solution in enumerate(solutions):
+                    # compare_two_impl(solution, cfg, mu_v_target=Chapter1Results.mu_v, sigma_target=Chapter1Results.sigma_v)
+
+                    x_sol, y_sol = evaluate_sympy_solution(solution, cfg, mu_v_target=chapter1Results.mu_v,
+                                                           sigma_target=chapter1Results.sigma_v)
+                    rate_sol = x_sol / (cfg.g() / nS)
+
+                    print("Rate sol: ", rate_sol)
+                    ge_0 =  cfg.g() * rate_sol
+                    print(f"g_e, 0 = x is {ge_0}")
+                    print(f"Lets do E_0: {(- 65 * 20 + 0 * ge_0 / nS - y_sol * ge_0 / nS * 80) / (20 + ge_0 / nS + ge_0 / nS * y_sol)}")
+
+                    self.assertAlmostEqual(chapter1Results.mu_v / mV, E_0(rate_sol, cfg, y_sol) / mV)
+                    self.assertAlmostEqual((chapter1Results.sigma_v / mV) ** 2,
+                                           sigma_sq(rate_sol, cfg, y_sol) / (mV ** 2))
+
+    def test_plot_sympy_solutions(self):
+
+        config = config_with_weak_synapses
+        config = config_with_medium_synapses.with_property(N_E=1000, N_I=1000)
+
+        sols = []
+
+        with open("solution.txt") as f:
+            solutions = sp.sympify(f.read())
             for index, solution in enumerate(solutions):
-                x_sol = evaluate_sympy_solution(solution, cfg, mu_v_target=Chapter1Results.mu_v, sigma_target=Chapter1Results.sigma_v)
-                print(x_sol)
-                g_no_units = cfg.g() / (nS * second)
+                x_sol, y_sol = evaluate_sympy_solution(solution, config, mu_v_target=chapter1Results.mu_v,
+                                                       sigma_target=chapter1Results.sigma_v)
+                rate_sol = x_sol / (config.g() / nS)
 
-                rate_sol_no_units = x_sol/g_no_units
+                if rate_sol > 0 and y_sol > 0:
+                    print(rate_sol, y_sol)
+                    sols.append((rate_sol, y_sol))
 
-                rate_sol = float(rate_sol_no_units) * Hz
+        r = np.linspace(0.1, 100, 1000) * Hz
 
-                print(rate_sol)
-                print(E_0(rate_sol, cfg, gamma))
-                print(sigma_sq(rate_sol, cfg, gamma))
-                print("==================")
+        fig, (ax1, ax2) = plt.subplots(
+            2,
+            1,
+            figsize=(10, 10),
+            sharex=True,
+        )
 
+        for index, solution in enumerate(sols):
+            r_sol, gamma = solution
+            ax1.plot(r, E_0(r, config, gamma) / mV, label=r"$\gamma=$"f"{gamma:.2f}")
 
+            ax2.plot(r, sigma_sq(r, config, gamma) / mV ** 2, label=r"$\gamma=$"f"{gamma:.2f}")
+            ax2.axhline((chapter1Results.sigma_v / mV) ** 2, color="black", lw=1, linestyle="--")
 
+            print(f"E_0 of solution: {E_0(r_sol, config, gamma)}, sigma v of solution {sigma_sq(r_sol, config, gamma)}")
+            ax1.axvline(x=r_sol / Hz, linestyle="--", label=f"Sol {index + 1}")
+            ax2.axvline(x=r_sol / Hz, linestyle="--", label=f"Sol {index + 1}")
+
+        ax1.axhline(chapter1Results.mu_v / mV, color="black", lw=1, linestyle="--")
+        ax1.set_title(r"$E_0(r)$")
+        ax1.set_ylabel("mV")
+
+        ax2.set_title(r"$\sigma_v^2(r)$")
+        ax2.set_ylabel(r"$mV^2$")
+
+        ax2.set_xlabel(r"rate (Hz)")
+
+        ax1.legend()
+        ax2.legend()
+
+        fig.suptitle("Check cubic solutions")
+        show_plots_non_blocking()
 
 
 if __name__ == '__main__':

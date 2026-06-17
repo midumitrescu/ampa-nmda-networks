@@ -5,7 +5,7 @@ from brian2 import mV, have_same_dimensions, siemens, nS, Hz, ms, nF, pF
 from matplotlib import pyplot as plt
 
 from Plotting import show_plots_non_blocking
-from iteration_16.model import calibrated_configuration, ConductanceDiffusionSimulationConfig
+from iteration_16.model import config_with_weak_synapses, ConductanceDiffusionSimulationConfig
 from iteration_16.second_order_equation import solve_ge0_from_moments, compute_A_B_C
 
 
@@ -134,13 +134,13 @@ def comp_sigma_v_squared(config: ConductanceDiffusionSimulationConfig, rho=1, r 
 
 class MyTestCase(unittest.TestCase):
     def test_finding_roots(self):
-        print(solve_ge0_from_moments(conductance_diffusion_config=calibrated_configuration, mu_v=mu_v, sigma_v=sigma_v))
+        print(solve_ge0_from_moments(conductance_diffusion_config=config_with_weak_synapses, mu_v=mu_v, sigma_v=sigma_v))
 
     def test_investigate_equation_terms(self):
         mu_v_unitless = mu_v / mV
         sigma_v_unitless = sigma_v / mV
 
-        object_under_test = calibrated_configuration
+        object_under_test = config_with_weak_synapses
         gL = object_under_test.g_L / nS
 
         Ee = object_under_test.e_ampa / mV
@@ -184,7 +184,7 @@ class MyTestCase(unittest.TestCase):
         print("C: ", C)
 
     def test_understand_negative_discrimintant(self):
-        A, B, C = compute_A_B_C(conductance_diffusion_config=calibrated_configuration, mu_v=mu_v, sigma_v=sigma_v)
+        A, B, C = compute_A_B_C(conductance_diffusion_config=config_with_weak_synapses, mu_v=mu_v, sigma_v=sigma_v)
 
         print("A: ", A)
         print("B: ", B)
@@ -211,7 +211,7 @@ class MyTestCase(unittest.TestCase):
         plot_ge0_quadratic_parabola(A, B, C)
 
     def test_plot_e_0_and_sigma_v_various_amps(self):
-        config = calibrated_configuration
+        config = config_with_weak_synapses
 
         fig, axes = plt.subplots(
             2,
@@ -263,7 +263,7 @@ class MyTestCase(unittest.TestCase):
     However, for our range of parameter, we find something extremely surprising.
     '''
     def test_plot_e_0_and_sigma_v_various_ks(self):
-        config = calibrated_configuration
+        config = config_with_weak_synapses
 
         g_L = config.g_L
         C = config.membrane_capacitance
@@ -366,7 +366,7 @@ class MyTestCase(unittest.TestCase):
 
         for w_amp in [1, 3, 5, 10]:
 
-            cfg = calibrated_configuration
+            cfg = config_with_weak_synapses
 
             # Parameters
             g_L = cfg.g_L
@@ -476,7 +476,7 @@ class MyTestCase(unittest.TestCase):
         mu_v_unitless = mu_v / mV
         sigma_v_unitless = sigma_v / mV
 
-        cfg = calibrated_configuration
+        cfg = config_with_weak_synapses
 
         gL = cfg.g_L
 
