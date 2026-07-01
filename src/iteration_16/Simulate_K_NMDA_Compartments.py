@@ -6,14 +6,15 @@ from brian2 import Hz, ms
 from numpy.testing import assert_array_equal, assert_allclose
 
 from Plotting import show_plots_non_blocking, prepare_bigger_fonts
-from iteration_16.model import config_with_weak_synapses
+from iteration_16.model import config_with_weak_synapses, MeanfieldScaling
 from iteration_16.nmda_compartment_model import NMDASimulationWangCompartments
 
 
-def plot_k_sweep_results(result_by_k, k_s, config, experiment_title=None):
-
-    fig = plt.figure(figsize=(14, 18))
-    number_of_axes = len(k_s) + 4
+def plot_k_sweep_results(result_by_k, k_s, experiment_title=None):
+    prepare_bigger_fonts(zoom=1)
+    fig = plt.figure(figsize=(20, 18))
+    #number_of_axes = len(k_s[:3]) + 4
+    number_of_axes = 4
     outer = fig.add_gridspec(number_of_axes, 1, height_ratios=[1]  * number_of_axes)
 
     # =========================================================
@@ -31,7 +32,7 @@ def plot_k_sweep_results(result_by_k, k_s, config, experiment_title=None):
 
     ax_v.set_title("$V_m$ - Membrane voltage comparison")
     ax_v.set_ylabel("$V_m$ (mV)")
-    ax_v.legend()
+    #ax_v.legend()
 
     # =========================================================
     # ROW 2: NMDA CURRENTS (all k on same axes)
@@ -48,20 +49,21 @@ def plot_k_sweep_results(result_by_k, k_s, config, experiment_title=None):
 
     ax_i.set_title("NMDA current comparison")
     ax_i.set_ylabel("I_NMDA (nA)")
-    ax_i.legend()
+    #ax_i.legend()
 
-    
+    '''
     # =========================================================
     # ROWS 3+: NMDA COMPARTMENTS PER K
     # =========================================================
-    for idx, k in enumerate(k_s):
+    for idx, k in enumerate(k_s[:3]):
         r = result_by_k[k]
 
         t =  r.nmda_monitor.t
 
         ax = fig.add_subplot(outer[2 + idx])
 
-        for c in range(len(r.nmda_monitor.s_nmda)):
+        number_of_compartments = min(10, len(r.nmda_monitor.s_nmda))
+        for c in range(number_of_compartments):
             ax.plot(
                 t,
                 r.nmda_monitor.s_nmda[c],
@@ -69,7 +71,8 @@ def plot_k_sweep_results(result_by_k, k_s, config, experiment_title=None):
             )
 
         ax.set_title(f"NMDA compartments (k={k})")
-        ax.set_ylabel("s_nmda")
+        ax.set_ylabel(r"$s_{\mathrm{NMDA}}$")
+    '''
 
     # =========================================================
     # ROWS second to last+: Sum of S_NMDA variables
@@ -85,12 +88,13 @@ def plot_k_sweep_results(result_by_k, k_s, config, experiment_title=None):
         ax_s_sum.plot(t, s_nmda_sum, label=f"k={k}")
 
     ax_s_sum.set_title(r"Total NMDA activation $\sum_i s_i^{(k)}(t)$")
-    ax_s_sum.set_ylabel("Σ $s_\mathrm{nmda}$")
-    ax_s_sum.legend()
+    ax_s_sum.set_ylabel(r"$\sum s_{\mathrm{NMDA}}$")
+    #ax_s_sum.legend()
 
     # =========================================================
     # ROWS last: Ration #k=1 to #k=current
     # =========================================================
+
 
     ax_ratio = fig.add_subplot(outer[number_of_axes - 1])
     ref_k = 1
@@ -112,15 +116,17 @@ def plot_k_sweep_results(result_by_k, k_s, config, experiment_title=None):
         ax_ratio.plot(t, ratio, label=f"{k} Compartments")
 
     ax_ratio.set_title(r"$R_k(t) = \frac{ \sum_i s_i^{(k)}(t)}{s_i^{(1)}(t)}$")
-    ax_ratio.set_ylabel("ratio$")
-    ax_ratio.legend()
+    ax_ratio.set_ylabel("ratio")
+    #ax_ratio.legend()
 
     ax_ratio.set_xlabel("Time (ms)")
 
     if experiment_title is not None:
         fig.suptitle(experiment_title)
 
-    plt.tight_layout()
+    ax_ratio.legend()
+
+    fig.tight_layout()
     prepare_bigger_fonts()
     show_plots_non_blocking()
 
@@ -193,8 +199,9 @@ class NMDACompartmentsSanityTestCases(unittest.TestCase):
             )
 
     def test_simulation_results_are_correctly_extracted_to_numpy(self):
-        config = config_with_weak_synapses.with_property(r_e=2 * Hz, r_i =2 * Hz, N_E = 10, N_I = 5, seed=200)
-        object_under_test = NMDASimulationWangCompartments.run_and_plot(config, k=2)
+        config = config_with_weak_synapses.with_property(r_e=2 * Hz, r_i =2 * Hz, N_E = 10, N_I = 5, seed=200, k_comp=2)
+        self.assertEqual(2, config.k_comp)
+        object_under_test = NMDASimulationWangCompartments.run_and_plot(config)
 
         ampa_spikes = object_under_test.ampa_spikes
 
@@ -221,8 +228,19 @@ class NMDACompartmentsSanityTestCases(unittest.TestCase):
         assert_allclose([0, 0, 1, 1, 1, 1, 1], object_under_test.nmda_spikes.compartments)
 
     def test_simulation_works_when_k_equals_N_E(self):
-        config = config_with_weak_synapses.with_property(r_e=2 * Hz, r_i =2 * Hz, N_E = 10, N_I = 5, seed=200)
-        object_under_test = NMDASimulationWangCompartments.run_and_plot(config, k=10)
+        config = config_with_weak_synapses.with_property(r_e=2 * Hz, r_i =2 * Hz, N_E = 10, N_I = 5, seed=200, k_comp=10)
+        object_under_test = NMDASimulationWangCompartments.run_and_plot(config)
+
+    def test_simulate_one_compartment(self):
+        config = config_with_weak_synapses.with_property(r_e=2 * Hz, r_i =2 * Hz, N_E = 10, N_I = 5, seed=200, k_comp=1)
+        object_under_test = NMDASimulationWangCompartments.run_and_plot(config)
+
+    def test_all_meanfield_scalings_work(self):
+        config = config_with_weak_synapses.with_property(r_e=2 * Hz, r_i=2 * Hz, N_E=10, N_I=5, seed=200, k_comp=10)
+        object_under_test = NMDASimulationWangCompartments.run_and_plot(config)
+        for nmda_scaling in [MeanfieldScaling.NONE, MeanfieldScaling.WEAK, MeanfieldScaling.STRONG]:
+            config = config_with_weak_synapses.with_property(r_e=2 * Hz, r_i =2 * Hz, N_E = 10, N_I = 5, seed=200, k_comp=10, scaling=nmda_scaling)
+            object_under_test = NMDASimulationWangCompartments.run_and_plot(config)
 
 
 

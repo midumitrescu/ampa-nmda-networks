@@ -9,6 +9,18 @@ from iteration_16.model import ConductanceDiffusionSimulationConfig, WANG_MODEL_
     config_with_weak_synapses
 from iteration_16.simulation import WangSimulation, plot
 
+def compute_ampa_dv(config: ConductanceDiffusionSimulationConfig):
+    one_ampa_spike_config = config.with_property(ampa_spike_times=np.array([50]))
+    return WangSimulation.run(one_ampa_spike_config).ampa_spike_delta_v()
+
+
+def compute_gaba_dv(config: ConductanceDiffusionSimulationConfig):
+    one_ampa_spike_config = config.with_property(gaba_spike_times=np.array([50]))
+    return WangSimulation.run(one_ampa_spike_config).gaba_spike_delta_v()
+
+def compute_nmda_dv(config: ConductanceDiffusionSimulationConfig):
+    one_nmda_spike_config = config.with_property(nmda_spike_times=np.array([50]), simulation_time=400 * ms)
+    return WangSimulation.run_and_plot(one_nmda_spike_config).nmda_spike_delta_v()
 
 class CalibratePresynapticDVs(unittest.TestCase):
     def test_ampa_dv_is_0_5_mv_at_soma(self):
@@ -28,6 +40,7 @@ class CalibratePresynapticDVs(unittest.TestCase):
 
         self.assertAlmostEqual(2.399104714393616, lower / nS, places=1)
         self.assertAlmostEqual(0.5, dv_result.ampa_spike_delta_v())
+        self.assertAlmostEqual(0.5, compute_ampa_dv(target_config))
 
     def test_gaba_dv_is_0_5_mv_at_soma(self):
         config = ConductanceDiffusionSimulationConfig(
@@ -47,11 +60,12 @@ class CalibratePresynapticDVs(unittest.TestCase):
         # self.assertAlmostEqual(4.131385296583174, lower / nS)
         self.assertAlmostEqual(5.077383026480675, lower / nS)
         self.assertAlmostEqual(-0.5, dv_result.gaba_spike_delta_v())
+        self.assertAlmostEqual(-0.5, compute_gaba_dv(target_config))
 
     '''
     Jackie Schiller in her famous paper NMDA spikes in basal dendrites of cortical pyramidal neurons: 
      the
-amplitude of the cable-filtered basal dendritic spike was 5.2 +- 1.7
+    amplitude of the cable-filtered basal dendritic spike was 5.2 +- 1.7
 mV, as measured at the soma (n = 14)
     '''
 
@@ -148,6 +162,74 @@ mV, as measured at the soma (n = 14)
         self.assertAlmostEqual(21.6878134, lower / nS)
 
         print(f"GABA conductance for 2 mV of spike {lower}")
+
+    def test_find_config_for_intermediate_synapses(self):
+        config = config_with_weak_synapses
+
+        ampa_config = config.with_property(ampa_spike_times=np.array([50]))
+        # the target is 2 mV for one presynaptic input
+        find_dv_of_ampa = lambda x: WangSimulation.run(ampa_config.with_property(w_ampa=x)).ampa_spike_delta_v()
+
+        lower, upper = binary_search_for_target_value(lower_value=3 * nS, upper_value=10 * nS, func=find_dv_of_ampa,
+                                                      target_result=1,
+                                                      precision=1E-6 * nS)
+
+        print(f"AMPA conductance for 1 mV of spike: {lower}")
+        self.assertAlmostEqual(4.819055736064912, lower / nS)
+
+        gaba_config = config.with_property(gaba_spike_times=np.array([50]))
+        # the target is 2 mV for one presynaptic input
+        find_dv_of_gaba = lambda x: WangSimulation.run(gaba_config.with_property(w_gaba=x)).gaba_spike_delta_v()
+
+        lower, upper = binary_search_for_target_value(lower_value=30 * nS, upper_value=10 * nS, func=find_dv_of_gaba,
+                                                      target_result=-1,
+                                                      precision=1E-6 * nS)
+        self.assertAlmostEqual(10.371847078204151, lower / nS)
+
+        print(f"GABA conductance for 1 mV of spike {lower}")
+
+    def test_model_tests(self):
+
+        self.assertEqual(500, config_with_weak_synapses.with_property(N=1000, k=1).N_E)
+        self.assertEqual(500, config_with_weak_synapses.with_property(N=1000, k=1).N_I)
+
+        self.assertEqual(1000, config_with_weak_synapses.with_property(N_E=1000).N_E)
+        self.assertEqual(1000, config_with_weak_synapses.with_property(N_E=1000).N_I)
+
+        self.assertEqual(800, config_with_weak_synapses.with_property(N=1000, k=4).N_E)
+        self.assertEqual(200, config_with_weak_synapses.with_property(N=1000, k=4).N_I)
+        self.assertEqual(1000, config_with_weak_synapses.with_property(N=1000, k=4).N)
+        self.assertEqual(4, config_with_weak_synapses.with_property(N=1000, k=4).k)
+
+        self.assertEqual(3, config_with_weak_synapses.with_property(N_E=3).N_E)
+        self.assertEqual(3, config_with_weak_synapses.with_property(N_E=3).N_E)
+        self.assertEqual(1, config_with_weak_synapses.with_property(N_E=3).k)
+
+        object_under_test_with_9_k = config_with_weak_synapses.with_property(k=9)
+        self.assertEqual(900, object_under_test_with_9_k.with_property(N=1000).N_E)
+        self.assertEqual(100, object_under_test_with_9_k.with_property(N=1000).N_I)
+
+        self.assertEqual(1, config_with_weak_synapses.with_fitted_solution(0.5, gamma=0.5).N_E)
+        self.assertEqual(1, config_with_weak_synapses.with_fitted_solution(0.5, gamma=0.5).N_I)
+        self.assertEqual(104.20553904967359, config_with_weak_synapses.with_fitted_solution(0.5, gamma=0.5).r_e / Hz)
+        self.assertEqual(9.847592694746309, config_with_weak_synapses.with_fitted_solution(0.5, gamma=0.5).r_i / Hz)
+        self.assertEqual(0.5, config_with_weak_synapses.with_fitted_solution(0.5, gamma=0.5).g_e0() / nS)
+        self.assertEqual(0.25, config_with_weak_synapses.with_fitted_solution(0.5, gamma=0.5).g_i0() / nS)
+
+        config_n_20 = config_with_weak_synapses.with_property(N_E=10, N_I=10)
+        self.assertEqual(10, config_n_20.with_fitted_solution(0.5, gamma=0.5).N_E)
+        self.assertEqual(10, config_n_20.with_fitted_solution(0.5, gamma=0.5).N_I)
+        self.assertEqual(10.420553904967359, config_n_20.with_fitted_solution(0.5, gamma=0.5).r_e / Hz)
+        self.assertEqual(0.9847592694746309, config_n_20.with_fitted_solution(0.5, gamma=0.5).r_i / Hz)
+        self.assertEqual(0.5, config_n_20.with_fitted_solution(0.5, gamma=0.5).g_e0() / nS)
+        self.assertEqual(0.25, config_n_20.with_fitted_solution(0.5, gamma=0.5).g_i0() / nS)
+
+        self.assertEqual(10, config_n_20.with_fitted_solution(0.5, gamma=0.25).N_E)
+        self.assertEqual(10, config_n_20.with_fitted_solution(0.5, gamma=0.25).N_I)
+        self.assertEqual(10.420553904967359, config_n_20.with_fitted_solution(0.5, gamma=0.25).r_e / Hz)
+        self.assertEqual(0.49237963473731544, config_n_20.with_fitted_solution(0.5, gamma=0.25).r_i / Hz)
+        self.assertEqual(0.5, config_n_20.with_fitted_solution(0.5, gamma=0.25).g_e0() / nS)
+        self.assertEqual(0.125, config_n_20.with_fitted_solution(0.5, gamma=0.25).g_i0() / nS)
 
 
 

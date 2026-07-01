@@ -1,9 +1,11 @@
+import math
+
 from brian2 import start_scope, device, seed, defaultclock, NeuronGroup, nS, StateMonitor, run, Synapses, ms, mV, nA, \
     SpikeMonitor, second
 import numpy as np
 from matplotlib.lines import Line2D
 
-from Plotting import show_plots_non_blocking
+from Plotting import show_plots_non_blocking, prepare_bigger_fonts
 from iteration_16.model import ConductanceDiffusionSimulationConfig
 from iteration_16.simulation import create_spike_source
 
@@ -57,6 +59,9 @@ SOMA_MODEL_NO_MG_BLOCK = f'''
 
 def extract_nmda_presynaptic_spikes(nmda_state_monitor: StateMonitor):
 
+    if nmda_state_monitor is None:
+        return None, None
+
     #indexes_of_presyn_input = np.diff(nmda_state_monitor.last_presyn, axis=1) != 0
     #indexes_of_x_jumps = np.diff(nmda_state_monitor.x_nmda, axis=1) > 0
     indexes_of_spikes = np.diff(nmda_state_monitor.spikes_count, axis=1) != 0
@@ -90,7 +95,7 @@ data = {
 '''
 
 class SimulationResults:
-    def __init__(self, data: dict):
+    def __init__(self, data):
         self.config = data["config"]
 
         # spike data
@@ -162,10 +167,24 @@ class SimulationResults:
             "i_nmda_total": np.array(soma_current_monitor.i_nmda_total / nA),
         })
 
+    def mean_variance_soma_v(self):
+        return SimulationResults.__mean_var__(self.neuron_monitor.v[0])
+
+    def mean_variance_soma_v_no_nmda(self):
+        return SimulationResults.__mean_var__(self.neuron_monitor.v[1])
+
+    @staticmethod
+    def __mean_var__(v_array: np.ndarray):
+        data_points = len(v_array)
+        start_for_mean = int(data_points / 4)
+        voltage_roi = v_array[start_for_mean:]
+        return np.mean(voltage_roi), np.var(voltage_roi)
+
+
 class NMDASimulationWangCompartments:
 
     @staticmethod
-    def run(config: ConductanceDiffusionSimulationConfig, k: int):
+    def run(config: ConductanceDiffusionSimulationConfig, detailed_statistics=True):
 
         start_scope()
 
@@ -177,7 +196,7 @@ class NMDASimulationWangCompartments:
         defaultclock.dt = config.dt
 
         neuron = NeuronGroup(
-            1,
+            2,
             SOMA_MODEL,
             method="euler",
             namespace={
@@ -201,7 +220,7 @@ class NMDASimulationWangCompartments:
         neuron.g_gaba = 0 * nS
 
         nmda_compartments = NeuronGroup(
-            k,
+            config.k_comp,
             NMDA_COMPARTMENT_MODEL,
             method="euler",
             namespace={
@@ -228,11 +247,6 @@ class NMDASimulationWangCompartments:
             config.r_i,
             N=config.N_I
         )
-        #
-        # nmda_source = create_spike_source(
-        #     config.nmda_spike_times,
-        #     config.r_n,
-        # )
 
         excitatory_synapses = Synapses(
             ampa_source,
@@ -252,7 +266,6 @@ class NMDASimulationWangCompartments:
             }
         )
 
-
         nmda_input = Synapses(
             ampa_source,
             nmda_compartments,
@@ -266,11 +279,11 @@ class NMDASimulationWangCompartments:
             }
         )
 
-        group_size = config.N_E // k
+        group_size = config.N_E // config.k_comp
         #nmda_input.connect('j == i // group_size')
 
         i = np.arange(config.N_E)
-        j = np.minimum(i // group_size, k - 1)
+        j = np.minimum(i // group_size, config.k_comp - 1)
 
         nmda_input.connect(i=i, j=j)
 
@@ -279,21 +292,18 @@ class NMDASimulationWangCompartments:
 
         nmda_to_soma = Synapses(
             nmda_compartments,
-            neuron,
+            neuron[0],
             """
-            i_nmda_total_post =  w_nmda  * s_nmda_pre * sigma_of_v_post * (v_post - e_nmda): amp (summed)
+            i_nmda_total_post =  g_nmda_max  * s_nmda_pre * sigma_of_v_post * (v_post - e_nmda): amp (summed)
             """,
             namespace={
-                "w_nmda": config.g_nmda_max,
+                "g_nmda_max": config.get_g_nmda_max(),
                 "e_nmda": config.e_nmda,
                 "mg_concentration": config.magnesium_concentration
             }
         )
 
         nmda_to_soma.connect()
-
-        #nmda_to_soma.w_nmda = config.g_nmda_max / k
-
         neuron_monitor = StateMonitor(
             neuron,
             [
@@ -304,29 +314,32 @@ class NMDASimulationWangCompartments:
             record=True,
         )
 
-        currents_monitor = StateMonitor(
-            neuron,
-            [
-                "i_ampa",
-                "i_gaba",
-                "i_nmda_total",
-            ],
-            record=True,
-        )
+        currents_monitor, nmda_monitor, ampa_presyn_mon, gaba_presyn_mon, connectivity = None, None, None, None, None
+        if detailed_statistics:
+            currents_monitor = StateMonitor(
+                neuron,
+                [
+                    "i_ampa",
+                    "i_gaba",
+                    "i_nmda_total",
+                ],
+                record=True,
+            )
 
-        nmda_monitor = StateMonitor(
-            nmda_compartments,
-            [
-                "s_nmda",
-                "x_nmda",
-                "last_presyn",
-                "spikes_count"
-            ],
-            record=True,
-        )
+            nmda_monitor = StateMonitor(
+                nmda_compartments,
+                [
+                    "s_nmda",
+                    "x_nmda",
+                    "last_presyn",
+                    "spikes_count"
+                ],
+                record=True,
+            )
 
-        ampa_presyn_mon = SpikeMonitor(ampa_source)
-        gaba_presyn_mon = SpikeMonitor(gaba_source)
+            ampa_presyn_mon = SpikeMonitor(ampa_source)
+            gaba_presyn_mon = SpikeMonitor(gaba_source)
+            connectivity = get_connectivity_matrix(nmda_input)
 
         run(config.simulation_time)
 
@@ -338,16 +351,16 @@ class NMDASimulationWangCompartments:
             "ampa_spikes": ampa_presyn_mon,
             "gaba_spikes": gaba_presyn_mon,
             "nmda_spikes": extract_nmda_presynaptic_spikes(nmda_monitor),
-            "compartment_connectivity": get_connectivity_matrix(nmda_input)
+            "compartment_connectivity": connectivity
         })
 
     @staticmethod
-    def run_and_plot(config: ConductanceDiffusionSimulationConfig, k: int):
-        result = NMDASimulationWangCompartments.run(config, k=k)
-        plot_nmda_compartments(result)
+    def run_and_plot(config: ConductanceDiffusionSimulationConfig, detailed_statistics=True, title=None, testing=False):
+        result = NMDASimulationWangCompartments.run(config, detailed_statistics=detailed_statistics)
+        plot_nmda_compartments(result, title=title, testing=testing)
         return result
 
-def plot_nmda_compartments(result: SimulationResults):
+def plot_nmda_compartments(result: SimulationResults, title=None, testing=False):
 
     config = result.config
     neuron_monitor = result.neuron_monitor
@@ -356,10 +369,14 @@ def plot_nmda_compartments(result: SimulationResults):
     ampa_spikes = result.ampa_spikes
     gaba_spikes = result.gaba_spikes
 
+    prepare_bigger_fonts()
+
+    number_of_plots = 5 if testing else 2
+
     fig, axes = plt.subplots(
-        5,
+        number_of_plots,
         1,
-        figsize=(12, 12),
+        figsize=(14, 14),
         sharex=True,
     )
 
@@ -369,9 +386,23 @@ def plot_nmda_compartments(result: SimulationResults):
         t,
         neuron_monitor.v[0],
         color="black",
+        label=r"$\bar g_{\mathrm{nmda}}=$"f"{result.config.g_nmda_max / nS : .2f} (nS)"
     )
+
+    axes[0].plot(
+        t,
+        result.neuron_monitor.v[1],
+        label=r"$\bar g_{\mathrm{nmda}}=0$ (nS)",
+        linestyle=":",
+        linewidth=2,
+        alpha=0.6
+    )
+    mean_vm_nmda, var_vm_nmda = result.mean_variance_soma_v()
+    mean_vm_nmda_no_nmda, var_vm_nmda_no_nmda = result.mean_variance_soma_v_no_nmda()
     axes[0].set_ylabel("V (mV)")
-    axes[0].set_title("Membrane voltage")
+    axes[0].set_title("Membrane voltage \n"r"$V_{m} = $"f"{mean_vm_nmda: .2f} (mV)"r", $V_{m, \mathrm{No NMDA}} = $"f"{mean_vm_nmda_no_nmda: .2f} (mV)"
+                      r", $\sigma_{v}^2 = $"f"{var_vm_nmda: .2f} (mV)"r", $\sigma_{v, \mathrm{No NMDA}}^2 = $"f"{var_vm_nmda_no_nmda: .2f} (mV)"r", $\Delta V=$"f"{(mean_vm_nmda - mean_vm_nmda_no_nmda): .2f} mV")
+    axes[0].legend(loc="lower right")
 
     axes[1].plot(
         t,
@@ -391,80 +422,90 @@ def plot_nmda_compartments(result: SimulationResults):
     axes[1].set_ylabel("$I_{\mathrm{NMDA}}$ (nA)")
     axes[1].set_title("Currents at the soma")
 
-    for idx in range(len(nmda_monitor.s_nmda)):
-        axes[2].plot(
-            nmda_monitor.t,
-            nmda_monitor.s_nmda[idx],
-            alpha=0.6,
-        )
-
-    axes[2].set_ylabel("s_nmda")
-    axes[2].set_xlabel("Time (ms)")
-    axes[2].set_title("NMDA compartments")
-
     axes[1].legend()
 
-    axes[3].scatter(
-        ampa_spikes.t,
-        ampa_spikes.i + config.N_I,
-        color="red",
-        marker=".",
-        s=5,
-        label="Excitatory (AMPA)"
-    )
+    if testing:
+        plotted_nmda_compartments = min(len(nmda_monitor.s_nmda), 10)
+        for idx in range(plotted_nmda_compartments):
+            axes[2].plot(
+                nmda_monitor.t,
+                nmda_monitor.s_nmda[idx],
+                alpha=0.6,
+            )
 
-    # Inhibitory spikes
-    axes[3].scatter(
-        gaba_spikes.t,
-        gaba_spikes.i,
-        color="blue",
-        marker=".",
-        s=5,
-        label="Inhibitory (GABA)"
-    )
+        axes[2].set_ylabel("$s_{\mathrm{NMDA}}$")
+        axes[2].set_xlabel("Time (ms)")
+        axes[2].set_title(f"{plotted_nmda_compartments} NMDA compartments")
 
-    exc_center = (config.N_E - 1) / 2
-    inh_center = config.N_E + (config.N_I - 1) / 2
-
-    axes[3].set_yticks([exc_center, inh_center])
-    axes[3].set_yticklabels(["GABA", "AMPA"])
-
-    axes[3].set_ylabel("Input")
-    axes[3].set_xlabel("Time (ms)")
-    axes[3].set_title("Presynaptic spike raster")
-    axes[3].legend()
-
-    scatter_plot_clusters = axes[4].scatter(
-        result.nmda_spikes.t,
-        result.nmda_spikes.compartments,
-        c=result.nmda_spikes.compartments,
-        s=10
-    )
-    handles = [
-        Line2D(
-            [0], [0],
-            marker="o",
-            linestyle="",
-            color=scatter_plot_clusters.cmap(scatter_plot_clusters.norm(cluster)),
-            label=f"Cluster {cluster}",
-            markersize=6,
+        axes[3].scatter(
+            ampa_spikes.t,
+            ampa_spikes.i + config.N_I,
+            color="red",
+            marker=".",
+            s=5,
+            label="Excitatory (AMPA)"
         )
-        for cluster in np.unique(result.nmda_spikes.compartments)
-    ]
 
-    axes[4].legend(handles=handles)
+        # Inhibitory spikes
+        axes[3].scatter(
+            gaba_spikes.t,
+            gaba_spikes.i,
+            color="blue",
+            marker=".",
+            s=5,
+            label="Inhibitory (GABA)"
+        )
 
-    axes[4].set_ylabel("NMDA compartment")
-    axes[4].set_xlabel("Time (ms)")
-    axes[4].set_title("NMDA synaptic events per compartment")
+        exc_center = (config.N_E - 1) / 2
+        inh_center = config.N_E + (config.N_I - 1) / 2
 
-    W = result.compartment_connectivity
-    plt.tight_layout()
+        axes[3].set_yticks([exc_center, inh_center])
+        axes[3].set_yticklabels(["GABA", "AMPA"])
+
+        axes[3].set_ylabel("Input")
+        axes[3].set_xlabel("Time (ms)")
+        axes[3].set_title("Presynaptic spike raster")
+        axes[3].legend()
+
+        scatter_plot_clusters = axes[4].scatter(
+            result.nmda_spikes.t,
+            result.nmda_spikes.compartments,
+            c=result.nmda_spikes.compartments,
+            s=5
+        )
+        '''
+        handles = [
+            Line2D(
+                [0], [0],
+                marker="o",
+                linestyle="",
+                color=scatter_plot_clusters.cmap(scatter_plot_clusters.norm(cluster)),
+                label=f"Cluster {cluster}",
+                markersize=6,
+            )
+            for cluster in np.unique(result.nmda_spikes.compartments)[:10]
+        ]
+    
+        axes[4].legend(handles=handles)
+        '''
+
+        axes[4].set_ylabel("NMDA compartment")
+        axes[4].set_xlabel("Time (ms)")
+        axes[4].set_title("NMDA synaptic events per compartment")
+
+        W = result.compartment_connectivity
+
+    if title is None:
+        title = f"Simulation with {result.config.k_comp} NMDA compartments"
+
+    fig.suptitle(title)
+    fig.tight_layout()
     show_plots_non_blocking()
 
-    plt.imshow(W, aspect='auto', origin='lower')
-    plt.xlabel("Compartment (post)")
-    plt.ylabel("Presynaptic neuron")
-    plt.title("Connectivity matrix")
-    plt.colorbar(label="connection")
-    show_plots_non_blocking()
+    if testing:
+        plt.imshow(W, aspect='auto', origin='lower')
+        plt.xlabel("Compartment (post)")
+        plt.ylabel("Presynaptic neuron")
+        plt.title("Connectivity matrix")
+        plt.colorbar(label="connection")
+        show_plots_non_blocking()

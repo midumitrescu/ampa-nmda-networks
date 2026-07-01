@@ -164,7 +164,7 @@ class WangSimulation:
         return result
 
 
-def plot(result: WangSimulationResult, plot_title):
+def plot(result: WangSimulationResult, plot_title = ""):
     fig, axes = plt.subplots(
         5,
         1,
@@ -177,6 +177,7 @@ def plot(result: WangSimulationResult, plot_title):
         result.membrane_voltage_mV
     )
     axes[0].set_ylabel("V (mV)")
+    axes[0].ticklabel_format(style='plain', axis='y', useOffset=False)
 
     axes[1].plot(
         result.time_ms,

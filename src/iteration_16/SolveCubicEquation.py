@@ -10,9 +10,13 @@ from matplotlib import pyplot as plt
 from matplotlib.gridspec import GridSpec
 from matplotlib.widgets import Slider
 
-from Plotting import show_plots_non_blocking
+from Plotting import show_plots_non_blocking, prepare_bigger_fonts
+from iteration_12_transfer_function_of_lif_neurons.SiegertGradientDescent import rate_LIF_whitenoise
+from iteration_16.Preliminaries import compute_ampa_dv, compute_gaba_dv
 from iteration_16.model import config_with_weak_synapses, ConductanceDiffusionSimulationConfig, chapter1Results, \
-    config_with_medium_synapses
+    config_with_medium_synapses, config_with_intermediate_synapses, wang_config_recurrent_synapses, \
+    wang_config_external_ampa_synapses
+from iteration_16.simpy import load_solutions, RichardsonSympyEquations, bind_config_to_sympy_values
 
 logger.remove()  # remove default handler
 
@@ -122,29 +126,55 @@ def E_0(r, cfg: ConductanceDiffusionSimulationConfig, gamma):
     Ee = cfg.e_ampa
     Ei = cfg.e_gaba
 
-    g = cfg.g()
-    ge = g * r
-    gi = gamma * g * r
-    g0 = gL + ge + gi
+    g0, ge, gi = comp_mean_g_s(cfg, gamma, r)
 
     num = gL * EL + ge * Ee + gi * Ei
 
     return num / g0
 
 
-def sigma_sq(r, cfg: ConductanceDiffusionSimulationConfig, gamma):
+def sigmoid_v(vm, mg_concentration=1):
+    return 1 / (1 + np.exp(-0.062 * vm / mV) * (mg_concentration / 3.57))
+
+def E_0_with_full_nmda_activation(r, cfg: ConductanceDiffusionSimulationConfig, gamma, k=2):
     if is_dimensionless(r):
         r = r * Hz
 
     gL = cfg.g_L
+    EL = cfg.e_L
+    Ee = cfg.e_ampa
+    Ei = cfg.e_gaba
+
+    g0, ge, gi = comp_mean_g_s(cfg, gamma, r)
+
+    num = gL * EL + ge * Ee + gi * Ei
+
+    initial_e_0 = num / g0
+    g_nmda_est = k * cfg.get_g_nmda_max() * sigmoid_v(initial_e_0)
+
+    num_with_nmda = gL * EL + ge * Ee + gi * Ei + g_nmda_est * Ee
+    return  num_with_nmda / (g0 + g_nmda_est)
+
+
+def comp_mean_g_s(cfg, gamma, r):
+    gL = cfg.g_L
+
+    g = cfg.g()
+    ge = g * r
+    gi = gamma * g * r
+    g0 = gL + ge + gi
+    return g0, ge, gi
+
+
+def sigma_sq(r, cfg: ConductanceDiffusionSimulationConfig, gamma, k=0):
+    if is_dimensionless(r):
+        r = r * Hz
+
     Ee = cfg.e_ampa
     Ei = cfg.e_gaba
     C = cfg.membrane_capacitance
 
-    ge = cfg.g() * r
-    gi = gamma * cfg.g() * r
-
-    g0 = gL + ge + gi
+    g0, ge, gi = comp_mean_g_s(cfg, gamma, r)
     assert have_same_dimensions(g0, 1 * nS)
 
     tau_0 = C / g0
@@ -156,6 +186,9 @@ def sigma_sq(r, cfg: ConductanceDiffusionSimulationConfig, gamma):
     assert have_same_dimensions(sigma_i_sq, 1 * nS ** 2)
 
     E_0_comp = E_0(r, cfg, gamma)
+
+    g_nmda_est = k * cfg.get_g_nmda_max() * sigmoid_v(E_0_comp)
+    g0 = g0 + g_nmda_est
 
     sigma_term_e = sigma_e_sq / (g0 ** 2) * (Ee - E_0_comp) ** 2 * cfg.tau_ampa / (cfg.tau_ampa + tau_0)
     sigma_term_i = sigma_i_sq / (g0 ** 2) * (Ei - E_0_comp) ** 2 * cfg.tau_gaba / (cfg.tau_gaba + tau_0)
@@ -189,8 +222,8 @@ def plot_poly(gamma=0.5, sigma_v=2 * mV, cfg: ConductanceDiffusionSimulationConf
     plt.show()
 
 
-def evaluate_sympy_solution(solution, config: ConductanceDiffusionSimulationConfig, mu_v_target: Quantity,
-                            sigma_target: Quantity):
+def evaluate_sympy_solution(solution, config: ConductanceDiffusionSimulationConfig, mu_v_target: Quantity = chapter1Results.mu_v,
+                            sigma_target: Quantity = chapter1Results.sigma_v):
     from sympy.abc import x, y
 
     gL, Ee, Ei, EL, E_target = sp.symbols('gL Ee Ei EL E_target')
@@ -221,6 +254,127 @@ def evaluate_sympy_solution(solution, config: ConductanceDiffusionSimulationConf
         print("Imaginary value of our solution: ", sp.im(x_val))
     y_val = y_expr.subs(x, x_val).subs(values).evalf()
     return float(x_val), float(y_val)
+
+
+def read_solutions(config: ConductanceDiffusionSimulationConfig, solutions_file_name="solution.txt"):
+    sols = []
+
+    with open(solutions_file_name) as f:
+        solutions = sp.sympify(f.read())
+        for index, solution in enumerate(solutions):
+            x_sol, y_sol = evaluate_sympy_solution(solution, config, mu_v_target=chapter1Results.mu_v,
+                                                   sigma_target=chapter1Results.sigma_v)
+            rate_sol = x_sol / (config.g() / nS)
+
+            if rate_sol > 0 and y_sol > 0:
+                print(rate_sol, y_sol)
+                sols.append((rate_sol, y_sol))
+
+    return sols
+
+
+def compute_siegert_firing_rate_for_fitted_solution(config: ConductanceDiffusionSimulationConfig, gamma: Quantity, r: np.ndarray, means_vm: np.ndarray, vars_vm: np.ndarray):
+    g0s, _, _ = comp_mean_g_s(config, gamma, r)
+    taus_0 = config.membrane_capacitance / g0s
+
+    result = np.zeros_like(r)
+    for index, tau_0, mean, variance in zip(range(0, len(r)), taus_0, means_vm, vars_vm):
+        # def rate_LIF_whitenoise(mu, tau_membrane, sigma_v, theta, V_reset, tau_ref):
+        result[index] = rate_LIF_whitenoise(mu=mean, tau_membrane=tau_0, sigma_v=np.sqrt(variance), theta=config.theta, V_reset=config.v_reset, tau_ref=2 * ms)
+
+    return result
+
+
+def plot_e_0_and_sigma_sq_for_increasing_rate(config: ConductanceDiffusionSimulationConfig, sols,
+                                              plot_title="Verify cubic solutions", r_max=100):
+    prepare_bigger_fonts()
+
+    r = np.linspace(0, r_max, 3000) * Hz
+    fig, (ax1, ax2, ax3) = plt.subplots(
+        3,
+        1,
+        figsize=(14, 17),
+        sharex=True,
+    )
+    colors = ["tab:blue", "tab:orange"]
+    for (index, solution), color in zip(enumerate(sols[::-1]), colors):
+        r_sol, gamma = solution
+        mean_vm = E_0(r, config, gamma)
+        mean_k2 =  E_0_with_full_nmda_activation(r, config, gamma, k=2)
+        mean_k5 =  E_0_with_full_nmda_activation(r, config, gamma, k=5)
+        mean_k10 =  E_0_with_full_nmda_activation(r, config, gamma, k=10)
+        line, = ax1.plot(r, mean_vm / mV, label=r"$\gamma=$"f"{gamma:.2f}", color=color)
+
+        ax1.plot(r, mean_k2/ mV, label=r"$\gamma=$"f"{gamma:.2f}, k=2", color=color, linestyle=":")
+        ax1.plot(r, mean_k5 / mV, label=r"$\gamma=$"f"{gamma:.2f}, k=5", color=color, linestyle="-.")
+        ax1.plot(r, mean_k10 / mV, label=r"$\gamma=$"f"{gamma:.2f}, k=10", color=color, linestyle="--")
+
+        var_vm = sigma_sq(r, config, gamma)
+        var_k2 = sigma_sq(r, config, gamma, k=2)
+        var_k5 = sigma_sq(r, config, gamma, k=5)
+        var_k10 = sigma_sq(r, config, gamma, k=10)
+        ax2.plot(r, var_vm / mV ** 2, label=r"$\gamma=$"f"{gamma:.2f}", color=color)
+        ax2.plot(r, var_k2 / mV ** 2, label=r"$\gamma=$"f"{gamma:.2f}, k=2", color=color, linestyle=":")
+        ax2.plot(r, var_k5 / mV ** 2, label=r"$\gamma=$"f"{gamma:.2f}, k=5", color=color, linestyle="-.")
+        ax2.plot(r, var_k10 / mV ** 2, label=r"$\gamma=$"f"{gamma:.2f}, k=10", color=color, linestyle="--")
+
+        ax2.axhline((chapter1Results.sigma_v / mV) ** 2, color="black", lw=1, linestyle="--")
+
+        ax3.plot(r, compute_siegert_firing_rate_for_fitted_solution(config, gamma, r, means_vm=mean_vm, vars_vm=var_vm), label=r"$\gamma=$"f"{gamma:.2f}", color=color)
+        ax3.plot(r, compute_siegert_firing_rate_for_fitted_solution(config, gamma, r, means_vm=mean_k2, vars_vm=var_k2), label=r"$\gamma=$"f"{gamma:.2f}, k=2", linestyle=":", color=color)
+        ax3.plot(r, compute_siegert_firing_rate_for_fitted_solution(config, gamma, r, means_vm=mean_k5, vars_vm=var_k5), label=r"$\gamma=$"f"{gamma:.2f}, k=5", linestyle="-.", color=color)
+        ax3.plot(r, compute_siegert_firing_rate_for_fitted_solution(config, gamma, r, means_vm=mean_k10, vars_vm=var_k10), label=r"$\gamma=$"f"{gamma:.2f}, k=10", linestyle="--", color=color)
+
+        print(f"E_0 of solution: {E_0(r_sol, config, gamma)}, sigma v of solution {sigma_sq(r_sol, config, gamma)}")
+        ax1.axvline(x=r_sol / Hz, linestyle="--", label=f"Sol {index + 1}", color=line.get_color())
+        ax2.axvline(x=r_sol / Hz, linestyle="--", label=f"Sol {index + 1}", color=line.get_color())
+        ax3.axvline(x=r_sol / Hz, linestyle="--", label=f"Sol {index + 1}", color=line.get_color())
+
+    ax1.axhline(chapter1Results.mu_v / mV, color="black", lw=1, linestyle="--")
+    ax1.set_title(r"$E_0(r)$")
+    ax1.set_ylabel("mV")
+    ax2.set_title(r"$\sigma_v^2(r)$")
+    ax2.set_ylabel(r"$mV^2$")
+    ax1.legend()
+    ax2.legend()
+    ax3.legend()
+    ax3.set_xlabel(r"rate (Hz)")
+
+    fig.suptitle(plot_title)
+    fig.tight_layout()
+    show_plots_non_blocking()
+
+
+def plot_e_0_and_sigma_sq_for_increasing_rate_no_solution(config: ConductanceDiffusionSimulationConfig,
+                                              plot_title="Numerical values of recurrent Wang config cannot produce a solution"):
+    prepare_bigger_fonts()
+
+    r = np.linspace(0, 300, 3000) * Hz
+    fig, (ax1, ax2) = plt.subplots(
+        2,
+        1,
+        figsize=(12, 12),
+        sharex=True,
+    )
+
+    for gamma in [0, 0.5, 1, 1.5, 2]:
+
+        ax1.plot(r, E_0(r, config, gamma) / mV, label=r"$\gamma=$"f"{gamma:.2f}")
+
+        ax2.plot(r, sigma_sq(r, config, gamma) / mV ** 2, label=r"$\gamma=$"f"{gamma:.2f}")
+    ax2.axhline((chapter1Results.sigma_v / mV) ** 2, color="black", lw=1, linestyle="--")
+
+    ax1.axhline(chapter1Results.mu_v / mV, color="black", lw=1, linestyle="--")
+    ax1.set_title(r"$E_0(r)$")
+    ax1.set_ylabel("mV")
+    ax2.set_title(r"$\sigma_v^2(r)$")
+    ax2.set_ylabel(r"$mV^2$")
+    ax2.set_xlabel(r"rate (Hz)")
+    ax1.legend()
+    ax2.legend()
+    fig.suptitle(plot_title)
+    fig.tight_layout()
+    show_plots_non_blocking()
 
 
 class TripleExplorer:
@@ -363,8 +517,8 @@ class TripleExplorer:
 def cubic_solution_title(cfg: ConductanceDiffusionSimulationConfig):
     return "Our model:" r"$R_{\mathrm{in}}=$" f"{(1 / cfg.g_L) / Mohm : .2f} MΩ, " r"$N_E$="f"{cfg.N_E} "r"$N_I$="f"{cfg.N_I}\n"
 
-
-def plot_one_cubic_solution(solutions: list, config: ConductanceDiffusionSimulationConfig, r_max=10_000, title="Check cubic solutions"):
+def plot_one_cubic_solution(solutions: list, config: ConductanceDiffusionSimulationConfig, r_max=10_000,
+                            title="Check cubic solutions"):
     valid_solutions = []
 
     for index, solution in enumerate(solutions):
@@ -412,7 +566,6 @@ def plot_one_cubic_solution(solutions: list, config: ConductanceDiffusionSimulat
         title = "Solutions of cubic polynomial equation"
     fig.suptitle(f"{title} \n {cubic_solution_title(config)}")
     show_plots_non_blocking()
-
 
 
 class MyTestCase(unittest.TestCase):
@@ -682,7 +835,9 @@ class MyTestCase(unittest.TestCase):
     def test_sympy_solutions_solve_e_0_and_sigma_sq_0(self):
 
         cfgs = [config_with_weak_synapses, config_with_weak_synapses.with_property(N=100),
-                config_with_weak_synapses.with_property(N=1000), config_with_weak_synapses.with_property(N=10000), ]
+                config_with_weak_synapses.with_property(N=1000), config_with_weak_synapses.with_property(N=10000),
+                wang_config_recurrent_synapses.with_property(N=2000, k=4),
+                wang_config_external_ampa_synapses.with_property(N=2000, k=4)]
 
         with open("solution.txt") as f:
             solutions = sp.sympify(f.read())
@@ -695,66 +850,56 @@ class MyTestCase(unittest.TestCase):
                     rate_sol = x_sol / (cfg.g() / nS)
 
                     print("Rate sol: ", rate_sol)
-                    ge_0 =  cfg.g() * rate_sol
+                    ge_0 = cfg.g() * rate_sol
                     print(f"g_e, 0 = x is {ge_0}")
-                    print(f"Lets do E_0: {(- 65 * 20 + 0 * ge_0 / nS - y_sol * ge_0 / nS * 80) / (20 + ge_0 / nS + ge_0 / nS * y_sol)}")
+                    print(
+                        f"Lets do E_0: {(- 65 * 20 + 0 * ge_0 / nS - y_sol * ge_0 / nS * 80) / (20 + ge_0 / nS + ge_0 / nS * y_sol)}")
 
                     self.assertAlmostEqual(chapter1Results.mu_v / mV, E_0(rate_sol, cfg, y_sol) / mV)
                     self.assertAlmostEqual((chapter1Results.sigma_v / mV) ** 2,
                                            sigma_sq(rate_sol, cfg, y_sol) / (mV ** 2))
 
+    # This is already moving in the direction of scripts. Do not leave it here and move it somewhere where it makes sense.
     def test_plot_sympy_solutions(self):
 
-        config = config_with_weak_synapses
-        config = config_with_medium_synapses.with_property(N_E=1000, N_I=1000)
+        def plot_title(synapse_label, config: ConductanceDiffusionSimulationConfig):
+            ampa_dv = compute_ampa_dv(config)
+            gaba_dv = compute_gaba_dv(config)
 
-        sols = []
+            return (r"$E_0=f_1$(rate) and $\sigma_v^2=f_2$(rate)" "\n" "for appropriate $\gamma$ able to fit "
+                    r"$\bar E_0=$"f"{chapter1Results.mu_v / mV :.2f}, "r"$\sigma_v^2=$"f"{(chapter1Results.sigma_v / mV) ** 2 :.2f} \n"
+                    f"{synapse_label} synapses: ""\n"r"$w_{\mathrm{AMPA}} = $" f"{config.w_ampa / nS: .2f} (nS), " r"$\Delta v_{\mathrm{AMPA}} = $" f"{ampa_dv: .2f} mV, "
+                    r"$w_{\mathrm{GABA}} = $" f"{config.w_gaba / nS: .2f} (nS), " r"$\Delta v_{\mathrm{GABA}} = $" f"{gaba_dv: .2f} mV")
 
-        with open("solution.txt") as f:
-            solutions = sp.sympify(f.read())
-            for index, solution in enumerate(solutions):
-                x_sol, y_sol = evaluate_sympy_solution(solution, config, mu_v_target=chapter1Results.mu_v,
-                                                       sigma_target=chapter1Results.sigma_v)
-                rate_sol = x_sol / (config.g() / nS)
+        config_wang_external_synapses = wang_config_external_ampa_synapses
+        solutions_wang_recurrent_synapses = read_solutions(config_wang_external_synapses)
+        plot_e_0_and_sigma_sq_for_increasing_rate(config_wang_external_synapses, solutions_wang_recurrent_synapses,
+                                                  plot_title=plot_title("wang external", config_wang_external_synapses), r_max=20)
 
-                if rate_sol > 0 and y_sol > 0:
-                    print(rate_sol, y_sol)
-                    sols.append((rate_sol, y_sol))
+        config_weak_synapses = config_with_weak_synapses.with_property(N_E=1000, N_I=1000)
+        solutions_weak_synapses = read_solutions(config_weak_synapses)
+        plot_e_0_and_sigma_sq_for_increasing_rate(config_weak_synapses, solutions_weak_synapses, plot_title = plot_title("weak", config_weak_synapses))
 
-        r = np.linspace(0.1, 100, 1000) * Hz
+        config_intermediate_synapses = config_with_intermediate_synapses.with_property(N_E=1000, N_I=1000)
+        solutions_intermediate_synapses = read_solutions(config_intermediate_synapses)
+        plot_e_0_and_sigma_sq_for_increasing_rate(config_intermediate_synapses, solutions_intermediate_synapses,
+                                                  plot_title=plot_title("intermediate", config_intermediate_synapses))
 
-        fig, (ax1, ax2) = plt.subplots(
-            2,
-            1,
-            figsize=(10, 10),
-            sharex=True,
-        )
+        config_moderate_synapses = config_with_medium_synapses.with_property(N_E=1000, N_I=1000)
+        solutions_moderate_synapses = read_solutions(config_moderate_synapses)
+        plot_e_0_and_sigma_sq_for_increasing_rate(config_moderate_synapses, solutions_moderate_synapses,
+                                                  plot_title = plot_title("moderate", config_moderate_synapses))
 
-        for index, solution in enumerate(sols):
-            r_sol, gamma = solution
-            ax1.plot(r, E_0(r, config, gamma) / mV, label=r"$\gamma=$"f"{gamma:.2f}")
 
-            ax2.plot(r, sigma_sq(r, config, gamma) / mV ** 2, label=r"$\gamma=$"f"{gamma:.2f}")
-            ax2.axhline((chapter1Results.sigma_v / mV) ** 2, color="black", lw=1, linestyle="--")
+    def test_evaluate_wang_solutions_for_cubic_solutions(self):
+        try:
+            load_solutions(wang_config_recurrent_synapses, load_negative_values=True)
+        except ValueError:
+            print("Wang solutions for recurrent synapses cannot reach our desired values")
+        print(load_solutions(wang_config_external_ampa_synapses, load_negative_values=True))
 
-            print(f"E_0 of solution: {E_0(r_sol, config, gamma)}, sigma v of solution {sigma_sq(r_sol, config, gamma)}")
-            ax1.axvline(x=r_sol / Hz, linestyle="--", label=f"Sol {index + 1}")
-            ax2.axvline(x=r_sol / Hz, linestyle="--", label=f"Sol {index + 1}")
-
-        ax1.axhline(chapter1Results.mu_v / mV, color="black", lw=1, linestyle="--")
-        ax1.set_title(r"$E_0(r)$")
-        ax1.set_ylabel("mV")
-
-        ax2.set_title(r"$\sigma_v^2(r)$")
-        ax2.set_ylabel(r"$mV^2$")
-
-        ax2.set_xlabel(r"rate (Hz)")
-
-        ax1.legend()
-        ax2.legend()
-
-        fig.suptitle("Check cubic solutions")
-        show_plots_non_blocking()
+    def test_plot_e_0_sigma_sq_wang_config(self):
+        plot_e_0_and_sigma_sq_for_increasing_rate_no_solution(wang_config_recurrent_synapses)
 
 
 if __name__ == '__main__':

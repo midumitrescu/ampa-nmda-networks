@@ -2,12 +2,15 @@ import unittest
 
 import sympy as sp
 from brian2 import nS, mV, nF, second
-from sympy import solve, Reals
+from sympy import Reals
 from sympy.physics.control.control_plots import plt
 from sympy.physics.quantum.identitysearch import np
 
-from Plotting import prepare_bigger_fonts
-from iteration_16.model import config_with_weak_synapses, chapter1Results, config_with_medium_synapses
+from Plotting import prepare_bigger_fonts, show_plots_non_blocking
+from iteration_12_transfer_function_of_lif_neurons.config import DiffusionLIFConfig
+from iteration_16.model import config_with_weak_synapses, chapter1Results, config_with_medium_synapses, \
+    wang_config_recurrent_synapses, ConductanceDiffusionSimulationConfig, wang_config_external_ampa_synapses
+
 
 def bind_config_to_sympy_values(cfg):
     values = {
@@ -24,6 +27,86 @@ def bind_config_to_sympy_values(cfg):
         'E_target': float(chapter1Results.mu_v / mV)
     }
     return values
+
+solutions_file_name = "solutions.txt"
+polynomial_file_name = "polynomial.txt"
+
+def load_solutions(config: ConductanceDiffusionSimulationConfig, file_name: str = solutions_file_name, load_negative_values = False):
+    eqs = RichardsonSympyEquations()
+
+    with open(file_name) as f:
+        solutions = sp.sympify(f.read())
+
+        values = bind_config_to_sympy_values(config)
+
+        result = []
+
+        for index, solution in enumerate(solutions):
+            from sympy.abc import x
+            x_val = solution.subs(values).evalf()
+            if abs(sp.im(x_val)) < 1e-10:
+                x_val = sp.re(x_val)
+
+            y_val = eqs.y_expr.subs(values).subs(x, x_val)
+            x_float_value = float(x_val)
+            y_float_value = float(y_val)
+            if load_negative_values or (x_float_value > 0 and y_float_value > 0):
+                result.append((float(x_val), float(y_val)))
+
+    return result
+
+class RichardsonSympyEquations:
+
+    def __init__(self):
+        from sympy.abc import x, y
+
+        gL, Ee, Ei, EL, E_target, we, wi, taue, taui, C, sigma_target = sp.symbols('gL Ee Ei EL E_target we wi taue taui C sigma_target')
+
+        self.def_g0 = gL + x * (1 + y)
+        self.def_E0 = (gL * EL + x * Ee + y * x * Ei) / self.def_g0
+
+        self.def_sigma_sq = (
+                we / 2 * x / self.def_g0 ** 2 * (Ee - self.def_E0) ** 2 *
+                taue / (taue + C / self.def_g0)
+                +
+                wi / 2 * y * x / self.def_g0 ** 2 * (Ei - self.def_E0) ** 2 *
+                taui / (taui + C / self.def_g0)
+        )
+
+        self.eq_sigma = self.def_sigma_sq - sigma_target**2
+
+        self.y_expr = sp.solve(self.def_E0 - E_target, y)[0]
+
+        self.x_polynomial = None
+
+
+
+    def sigma_sq_(self):
+        pass
+
+    def x_polyn(self, config=None):
+
+        self.__init_x_polyn__()
+
+        if config is None:
+            return self.x_polynomial
+
+        return self.x_polynomial.subs(bind_config_to_sympy_values(config))
+
+    def __init_x_polyn__(self):
+        if self.x_polynomial is None:
+            from sympy.abc import y
+            y_expr = self.y_expr
+            eq_x = sp.simplify(
+                self.eq_sigma.subs(y, y_expr)
+            )
+            # Cancel common factors first
+            eq_x = sp.cancel(eq_x)
+
+            num, _ = sp.fraction(eq_x)
+            self.x_polynomial = sp.factor(num)
+
+
 
 class SimpyTest(unittest.TestCase):
 
@@ -99,21 +182,6 @@ class SimpyTest(unittest.TestCase):
 
         g0 = gL + x * (1 + y)
 
-        cfg = config_with_weak_synapses
-        subs ={
-            gL: float(cfg.g_L / nS),
-            EL: float(cfg.e_L / mV),
-            Ee: float(cfg.e_ampa / mV),
-            Ei: float(cfg.e_gaba / mV),
-            we: float(cfg.w_ampa / nS),
-            wi: float(cfg.w_gaba / nS),
-            taue: float(cfg.tau_ampa / second),
-            taui: float(cfg.tau_gaba / second),
-            C: float(cfg.membrane_capacitance / nF),
-            E_target: float(chapter1Results.mu_v / mV),
-            sigma_target: float(chapter1Results.sigma_v / mV),
-        }
-
         E0 = (gL * EL + x * Ee + y * x * Ei) / g0
         equation_e_0 = E0 - E_target
         sigma_sq = (
@@ -128,7 +196,6 @@ class SimpyTest(unittest.TestCase):
 
         y_expr = sp.solve(equation_e_0, y)[0]
         print(sp.pretty(y_expr))
-
 
         eq_x = sp.simplify(
             equation_sigma_sq.subs(y, y_expr)
@@ -146,26 +213,16 @@ class SimpyTest(unittest.TestCase):
             print("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
             print(sp.latex(num, order='grlex'))
             print("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-        print("Roots ", sp.roots(poly.as_expr(), x))
-        print("Roots ",sp.nroots(poly.subs(subs).as_expr()))
 
-        with open("polynomial.txt", "w") as f:
+        with open(polynomial_file_name, "w") as f:
             f.write(sp.srepr(poly.as_expr()))
 
         sol = sp.solve(num, x, domain=Reals)
         print(sol)
 
-        with open("solution.txt", "w") as f:
+        with open(solutions_file_name, "w") as f:
             f.write(sp.srepr(sol))
 
-        print("=========================================================================")
-        print("=========================================================================")
-
-        eq_x = sp.cancel(eq_x)
-        num, den = sp.fraction(eq_x)
-        solve(num, x)
-
-        print(solve([equation_e_0, equation_sigma_sq], (x, y)))
 
     def test_solution_read(self):
         from sympy.abc import x, y
@@ -187,11 +244,12 @@ class SimpyTest(unittest.TestCase):
         equation_e_0 = E0 - E_target
         y_expr = sp.solve(equation_e_0, y)[0]
 
-        with open("solution.txt") as f:
+        #with open("solution.txt") as f:
+        with open(solutions_file_name) as f:
             solutions = sp.sympify(f.read())
             cfg = config_with_weak_synapses
 
-            values = self.bind_config_to_sympy_values(cfg)
+            values = bind_config_to_sympy_values(cfg)
 
             for index, solution in enumerate(solutions):
                 x_val = solution.subs(values).evalf()
@@ -200,82 +258,156 @@ class SimpyTest(unittest.TestCase):
 
                 y_val = y_expr.subs(values).subs(x, x_val)
 
+                print(f"x val {x_val}, y val {y_val}")
+
                 self.assertAlmostEqual(-47.6159564500000, float(E0.subs(values).subs({"x": x_val, "y": y_val})), places=7)
                 self.assertAlmostEqual(3.60999999999985, float(sigma_sq.subs(values).subs({"x": x_val, "y": y_val})), places=7)
 
     def test_polynomial_plot(self):
-        from sympy.abc import x, y
-        gL, Ee, Ei, EL, E_target = sp.symbols('gL Ee Ei EL E_target')
-        we, wi = sp.symbols('we wi')
-        taue, taui = sp.symbols('taue taui')
-        C = sp.symbols('C')
-        sigma_target = sp.symbols('sigma_target')
+        from sympy.abc import x
+        eqs = RichardsonSympyEquations()
 
-        g0 = gL + x * (1 + y)
+        ylims = [(-0.5E9, 1.5E9), (-1E10, 1.5E10)]
+        x_maxs = [300, 1500]
+        for x_max, ylim in zip(x_maxs, ylims):
+            from matplotlib.ticker import ScalarFormatter
 
-        E0 = (gL * EL + x * Ee + y * x * Ei) / g0
-        equation_e_0 = E0 - E_target
-        sigma_sq = (
-                we / 2 * x / g0 ** 2 * (Ee - E0) ** 2 *
-                taue / (taue + C / g0)
-                +
-                wi / 2 * y * x / g0 ** 2 * (Ei - E0) ** 2 *
-                taui / (taui + C / g0)
-        )
+            formatter = ScalarFormatter(useMathText=True)
+            formatter.set_scientific(True)
+            formatter.set_powerlimits((0, 0))  # always use scientific notation
 
-        equation_sigma_sq = sigma_sq - sigma_target ** 2
-
-        y_expr = sp.solve(equation_e_0, y)[0]
-        eq_x = sp.simplify(
-            equation_sigma_sq.subs(y, y_expr)
-        )
-        # Cancel common factors first
-        eq_x = sp.cancel(eq_x)
-
-        num, den = sp.fraction(eq_x)
-
-        print("Numerator degree:", sp.degree(num, x))
-        print("Denominator degree:", sp.degree(den, x))
-        print()
-
-        values_weak_synapses = bind_config_to_sympy_values(config_with_weak_synapses)
-        values_moderate_synapses = bind_config_to_sympy_values(config_with_medium_synapses)        polynomial = sp.factor(num)
-        P_weak = polynomial.subs(values_weak_synapses)
-        f_weak = sp.lambdify(x, P_weak, "numpy")
-
-        P_moderate = polynomial.subs(values_moderate_synapses)
-        f_moderate = sp.lambdify(x, P_moderate, "numpy")
-
-        for x_max in [300, 2000]:
+            prepare_bigger_fonts(zoom=2)
             x_minus = np.linspace(-200, 0, 1000)
             x_plus = np.linspace(0, x_max, 1000)
 
-            plt.figure(figsize=(10, 8))
-            plt.plot(x_minus, f_weak(x_minus), color="red", linewidth=2, linestyle="-.", label=r"negative conductances, weak synapses")
-            plt.plot(x_plus, f_weak(x_plus), linewidth=2, label=fr"positive conductances, weak synapses, γ = {y}")
-            plt.plot(x_minus, f_moderate(x_minus), color="red", linewidth=2, linestyle="-.", label=r"negative conductances, moderate synapses")
-            plt.plot(x_plus, f_moderate(x_plus), linewidth=2, label=r"positive conductances, moderate synapses")
-            plt.axhline(y=0, linestyle='--', color='k')
+            fig, ax1 = plt.subplots(
+                1, 1,
+                figsize=(10, 12),
+                sharex=True
+            )
 
-            plt.xlabel("$x \equiv gr$ (nS)")
-            plt.ylabel("$P(gr)$")
+            for config in [config_with_weak_synapses, config_with_medium_synapses]:
 
-            plt.title("Solution for P(gr) = 0 after elimination of $\gamma$ \n"
-                        r""" $g_0 = g_L + g \cdot r \cdot (1 + \gamma)$ """ "\n"
-                        r"""$ \bar E_0 = \frac{g_L \cdot E_L + g \cdot r \cdot \left( E_e + \gamma \cdot  E_i \right)}{g_L  + g \cdot r \cdot (1 + \gamma)}$""""\n"
-                        r"""$\bar\sigma_0^2 = \frac{w_e}{2} \cdot \frac{g \cdot r}{g_0} \cdot \bar E_e^2 \cdot \frac{\tau_e}{\tau_e g_0+C} + \frac{w_i}{2} \frac{\gamma \cdot g \cdot r}{g_0} \bar E_i ^2 \frac{ \tau_i} {\tau_i g_0+C}$""""\n")
+                polyn = eqs.x_polyn(config)
+                f_p = sp.lambdify(x, polyn, "numpy")
 
-            plt.legend()
+                ax1.plot(
+                    x_minus, f_p(x_minus),
+                    color="red", linewidth=2, linestyle="-.",
+                    label=f"negative domain, {config.label} synapses"
+                )
+
+                ax1.plot(
+                    x_plus, f_p(x_plus),
+                    linewidth=2,
+                    label=f"positive domain, {config.label} synapses"
+                )
+
+            ax1.axhline(y=0, linestyle='--', color='k')
+
+            ax1.set_xlabel(r"$x \equiv gr$ (nS)")
+            ax1.set_ylabel(r"$P(gr)$")
+
+            ax1.set_title(
+                "Solution for P(gr) = 0 after elimination of $\\gamma$\n"
+                r"$g_0 = g_L + g \cdot r \cdot (1 + \gamma)$" "\n"
+                r"$\bar E_0 = \frac{g_L \cdot E_L + g \cdot r \cdot \left( E_e + \gamma \cdot E_i \right)}{g_L + g \cdot r \cdot (1 + \gamma)}$" "\n"
+                r"$\bar\sigma_0^2 = \frac{w_e}{2}\frac{g \cdot r}{g_0}\bar E_e^2\frac{\tau_e}{\tau_e g_0+C} + \frac{w_i}{2}\frac{\gamma \cdot g \cdot r}{g_0}\bar E_i^2\frac{\tau_i}{\tau_i g_0+C}$"
+            )
+
+            ax1.yaxis.set_major_formatter(formatter)
+            ax1.set_ylim(ylim)
+            ax1.legend()
+
+            fig.tight_layout()
+            show_plots_non_blocking()
+
+    def test_solutions_can_be_loaded_from_file(self):
+        solutions = load_solutions(config_with_weak_synapses)
+        x_s, y_s = zip(*solutions)
+
+        np.testing.assert_array_almost_equal(x_s, [8.18779600541636, 223.826982269890])
+        np.testing.assert_array_almost_equal(y_s, [0.159110841915727, 1.42238599165563])
+
+    def test_solutions_can_be_loaded_from_file_loads_negative_values(self):
+        solutions = load_solutions(config_with_weak_synapses, load_negative_values=True)
+        x_s, y_s = zip(*solutions)
+
+        np.testing.assert_array_almost_equal(x_s, [-83.80041, 8.18779600541636, 223.826982269890])
+        np.testing.assert_array_almost_equal(y_s, [1.5984684697754752, 0.159110841915727, 1.42238599165563])
+
+    def test_see_why_wang_solutions_have_large_imaginary_parts(self):
+        config = wang_config_recurrent_synapses
+
+        with open("solution.txt") as f:
+            solutions = sp.sympify(f.read())
+
+            values = bind_config_to_sympy_values(config)
+
+            for index, solution in enumerate(solutions):
+                from sympy.abc import x
+                x_val = solution.subs(values).evalf()
+                print(f"Solution {index + 1}: {x_val}")
+
+    def test_polynomial_plots_wang_numbers(self):
+        from sympy.abc import x
+        eqs = RichardsonSympyEquations()
+
+        ylims = [(-0.5E9, 1.5E9)]
+        x_maxs = [50, 80]
+        for x_max in x_maxs:
+            print(x_max)
+            from matplotlib.ticker import ScalarFormatter
+
+            formatter = ScalarFormatter(useMathText=True)
+            formatter.set_scientific(True)
+            formatter.set_powerlimits((0, 0))  # always use scientific notation
+
             prepare_bigger_fonts(zoom=2)
-            plt.tight_layout()
-            plt.show()
+            x_minus = np.linspace(-50, 0, 1000)
+            x_plus = np.linspace(0, x_max, 1000)
 
+            fig, ax1 = plt.subplots(
+                1, 1,
+                figsize=(10, 12),
+                sharex=True
+            )
 
+            for config in [wang_config_recurrent_synapses, wang_config_external_ampa_synapses]:
 
-    def test_unit_of_variable_x(self):
+                polyn = eqs.x_polyn(config)
+                f_p = sp.lambdify(x, polyn, "numpy")
 
-        one_solution
+                ax1.plot(
+                    x_minus, f_p(x_minus),
+                    color="red", linewidth=2, linestyle="-.",
+                    label=f"negative domain, {config.label} synapses"
+                )
 
+                ax1.plot(
+                    x_plus, f_p(x_plus),
+                    linewidth=2,
+                    label=f"positive domain, {config.label} synapses"
+                )
+
+            ax1.axhline(y=0, linestyle='--', color='k')
+
+            ax1.set_xlabel(r"$x \equiv gr$ (nS)")
+            ax1.set_ylabel(r"$P(gr)$")
+
+            ax1.set_title(
+                "Solution for P(gr) = 0 after elimination of $\\gamma$\n"
+                r"$g_0 = g_L + g \cdot r \cdot (1 + \gamma)$" "\n"
+                r"$\bar E_0 = \frac{g_L \cdot E_L + g \cdot r \cdot \left( E_e + \gamma \cdot E_i \right)}{g_L + g \cdot r \cdot (1 + \gamma)}$" "\n"
+                r"$\bar\sigma_0^2 = \frac{w_e}{2}\frac{g \cdot r}{g_0}\bar E_e^2\frac{\tau_e}{\tau_e g_0+C} + \frac{w_i}{2}\frac{\gamma \cdot g \cdot r}{g_0}\bar E_i^2\frac{\tau_i}{\tau_i g_0+C}$"
+            )
+
+            ax1.yaxis.set_major_formatter(formatter)
+            # ax1.set_ylim(ylim)
+            ax1.legend()
+
+            fig.tight_layout()
+            show_plots_non_blocking()
 
 if __name__ == '__main__':
     unittest.main()
