@@ -30,7 +30,7 @@ def create_spike_source(spike_times_ms: np.ndarray | None, poisson_rate: Quantit
         )
 
     return SpikeGeneratorGroup(
-        N=1,
+        N=N,
         indices=np.zeros(len(spike_times_ms), dtype=int),
         times=spike_times_ms * ms,
     )

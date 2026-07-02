@@ -355,6 +355,136 @@ class NMDASimulationWangCompartments:
         })
 
     @staticmethod
+    def run_with_spiking(config: ConductanceDiffusionSimulationConfig):
+        start_scope()
+
+        if config.seed is not None:
+            device.reinit()
+            np.random.seed(config.seed)
+            seed(config.seed)
+        neuron = NeuronGroup(
+            1,
+            config.model,
+            method="euler",
+            namespace={
+                "C": config.membrane_capacitance,
+                "mg_concentration": config.magnesium_concentration,
+
+                "tau_ampa": config.tau_ampa,
+                "tau_gaba": config.tau_gaba,
+                "tau_nmda_rise": config.tau_nmda_rise,
+                "tau_nmda_decay": config.tau_nmda_decay,
+                "alpha_nmda": config.alpha_nmda,
+
+                "E_L": config.e_L,
+                "e_ampa": config.e_ampa,
+                "e_gaba": config.e_gaba,
+                "e_nmda": config.e_nmda,
+
+                "g_L": config.g_L,
+                "g_nmda_max": config.g_nmda_max,
+                "theta": config.theta,
+                "V_r": config.v_reset,
+
+            },
+            threshold="v >= theta",
+            reset="v= V_r"
+        )
+
+        defaultclock.dt = config.dt
+
+        neuron.v = config.resting_voltage
+
+        neuron.g_ampa = 0 * nS
+        neuron.g_gaba = 0 * nS
+
+        neuron.s_nmda = 0
+        neuron.x_nmda = 0
+
+        ampa_source = create_spike_source(
+            config.ampa_spike_times,
+            config.r_e,
+        )
+
+        gaba_source = create_spike_source(
+            config.gaba_spike_times,
+            config.r_i,
+        )
+
+        nmda_source = create_spike_source(
+            config.nmda_spike_times,
+            config.r_n,
+        )
+
+        excitatory_synapses = Synapses(
+            ampa_source,
+            neuron,
+            on_pre="""
+                    g_ampa += w_ampa
+                    """,
+            namespace={
+                "w_ampa": config.w_ampa
+            }
+        )
+
+        inhibitory_synapse = Synapses(
+            gaba_source,
+            neuron,
+            on_pre="""
+                    g_gaba += w_gaba
+                    """,
+            namespace={
+                "w_gaba": config.w_gaba
+            }
+        )
+        nmda_synapse = Synapses(
+            nmda_source,
+            neuron,
+            on_pre="""
+                    x_nmda += w_x
+                    """,
+            namespace={
+                "w_x": config.w_x
+            }
+        )
+
+        excitatory_synapses.connect()
+        inhibitory_synapse.connect()
+        nmda_synapse.connect()
+
+        monitor = StateMonitor(
+            neuron,
+            [
+                "v",
+                "g_ampa",
+                "g_gaba",
+                "s_nmda",
+                "x_nmda",
+            ],
+            record=True,
+        )
+
+        ampa_spike_monitor = SpikeMonitor(ampa_source)
+        gaba_spike_monitor = SpikeMonitor(gaba_source)
+        nmda_spike_monitor = SpikeMonitor(nmda_source)
+
+        run(config.simulation_time)
+        result = WangSimulationResult.from_monitors(
+            state_monitor=monitor,
+            ampa_spike_monitor=ampa_spike_monitor,
+            gaba_spike_monitor=gaba_spike_monitor,
+            nmda_spike_monitor=nmda_spike_monitor,
+        )
+
+        return result
+
+    @staticmethod
+    def run_with_spiking_and_plot(config: ConductanceDiffusionSimulationConfig, plot_title=None):
+        result = WangSimulation.run_with_spiking(config)
+        plot(result, plot_title=plot_title)
+        return result
+
+    @staticmethod
     def run_and_plot(config: ConductanceDiffusionSimulationConfig, detailed_statistics=True, title=None, testing=False):
         result = NMDASimulationWangCompartments.run(config, detailed_statistics=detailed_statistics)
         plot_nmda_compartments(result, title=title, testing=testing)

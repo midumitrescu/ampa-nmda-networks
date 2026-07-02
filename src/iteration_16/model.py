@@ -219,7 +219,7 @@ config_with_weak_synapses = ConductanceDiffusionSimulationConfig(
 config_with_intermediate_synapses = ConductanceDiffusionSimulationConfig(
     w_ampa=4.819055736064912 * nS,
     w_gaba=10.371847078204151 * nS,
-    g_nmda_max=4.074575871229172 * nS,
+    g_nmda_max=4.074575871229172 * nS, # I have set alpha = alpha / 2
     N_E=1,
     N_I=1,
     label="intermediate synapses"

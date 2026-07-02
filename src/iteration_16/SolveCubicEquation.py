@@ -880,6 +880,11 @@ class MyTestCase(unittest.TestCase):
         solutions_weak_synapses = read_solutions(config_weak_synapses)
         plot_e_0_and_sigma_sq_for_increasing_rate(config_weak_synapses, solutions_weak_synapses, plot_title = plot_title("weak", config_weak_synapses))
 
+        config_weak_synapses = config_with_weak_synapses.with_property(N_E=1000, N_I=1000)
+        solutions_weak_synapses = read_solutions(config_weak_synapses)[1:]
+        plot_e_0_and_sigma_sq_for_increasing_rate(config_weak_synapses, solutions_weak_synapses,
+                                                  plot_title=plot_title("weak", config_weak_synapses))
+
         config_intermediate_synapses = config_with_intermediate_synapses.with_property(N_E=1000, N_I=1000)
         solutions_intermediate_synapses = read_solutions(config_intermediate_synapses)
         plot_e_0_and_sigma_sq_for_increasing_rate(config_intermediate_synapses, solutions_intermediate_synapses,

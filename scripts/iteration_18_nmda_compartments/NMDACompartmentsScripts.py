@@ -57,7 +57,7 @@ class NMDAWithCompartmentScripts(unittest.TestCase):
 
         plot_k_sweep_results(result_by_k, k_s, config, experiment_title="Neuronal dynamics for cluster-grouped input")
 
-    def test_create_model_schematics(self):
+    def test_create_model_schematics_compartments_receive_ampa_only(self):
         def point_on_circle_edge(start, center, radius):
             """
             Returns point on circle boundary from start -> center direction.
@@ -153,7 +153,7 @@ class NMDAWithCompartmentScripts(unittest.TestCase):
             # =========================================================
             soma_x, soma_y = 6.0, 0.0
             soma_center = (soma_x, soma_y)
-            soma_radius = 0.7
+            soma_radius = 1.5
 
             soma = Circle((soma_x, soma_y), soma_radius, fill=False, lw=2)
             ax.add_patch(soma)
@@ -166,7 +166,7 @@ class NMDAWithCompartmentScripts(unittest.TestCase):
             # angles: 5π/4, π/2, π/4
             # =========================================================
             angles = [5 * np.pi / 4, np.pi - 0.1, 3 * np.pi / 4 - 0.2]
-            radius = 2.6
+            cluster_radius = soma_radius + 0.2
 
             cluster_labels = [
                 "Cluster 1",
@@ -176,19 +176,31 @@ class NMDAWithCompartmentScripts(unittest.TestCase):
 
             cluster_positions = []
 
+            offsets =[(0, 0), (-0.9, 0.5), (0, 1.5)]
+
             for i, ang in enumerate(angles):
-                cx = soma_x + radius * np.cos(ang)
-                cy = soma_y + radius * np.sin(ang)
+                cx = soma_x + cluster_radius * np.cos(ang)
+                cy = soma_y + cluster_radius * np.sin(ang)
 
                 cluster_positions.append((cx, cy))
 
-                # cluster dot
-                ax.scatter(cx, cy, s=200, color="black")
+                cluster_size = 0.28  # radius of compartment circles
+
+                cluster_circle = Circle(
+                    (cx, cy),
+                    cluster_size,
+                    facecolor="white",
+                    edgecolor="black",
+                    lw=2
+                )
+                ax.add_patch(cluster_circle)
+
+                dx, dy = offsets[i]
 
                 # label BELOW dot
                 ax.text(
-                    cx,
-                    cy - 0.45,
+                    cx + dx,
+                    cy + dy - 0.45,
                     cluster_labels[i],
                     ha="center",
                     va="top",
