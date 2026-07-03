@@ -8,6 +8,7 @@ from iteration_16.Simulate_K_NMDA_Compartments import plot_k_sweep_results
 from iteration_16.model import config_with_weak_synapses, ConductanceDiffusionSimulationConfig
 from iteration_16.nmda_compartment_model import NMDASimulationWangCompartments
 
+
 def run_simulations_in_parallel_and_compare(base_config: ConductanceDiffusionSimulationConfig, k_s):
     run_one = lambda k: NMDASimulationWangCompartments.run(base_config.with_property(k_comp=k))
 
@@ -19,6 +20,7 @@ def run_simulations_in_parallel_and_compare(base_config: ConductanceDiffusionSim
 
     plot_k_sweep_results(result_by_k, k_s, base_config)
 
+
 class NMDAWithCompartmentScripts(unittest.TestCase):
 
     def test_run_with_one_compartment_works(self):
@@ -29,8 +31,9 @@ class NMDAWithCompartmentScripts(unittest.TestCase):
     def test_compare_many_compartments_to_only_one(self):
 
         k_s = [1, 2, 5, 10]
-        config = config_with_weak_synapses.with_property(r_e=2 * Hz, r_i=2 * Hz, N_E=10, N_I=5, seed=200, simulation_time=2 * second, e_L=-45 * mV)
-        run_one = lambda k: NMDASimulationWangCompartments.run(config.with_property(k_comp = k))
+        config = config_with_weak_synapses.with_property(r_e=2 * Hz, r_i=2 * Hz, N_E=10, N_I=5, seed=200,
+                                                         simulation_time=2 * second, e_L=-45 * mV)
+        run_one = lambda k: NMDASimulationWangCompartments.run(config.with_property(k_comp=k))
 
         results = Parallel(n_jobs=len(k_s))(
             delayed(run_one)(k) for k in k_s
@@ -42,12 +45,14 @@ class NMDAWithCompartmentScripts(unittest.TestCase):
 
         run_simulations_in_parallel_and_compare(config, k_s)
 
-    def test_compare_many_compartments_to_only_one_with_meanfield_scaling(self, scaling = math.sqrt):
+    def test_compare_many_compartments_to_only_one_with_meanfield_scaling(self, scaling=math.sqrt):
 
         k_s = [1, 2, 5, 10]
-        config = config_with_weak_synapses.with_property(r_e=2 * Hz, r_i=2 * Hz, N_E=10, N_I=5, seed=200, simulation_time=2 * second, e_L=-45 * mV)
+        config = config_with_weak_synapses.with_property(r_e=2 * Hz, r_i=2 * Hz, N_E=10, N_I=5, seed=200,
+                                                         simulation_time=2 * second, e_L=-45 * mV)
         w_x_1_compartment = config.w_x
-        run_one = lambda k: NMDASimulationWangCompartments.run(config.with_property(w_x = w_x_1_compartment / scaling(k)), k=k)
+        run_one = lambda k: NMDASimulationWangCompartments.run(config.with_property(w_x=w_x_1_compartment / scaling(k)),
+                                                               k=k)
 
         results = Parallel(n_jobs=len(k_s))(
             delayed(run_one)(k) for k in k_s
@@ -69,22 +74,6 @@ class NMDAWithCompartmentScripts(unittest.TestCase):
         import matplotlib.pyplot as plt
         import numpy as np
         from matplotlib.patches import Circle
-
-        def connect_ampa_to_cluster(y_ampa, cluster, ax):
-            # AMPA 1 position (first red spike train anchor)
-            ampa_train_end = -5 + 6
-            ampa1_start = (ampa_train_end, y_ampa)
-
-            # =========================================================
-            # AMPA 1 → Cluster 1 (red arrow)
-            # =========================================================
-
-            ax.annotate(
-                "",
-                xy=cluster,
-                xytext=ampa1_start,
-                arrowprops=dict(arrowstyle="->", color="red", lw=1),
-            )
 
         def connect_cluster_to_soma(cluster, soma_center, soma_radius, ax):
 
@@ -108,27 +97,52 @@ class NMDAWithCompartmentScripts(unittest.TestCase):
                 ),
             )
 
-        def connect_train_to_soma(x0, y, duration, soma_center, soma_radius, ax, color="red"):
-            start = (x0 + duration, y)
+        def connect_train_to_soma(
+                x0,
+                y,
+                duration,
+                soma_center,
+                soma_radius,
+                ax,
+                color="red",
+        ):
+            start = np.array((x0 + duration, y))
 
-            soma_edge = point_on_circle_edge(
-                start=start,
-                center=soma_center,
-                radius=soma_radius
-            )
+            # Top for AMPA, bottom for GABA
+            theta = np.pi / 2 if color == "red" else -np.pi / 2
 
+            target = np.array([
+                soma_center[0] + soma_radius * np.cos(theta),
+                soma_center[1] + soma_radius * np.sin(theta),
+            ])
+
+            # Horizontal run
+            bend_x = 4.6
+            bend = np.array([bend_x, y])
+
+            # Horizontal segment
             ax.plot(
-                [start[0], soma_edge[0]],
-                [start[1], soma_edge[1]],
+                [start[0], bend[0]],
+                [start[1], bend[1]],
                 linestyle=":",
                 color=color,
                 lw=1.2,
             )
 
+            # Diagonal segment toward top/bottom of soma
+            ax.plot(
+                [bend[0], target[0]],
+                [bend[1], target[1]],
+                linestyle=":",
+                color=color,
+                lw=1.2,
+            )
+
+            # Arrowhead into soma
             ax.annotate(
                 "",
-                xy=soma_edge,  # arrow head here
-                xytext=start,  # start of dotted line
+                xy=target,
+                xytext=bend,
                 arrowprops=dict(
                     arrowstyle="-|>",
                     linestyle=":",
@@ -139,7 +153,29 @@ class NMDAWithCompartmentScripts(unittest.TestCase):
                 ),
             )
 
-        def draw_schematic(n_ampa=4, n_gaba=4, K=10, seed=2):
+        def connect_synapse_to_cluster(y, cluster_center, cluster_radius, ax, color):
+            train_end = -5 + 6
+            start = np.array((train_end, y))
+
+            cluster_edge = point_on_circle_edge(
+                start=start,
+                center=cluster_center,
+                radius=cluster_radius,
+            )
+
+            ax.annotate(
+                "",
+                xy=cluster_edge,
+                xytext=start,
+                arrowprops=dict(
+                    arrowstyle="->",
+                    color=color,
+                    lw=1,
+                ),
+            )
+
+        def draw_schematic(n_ampa=4, n_gaba=4, K=10, seed=2, ampa_to_clusters=False, gaba_to_clusters=False,
+                           distance_kluster_to_soma_circle=0.2):
 
             rng = np.random.default_rng(seed)
 
@@ -155,18 +191,12 @@ class NMDAWithCompartmentScripts(unittest.TestCase):
             soma_center = (soma_x, soma_y)
             soma_radius = 1.5
 
-            soma = Circle((soma_x, soma_y), soma_radius, fill=False, lw=2)
-            ax.add_patch(soma)
-
-            ax.text(soma_x, soma_y + 0.15, "soma", ha="center", va="center", fontsize=12)
-            ax.text(soma_x, soma_y - 0.2, "v", ha="center", va="center", fontsize=12)
-
             # =========================================================
             # CLUSTERS (3 visible positions)
             # angles: 5π/4, π/2, π/4
             # =========================================================
             angles = [5 * np.pi / 4, np.pi - 0.1, 3 * np.pi / 4 - 0.2]
-            cluster_radius = soma_radius + 0.2
+            cluster_radius = soma_radius + distance_kluster_to_soma_circle
 
             cluster_labels = [
                 "Cluster 1",
@@ -174,9 +204,10 @@ class NMDAWithCompartmentScripts(unittest.TestCase):
                 "Cluster K\n"
             ]
 
+            cluster_size = 0.4  # radius of compartment circles
             cluster_positions = []
 
-            offsets =[(0, 0), (-0.9, 0.5), (0, 1.5)]
+            offsets = [(0, 0), (-0.9, 0.5), (-0.9, 0.5)]
 
             for i, ang in enumerate(angles):
                 cx = soma_x + cluster_radius * np.cos(ang)
@@ -184,14 +215,24 @@ class NMDAWithCompartmentScripts(unittest.TestCase):
 
                 cluster_positions.append((cx, cy))
 
-                cluster_size = 0.28  # radius of compartment circles
+
+                # Eraser (between soma and cluster outline)
+                eraser = Circle(
+                    (cx, cy),
+                    cluster_size - 0.01,  # slightly smaller than the outline
+                    facecolor="white",
+                    edgecolor="none",
+                    zorder=2.5,
+                    )
+                ax.add_patch(eraser)
 
                 cluster_circle = Circle(
                     (cx, cy),
                     cluster_size,
                     facecolor="white",
                     edgecolor="black",
-                    lw=2
+                    lw=2,
+                    zorder=1,
                 )
                 ax.add_patch(cluster_circle)
 
@@ -205,7 +246,16 @@ class NMDAWithCompartmentScripts(unittest.TestCase):
                     ha="center",
                     va="top",
                     fontsize=10,
-                )
+                    )
+
+            soma = Circle((soma_x, soma_y), soma_radius, facecolor="white",
+                          edgecolor="black",
+                          lw=2,
+                          zorder=2)
+            ax.add_patch(soma)
+
+            ax.text(soma_x, soma_y + 0.15, "soma", ha="center", va="center", fontsize=12)
+            ax.text(soma_x, soma_y - 0.2, "v", ha="center", va="center", fontsize=12)
 
             # =========================================================
             # SPIKE TRAIN FUNCTION
@@ -228,8 +278,8 @@ class NMDAWithCompartmentScripts(unittest.TestCase):
             # =========================================================
             # INPUTS (left side)
             # =========================================================
-            y_ampa = np.linspace(3.5, 1.2, n_ampa)
-            y_gaba = np.linspace(-1.2, -3.5, n_gaba)
+            y_ampa = np.linspace(4.5, 3.2, n_ampa)
+            y_gaba = np.linspace(-3.2, -4.8, n_gaba)
 
             for y in y_ampa:
                 ax.scatter(-5, y, color="red", s=60)
@@ -239,10 +289,19 @@ class NMDAWithCompartmentScripts(unittest.TestCase):
                 ax.scatter(-5, y, color="blue", s=60)
                 spike_train(-4.5, y, "blue")
 
-            connect_ampa_to_cluster(y_ampa=y_ampa[3], cluster=cluster_positions[0], ax=ax)
-            connect_ampa_to_cluster(y_ampa=y_ampa[2], cluster=cluster_positions[1], ax=ax)
-            connect_ampa_to_cluster(y_ampa=y_ampa[1], cluster=cluster_positions[1], ax=ax)
-            connect_ampa_to_cluster(y_ampa=y_ampa[0], cluster=cluster_positions[2], ax=ax)
+            # r(y, cluster_center, cluster_radius, ax, color):
+
+            if ampa_to_clusters:
+                connect_synapse_to_cluster(y_ampa[3], cluster_positions[0], cluster_radius=cluster_size, ax=ax, color="red")
+                connect_synapse_to_cluster(y_ampa[2], cluster_positions[1], cluster_radius=cluster_size, ax=ax, color="red")
+                connect_synapse_to_cluster(y_ampa[1], cluster_positions[1], cluster_radius=cluster_size, ax=ax, color="red")
+                connect_synapse_to_cluster(y_ampa[0], cluster_positions[2], cluster_radius=cluster_size, ax=ax, color="red")
+
+            if gaba_to_clusters:
+                connect_synapse_to_cluster(y_gaba[0], cluster_positions[0], cluster_radius=cluster_size, ax=ax, color="blue")
+                connect_synapse_to_cluster(y_gaba[1], cluster_positions[1], cluster_radius=cluster_size, ax=ax, color="blue")
+                connect_synapse_to_cluster(y_gaba[2], cluster_positions[1], cluster_radius=cluster_size, ax=ax, color="blue")
+                connect_synapse_to_cluster(y_gaba[3], cluster_positions[2], cluster_radius=cluster_size, ax=ax, color="blue")
 
             for c in cluster_positions:
                 connect_cluster_to_soma(
@@ -353,9 +412,20 @@ class NMDAWithCompartmentScripts(unittest.TestCase):
 
             return fig, ax
 
-
         # Example
         draw_schematic(n_ampa=4, n_gaba=4, K=10, seed=3)
+        plt.show()
+
+        # Example
+        draw_schematic(n_ampa=4, n_gaba=4, K=10, seed=3, ampa_to_clusters=True)
+        plt.show()
+
+        # Example
+        draw_schematic(n_ampa=4, n_gaba=4, K=10, seed=3, ampa_to_clusters=True, distance_kluster_to_soma_circle=1)
+        plt.show()
+
+        # Example
+        draw_schematic(n_ampa=4, n_gaba=4, K=10, seed=3, ampa_to_clusters=True, gaba_to_clusters=True)
         plt.show()
 
 

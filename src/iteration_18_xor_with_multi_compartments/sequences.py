@@ -3,8 +3,11 @@ From https://github.com/babicknell/Dendrites
 '''
 import tqdm
 from brian2 import ms, second, Hz
+from joblib import Parallel, delayed
 
 from loguru import logger
+
+from iteration_16.model import ConductanceDiffusionSimulationConfig
 
 """
 Functions for generating sets of random presynaptic spike sequences.
@@ -195,7 +198,12 @@ def build_rate_seq(rates, T0, T):
     return s_k_pad
 
 from tqdm import tqdm
-def build_rate_seq_fast(rates, T0, T):
+
+
+def build_rate_seq_slow(rates, T0 =0 * second, T=1 * second):
+
+    T = T / second
+    T0 = T0 / second
     rates = np.asarray(rates / Hz)
 
     max_rate = np.max(rates)
@@ -209,8 +217,66 @@ def build_rate_seq_fast(rates, T0, T):
     spike_times = T0 + np.cumsum(isi_s, axis=1) # in second, due to rates / Hzs
 
     needs_more = spike_times[:, -1] < T
-    logger.warn(needs_more.sum(), "neurons need more ISIs")
 
+    if needs_more.sum() > 0:
+        logger.error(needs_more.sum(), " neurons need more ISIs")
+        raise ValueError("We need more ISIs on indexes {}", np.where(needs_more))
+
+    spikes = np.where(spike_times < T, spike_times, np.inf)
+    # Last finite entry in each row
+    last_finite = np.sum(np.isfinite(spikes), axis=1)
+    # Largest number of finite spikes across all neurons
+    max_cols = last_finite.max()
+
+    # Keep only columns up to the last finite spike of any neuron
+    return spikes[:, :max_cols]
+
+def _generate_spikes(rate, T0, T, seed=None):
+    rng = np.random.default_rng(seed=seed) if seed is not None else np.random.default_rng()
+    if rate <= 0:
+        return np.array([np.inf])
+
+    n_expected = int(rate * T * 3) + 10
+    isi = rng.exponential(scale=1 / rate, size=n_expected)
+    spikes = T0 + np.cumsum(isi)
+
+    while spikes[-1] < T:
+        logger.error("We are required to generate extra spikes!")
+        extra_isi = rng.exponential(scale=1 / rate, size=n_expected)
+        extra_spikes = spikes[-1] + np.cumsum(extra_isi)
+        spikes = np.concatenate((spikes, extra_spikes))
+
+    return spikes[spikes < T]
+
+def build_rate_seq_parallel(rates, T0 =0 * second, cfg: ConductanceDiffusionSimulationConfig=None):
+
+    T = cfg.simulation_time / second
+    T0 = T0 / second
+    rates = np.asarray(rates / Hz)
+
+    if cfg.seed is None:
+        child_seeds = [None] * len(rates)
+    else:
+        seed_seq = np.random.SeedSequence(cfg.seed)
+        child_seeds = seed_seq.spawn(len(rates))
+
+    s_k = Parallel(n_jobs=-1)(
+        delayed(_generate_spikes)(rate, T0, T, child_seed)
+        for rate, child_seed in zip(rates, child_seeds)
+    )
+
+    max_len = max(len(s) for s in s_k)
+
+    out = np.full((len(rates), max_len), np.inf)
+    for i, s in enumerate(s_k):
+        out[i, :len(s)] = s
+
+    return out * second
+
+def build_rate_seq_fast(rates, T0 =0 * second, T=1 * second):
+    T = T / second
+    T0 = T0 / second
+    rates = np.asarray(rates / Hz)
 
     s_k = []
     for rate in tqdm(rates):
@@ -220,20 +286,18 @@ def build_rate_seq_fast(rates, T0, T):
 
         # over-generate ISIs in one shot (important speedup)
         n_expected = int(rate * T * 3) + 10
-        isi = np.random.exponential(1 / (rate / Hz), size=n_expected)
+        isi = np.random.exponential(1 / rate, size=n_expected)
 
-        spikes = T0 + np.cumsum(isi) * second
+        spikes = T0 + np.cumsum(isi)
 
         # Ensure we generated past T
         while spikes[-1] < T:
-            logger.warn("We are required to generate extra spikes!")
-            extra_isi = np.random.exponential(1 / (rate / Hz), size=n_expected)
+            logger.error("We are required to generate extra spikes!")
+            extra_isi = np.random.exponential(1 / rate, size=n_expected)
             extra_spikes = spikes[-1] + np.cumsum(extra_isi) * second
             spikes = np.concatenate([spikes, extra_spikes])
 
         spikes = spikes[spikes < T]
-
-
 
         s_k.append(spikes)
 
@@ -243,7 +307,7 @@ def build_rate_seq_fast(rates, T0, T):
     for i, s in enumerate(s_k):
         out[i, :len(s)] = s
 
-    return out
+    return out * second
 
 
 def lognormal_rates(p, N_e, N_i, mu, sigma):
