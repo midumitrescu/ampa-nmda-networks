@@ -9,10 +9,8 @@ from brian2 import (
     mV,
     nS,
     Hz,
-    Quantity, Mohm, kHz, nF, is_dimensionless,
+    Quantity, Mohm, kHz, nF, is_dimensionless, second,
 )
-
-from iteration_10_meanfield_limit.test_meanfield_limit import meanfield_config
 
 WANG_MODEL = """
 dv/dt = 1/C * (-g_L * (v - E_L) -g_ampa * (v - e_ampa) -g_gaba * (v - e_gaba) - g_nmda_max * s_nmda * sigma_of_v * (v - e_nmda)): volt
@@ -251,6 +249,10 @@ wang_config_external_ampa_synapses = ConductanceDiffusionSimulationConfig(
     N_I=400,
     label="wang external ampa"
 )
+
+high_shunt_config = config_with_intermediate_synapses.with_property(N_E=1600, N_I=400, simulation_time=0.5 * second,
+                                                              alpha_nmda=0.25 * kHz,
+                                                              g_nmda_max=4 * 4.074575871229172 * nS).with_fitted_solution(gr= 534.14, gamma=1.45)
 
 ''' for pyramidal cells, g ext,AMPA = 2.1, g rec,AMPA = 0.05, gNMDA = 0.165, and g GABA = 1.3 '''
 ''' What are mean g_s in Wang? g_ampa = g ext,AMPA_0 * 2.4 kHz + g rec,AMPA_0'''

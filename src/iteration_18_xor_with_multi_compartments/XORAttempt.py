@@ -1,19 +1,19 @@
 import unittest
 
-from brian2 import second, kHz, nS, ms, Hz, Quantity
-from joblib import Parallel, delayed
 import matplotlib.pyplot as plt
-
+import numpy as np
+from brian2 import second, kHz, nS, ms, Hz, Quantity, is_dimensionless, have_same_dimensions
+from joblib import Parallel, delayed
 from numpy.testing import assert_almost_equal
 
-import numpy as np
-
 from iteration_16.SimulateFittedSolutionWithCompartments import run_simulations_in_parallel_and_compare
-from iteration_16.model import config_with_weak_synapses, config_with_intermediate_synapses, \
-    ConductanceDiffusionSimulationConfig
+from iteration_16.model import config_with_intermediate_synapses, \
+    ConductanceDiffusionSimulationConfig, high_shunt_config
 from iteration_16.nmda_compartment_model import NMDASimulationWangCompartments
 from iteration_16.simpy import load_solutions
 from iteration_18_xor_with_multi_compartments import sequences
+from iteration_18_xor_with_multi_compartments.sequences import PreSyn
+from iteration_18_xor_with_multi_compartments.stimuli import a_stimulus, Stimuli, Stimulus
 
 
 def run_simulations_in_parallel_and_compare(base_config: ConductanceDiffusionSimulationConfig, k_s, plot_comparrison=True):
@@ -103,11 +103,12 @@ def plot_raster_and_rates(spikes, cfg: ConductanceDiffusionSimulationConfig, sig
         # -------------------------
         # 1. Raster plot (E + I)
         # -------------------------
-        e_show = 80
-        i_show = 20
+        e_show = 1_000
+        i_show = 0
     else:
-        e_show = 8
-        i_show = 2
+        #e_show = max(8, len(spikes))
+        e_show = 0
+        i_show = 0
 
     # Excitatory (RED)
     for i in range(e_show):
@@ -199,11 +200,9 @@ class MyTestCase(unittest.TestCase):
         print(f"E rate: {high_inhibition_ration.r_e}, I rate: {high_inhibition_ration.r_i}")
         rates_e = np.repeat(high_inhibition_ration.r_e, high_inhibition_ration.N_E)
         rates_i = np.repeat(high_inhibition_ration.r_i, high_inhibition_ration.N_I)
+        spikes = sequences.build_rate_seq_parallel(np.concatenate([rates_e, rates_i]), cfg=cfg)
 
-        spikes = sequences.build_rate_seq_slow(np.concatenate([rates_e, rates_i]), 0, cfg.simulation_time / second)
-        self.assertEqual((2000, 19067), spikes.shape)
-
-        plot_raster_and_rates(spikes,  T=cfg.simulation_time, n_e = cfg.N_E, dt = cfg.dt)
+        plot_raster_and_rates(spikes,  cfg=cfg)
 
     def test_rate_should_be_approximately_correct(self):
         np.random.seed(200)
@@ -252,7 +251,7 @@ class MyTestCase(unittest.TestCase):
         self.assertGreater(faster/parallel, 1.3, "parallel has to bring a speedup")
 
     def test_plotting_in_dev(self):
-        cfg = config_with_intermediate_synapses.with_property(N_E=16, N_I=4, simulation_time=0.5 * second, seed=201,
+        cfg = config_with_intermediate_synapses.with_property(N_E=16, N_I=4, simulation_time=5 * second, seed=201,
                                                               alpha_nmda=0.25 * kHz,
                                                               g_nmda_max=4 * 4.074575871229172 * nS,
                                                               r_e=50 * Hz, r_i = 20 * Hz)
@@ -263,7 +262,67 @@ class MyTestCase(unittest.TestCase):
 
         plot_raster_and_rates(spikes, cfg=cfg, sigma=20 * ms)
 
+    def test_produce_inhomogehous_poisson(self):
+        example_stimulus = a_stimulus
 
+        presyn = PreSyn(stimuli=Stimuli.of([example_stimulus]))
+
+
+        t, rate = presyn.rate(stimulus_index=0)
+
+        self.assertEqual((10000,), rate.shape)
+        self.assertAlmostEqual(34.6372316781504, rate[10] / Hz)
+        self.assertAlmostEqual(54.6372316781504, rate[int(250 * ms / a_stimulus.baseline.dt)] / Hz)
+        self.assertAlmostEqual(34.6372316781504, rate[-1] / Hz)
+
+        self.assertTrue(have_same_dimensions(1 * Hz, rate))
+        self.assertTrue(have_same_dimensions(1 * Hz, rate[0]))
+
+        plt.plot(t, rate / Hz)
+        plt.show()
+
+        _, rate = presyn.rate(stimulus_index=0)
+
+        self.assertAlmostEqual(34.6372316781504, rate[10] / Hz)
+        self.assertAlmostEqual(54.6372316781504, rate[int(250 * ms / a_stimulus.baseline.dt)] / Hz)
+        self.assertAlmostEqual(34.6372316781504, rate[-1] / Hz)
+
+        plt.plot(t, rate / Hz)
+        plt.show()
+
+        t = np.array([10, 50, 120, 125, 255, 399, 400, 450, 470]) * ms
+
+        _, rate = presyn.rate(stimulus_index=0, t=t)
+        np.testing.assert_allclose(34.6372316781504 , rate[[0, 1, 6, 7, 8]] / Hz)
+        np.testing.assert_allclose(54.6372316781504 , rate[[2, 3, 4, 5]] / Hz)
+
+    def test_inhomogenous_poisson_generation(self):
+        np.random.seed(0)
+        example_stimulus =  Stimulus(baseline = high_shunt_config.with_property(N_E = 1, N_I = 0, r_e=1 * Hz), label=0).with_property(delta_e_rate = 90 * Hz)
+
+        presyn = PreSyn(stimuli=Stimuli.of([example_stimulus]))
+
+        t, rate = presyn.rate(stimulus_index=0)
+        plt.plot(t / ms, rate / Hz)
+        plt.show()
+
+        trains = [None] * 4000
+        # spike_train(self, t_on, t_off, stim_on, stim_off, s, r, spike_times):
+        #
+
+        for n in range(len(trains)):
+            trains[n] = presyn.spike_train(t_on = 0 * ms, t_off=a_stimulus.baseline.simulation_time, stim_on = a_stimulus.t_onset, stim_off=a_stimulus.t_offset, s=0, r=a_stimulus.delta_e_rate, spike_times=[])
+
+        max_len = max(len(train) for train in trains)
+
+        # Allocate output filled with inf
+        padded = np.full((len(trains), max_len), np.inf)
+
+        # Copy each spike train into a row
+        for i, train in enumerate(trains):
+            padded[i, :len(train)] = train
+
+        plot_raster_and_rates(padded, cfg=example_stimulus.baseline, sigma=20*ms)
 
 
 

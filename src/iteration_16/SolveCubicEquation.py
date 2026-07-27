@@ -871,6 +871,7 @@ class MyTestCase(unittest.TestCase):
                     f"{synapse_label} synapses: ""\n"r"$w_{\mathrm{AMPA}} = $" f"{config.w_ampa / nS: .2f} (nS), " r"$\Delta v_{\mathrm{AMPA}} = $" f"{ampa_dv: .2f} mV, "
                     r"$w_{\mathrm{GABA}} = $" f"{config.w_gaba / nS: .2f} (nS), " r"$\Delta v_{\mathrm{GABA}} = $" f"{gaba_dv: .2f} mV")
 
+        '''
         config_wang_external_synapses = wang_config_external_ampa_synapses
         solutions_wang_recurrent_synapses = read_solutions(config_wang_external_synapses)
         plot_e_0_and_sigma_sq_for_increasing_rate(config_wang_external_synapses, solutions_wang_recurrent_synapses,
@@ -884,8 +885,8 @@ class MyTestCase(unittest.TestCase):
         solutions_weak_synapses = read_solutions(config_weak_synapses)[1:]
         plot_e_0_and_sigma_sq_for_increasing_rate(config_weak_synapses, solutions_weak_synapses,
                                                   plot_title=plot_title("weak", config_weak_synapses))
-
-        config_intermediate_synapses = config_with_intermediate_synapses.with_property(N_E=1000, N_I=1000)
+        '''
+        config_intermediate_synapses = config_with_intermediate_synapses.with_property(N_E=1600, N_I=400)
         solutions_intermediate_synapses = read_solutions(config_intermediate_synapses)
         plot_e_0_and_sigma_sq_for_increasing_rate(config_intermediate_synapses, solutions_intermediate_synapses,
                                                   plot_title=plot_title("intermediate", config_intermediate_synapses))

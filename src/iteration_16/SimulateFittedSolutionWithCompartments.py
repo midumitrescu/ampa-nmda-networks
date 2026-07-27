@@ -450,8 +450,6 @@ class CompartmentSimulationsWithFittedSolution(unittest.TestCase):
         self.test_plot_existing_simulation(file="weak synapses_up_to_500_compartments_mf_none_2000_ms_simulation", config=config_with_weak_synapses, solution_index=0)
 
 
-
-
 def run_simulations_in_parallel_and_compare(base_config: ConductanceDiffusionSimulationConfig, k_s, plot_comparrison=True):
     #run_one = lambda k: NMDASimulationWangCompartments.run_and_plot(base_config.with_property(k_comp=k), title=gen_plot_title(base_config.with_property(k_comp=k)))
     run_one = lambda k: NMDASimulationWangCompartments.run_and_plot(base_config.with_property(k_comp=k), detailed_statistics=plot_comparrison, title=gen_plot_title(base_config.with_property(k_comp=k)), testing=False)

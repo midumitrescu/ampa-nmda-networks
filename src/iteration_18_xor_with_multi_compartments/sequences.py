@@ -7,7 +7,9 @@ from joblib import Parallel, delayed
 
 from loguru import logger
 
+from iteration_12_transfer_function_of_lif_neurons.SiegertGradientDescent import mHz
 from iteration_16.model import ConductanceDiffusionSimulationConfig
+from iteration_18_xor_with_multi_compartments.stimuli import Stimulus, Stimuli
 
 """
 Functions for generating sets of random presynaptic spike sequences.
@@ -17,7 +19,7 @@ import numpy as np
 import numba as nb
 
 
-class PreSyn:
+class PreSyn():
     """
     For building trains of non-homogeneous Poisson presynaptic spikes.
 
@@ -36,44 +38,63 @@ class PreSyn:
         standard deviation of precisely timed spikes (ms)
     """
 
-    def __init__(self, r_0, sigma, tau_d=None):
+    def __init__(self, stimuli: Stimuli):
         """ Constructor """
-        self.r_0 = r_0
-        self.sigma = sigma
-        self.tau_d = tau_d
+        self.stimuli = stimuli
+        self.index = 0
+        self.r_0 = stimuli.baseline.r_e
+        self.s = 0 # interpolates between rate (s=0) and temporal code (s=1)
+        # self.sigma = sigma
+        # self.tau_d = tau_d
 
-    def rate(self, t, t_on, t_off, stim_on, stim_off, s, r, spike_times):
+    def __iter__(self):
+        self._index = 0  # Reset iteration each time
+        return self
+
+    def __next__(self):
+        if self._index >= len(self.stimuli.stimuli):
+            raise StopIteration
+
+        stimulus = self.stimuli.stimuli[self._index]
+        self._index += 1
+        return stimulus
+
+    def rate(self, stimulus_index, t=None, spike_times=(), s=0, cluster_index=0):
+    #def rate(self, index: int):
         """ Define instantaneous rate function.
 
         Parameters
         ----------
-        t : ndarray
-            time vector
-        t_on, t_off : int
-            onset and offset of background activity
-        stim_on, stim_off :  int
-            onset and offset of stimulus-dependent activity
+        t_on, t_off : we akways have background activity right now
+        stim_on, stim_off : stimulus contains t_onset and t_offset of the stimulus
         s : float
-            interpolates between rate (s=0) and temporal code (s=1)
-        r : float
-            time-averaged stim-dependent firing rate
+            interpolates between rate (s=0) and temporal code (s=1). by default use ratecode.
+        r : float time-averaged delta in rate for stim-dependent firing rate
         spike_times : array_like
             precisely timed elevation in firing rate
 
         Returns
         -------
+        t : ndarray
+            time vector in ms
         rr : ndarray
             instantaneous rate vector corresponding to times t
         """
-        rr = np.zeros(t.shape)
-        rr[(t >= t_on) & (t < t_off)] += 1e-3*self.r_0
-        rr[(t >= stim_on) & (t < stim_off)] += (1 - s)*r
-        if t_off <= stim_off:
-            rr[t >= stim_off] += 1e-3*self.r_0
+
+        if t is None:
+            t = np.arange(0, self.stimuli.baseline.simulation_time / ms, step=self.stimuli.baseline.dt / ms) * ms
+
+        rr = np.ones(t.shape) * self.r_0
+        stimulus = self.stimuli.stimuli[stimulus_index]
+
+        stim_on = stimulus.t_onset
+        stim_off = stimulus.t_offset
+        r = stimulus.delta_e_rate
+
+        rr[(t >= stimulus.t_onset) & (t < stimulus.t_offset)] += (1 - s)* stimulus.delta_e_rate
         if (r > 0) & (s*len(spike_times) > 0):
-            rr += r*(stim_off - stim_on)/len(spike_times)*s*gauss_spike_time(t,
-                                                        spike_times, self.sigma)
-        return rr
+            rr += r*(stim_off - stim_on)/len(spike_times)*s*gauss_spike_time(t, spike_times, self.sigma)
+        return t, rr
 
     def spike_train(self, t_on, t_off, stim_on, stim_off, s, r, spike_times):
         """ Generate Poisson spike train by rejection sampling
@@ -98,18 +119,21 @@ class PreSyn:
         train : ndarray
             sequence of spike times
         """
+
+        #TODO: rate might be in herz but t in ms
         if s*len(spike_times) > 0:
             r_max = 1e-3*self.r_0 + ((1 - s)*r + r*(stim_off - stim_on)/
                 len(spike_times)*s*gauss_spike_time(np.array([0]), np.array([0]),
                 self.sigma)[0])
         else:
-            r_max = 1e-3*self.r_0 + r
-        T = max(t_off, stim_off+200)
+            r_max = self.r_0 + r
+        T = max(t_off, stim_off + 200 * ms, self.stimuli.baseline.simulation_time)
         num_spikes = np.random.poisson(r_max*(T - t_on))
-        train = np.random.uniform(t_on, T, num_spikes)
-        accept = np.where(
-            self.rate(train, t_on, t_off, stim_on, stim_off, s, r, spike_times)
-            / r_max >= np.random.rand(num_spikes))[0]
+        train = np.random.uniform(t_on, T, num_spikes) * second
+        _, rate = self.rate(stimulus_index=0, t=train)
+
+        bernoullis = np.random.rand(num_spikes)
+        accept = np.where(rate / r_max >= bernoullis)[0]
         train = train[accept]
         train.sort()
         return train

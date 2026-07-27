@@ -79,11 +79,6 @@ class RichardsonSympyEquations:
 
         self.x_polynomial = None
 
-
-
-    def sigma_sq_(self):
-        pass
-
     def x_polyn(self, config=None):
 
         self.__init_x_polyn__()

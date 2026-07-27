@@ -428,6 +428,370 @@ class NMDAWithCompartmentScripts(unittest.TestCase):
         draw_schematic(n_ampa=4, n_gaba=4, K=10, seed=3, ampa_to_clusters=True, gaba_to_clusters=True)
         plt.show()
 
+    def test_create_model_schematics_compartments_receive_ampa_only(self):
+        def point_on_circle_edge(start, center, radius):
+            """
+            Returns point on circle boundary from start -> center direction.
+            """
+            v = np.array(center) - np.array(start)
+            v = v / np.linalg.norm(v)
+            return np.array(center) - radius * v
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from matplotlib.patches import Circle
+
+        def connect_cluster_to_soma(cluster, soma_center, soma_radius, ax):
+
+            cluster = np.array(cluster)
+
+            # endpoint must lie on soma boundary
+            soma_edge = point_on_circle_edge(
+                start=cluster,
+                center=soma_center,
+                radius=soma_radius
+            )
+
+            ax.annotate(
+                "",
+                xy=soma_edge,
+                xytext=cluster,
+                arrowprops=dict(
+                    arrowstyle="->",
+                    color="black",
+                    lw=1.2
+                ),
+            )
+
+        def connect_train_to_soma(
+                x0,
+                y,
+                duration,
+                soma_center,
+                soma_radius,
+                ax,
+                color="red",
+        ):
+            start = np.array((x0 + duration, y))
+
+            # Top for AMPA, bottom for GABA
+            theta = np.pi / 2 if color == "red" else -np.pi / 2
+
+            target = np.array([
+                soma_center[0] + soma_radius * np.cos(theta),
+                soma_center[1] + soma_radius * np.sin(theta),
+            ])
+
+            # Horizontal run
+            bend_x = 4.6
+            bend = np.array([bend_x, y])
+
+            # Horizontal segment
+            ax.plot(
+                [start[0], bend[0]],
+                [start[1], bend[1]],
+                linestyle=":",
+                color=color,
+                lw=1.2,
+            )
+
+            # Diagonal segment toward top/bottom of soma
+            ax.plot(
+                [bend[0], target[0]],
+                [bend[1], target[1]],
+                linestyle=":",
+                color=color,
+                lw=1.2,
+            )
+
+            # Arrowhead into soma
+            ax.annotate(
+                "",
+                xy=target,
+                xytext=bend,
+                arrowprops=dict(
+                    arrowstyle="-|>",
+                    linestyle=":",
+                    color=color,
+                    lw=1.2,
+                    shrinkA=0,
+                    shrinkB=0,
+                ),
+            )
+
+        def connect_synapse_to_cluster(y, cluster_center, cluster_radius, ax, color):
+            train_end = -5 + 6
+            start = np.array((train_end, y))
+
+            cluster_edge = point_on_circle_edge(
+                start=start,
+                center=cluster_center,
+                radius=cluster_radius,
+            )
+
+            ax.annotate(
+                "",
+                xy=cluster_edge,
+                xytext=start,
+                arrowprops=dict(
+                    arrowstyle="->",
+                    color=color,
+                    lw=1,
+                ),
+            )
+
+        def draw_schematic(n_ampa=4, n_gaba=4, K=10, seed=2, ampa_to_clusters=False, gaba_to_clusters=False,
+                           distance_kluster_to_soma_circle=0.2):
+
+            rng = np.random.default_rng(seed)
+
+            fig, ax = plt.subplots(figsize=(10, 6))
+            ax.set_xlim(-7, 9)
+            ax.set_ylim(-5, 5)
+            ax.axis("off")
+
+            # =========================================================
+            # SOMA (right side)
+            # =========================================================
+            soma_x, soma_y = 6.0, 0.0
+            soma_center = (soma_x, soma_y)
+            soma_radius = 1.5
+
+            # =========================================================
+            # CLUSTERS (3 visible positions)
+            # angles: 5π/4, π/2, π/4
+            # =========================================================
+            angles = [5 * np.pi / 4, np.pi - 0.1, 3 * np.pi / 4 - 0.2]
+            cluster_radius = soma_radius + distance_kluster_to_soma_circle
+
+            cluster_labels = [
+                "Cluster 1",
+                "Cluster 2\n...",
+                "Cluster K\n"
+            ]
+
+            cluster_size = 0.4  # radius of compartment circles
+            cluster_positions = []
+
+            offsets = [(0, 0), (-0.9, 0.5), (-0.9, 0.5)]
+
+            for i, ang in enumerate(angles):
+                cx = soma_x + cluster_radius * np.cos(ang)
+                cy = soma_y + cluster_radius * np.sin(ang)
+
+                cluster_positions.append((cx, cy))
+
+                # Eraser (between soma and cluster outline)
+                eraser = Circle(
+                    (cx, cy),
+                    cluster_size - 0.01,  # slightly smaller than the outline
+                    facecolor="white",
+                    edgecolor="none",
+                    zorder=2.5,
+                )
+                ax.add_patch(eraser)
+
+                cluster_circle = Circle(
+                    (cx, cy),
+                    cluster_size,
+                    facecolor="white",
+                    edgecolor="black",
+                    lw=2,
+                    zorder=1,
+                )
+                ax.add_patch(cluster_circle)
+
+                dx, dy = offsets[i]
+
+                # label BELOW dot
+                ax.text(
+                    cx + dx,
+                    cy + dy - 0.45,
+                    cluster_labels[i],
+                    ha="center",
+                    va="top",
+                    fontsize=10,
+                )
+
+            soma = Circle((soma_x, soma_y), soma_radius, facecolor="white",
+                          edgecolor="black",
+                          lw=2,
+                          zorder=2)
+            ax.add_patch(soma)
+
+            ax.text(soma_x, soma_y + 0.15, "soma", ha="center", va="center", fontsize=12)
+            ax.text(soma_x, soma_y - 0.2, "v", ha="center", va="center", fontsize=12)
+
+            # =========================================================
+            # SPIKE TRAIN FUNCTION
+            # =========================================================
+            def spike_train(x0, y0, color, duration=5.5, height=0.8):
+
+                n_spikes = rng.integers(4, 9)
+                spike_times = np.sort(rng.uniform(0, duration, n_spikes))
+
+                ax.plot([x0, x0 + duration], [y0, y0], color=color, lw=1)
+
+                for st in spike_times:
+                    ax.plot(
+                        [x0 + st, x0 + st],
+                        [y0, y0 + height],
+                        color=color,
+                        lw=1.5,
+                    )
+
+            # =========================================================
+            # INPUTS (left side)
+            # =========================================================
+            y_ampa = np.linspace(4.5, 3.2, n_ampa)
+            y_gaba = np.linspace(-3.2, -4.8, n_gaba)
+
+            for y in y_ampa:
+                ax.scatter(-5, y, color="red", s=60)
+                spike_train(-4.5, y, "red")
+
+            for y in y_gaba:
+                ax.scatter(-5, y, color="blue", s=60)
+                spike_train(-4.5, y, "blue")
+
+            # r(y, cluster_center, cluster_radius, ax, color):
+
+            if ampa_to_clusters:
+                connect_synapse_to_cluster(y_ampa[3], cluster_positions[0], cluster_radius=cluster_size, ax=ax,
+                                           color="red")
+                connect_synapse_to_cluster(y_ampa[2], cluster_positions[1], cluster_radius=cluster_size, ax=ax,
+                                           color="red")
+                connect_synapse_to_cluster(y_ampa[1], cluster_positions[1], cluster_radius=cluster_size, ax=ax,
+                                           color="red")
+                connect_synapse_to_cluster(y_ampa[0], cluster_positions[2], cluster_radius=cluster_size, ax=ax,
+                                           color="red")
+
+            if gaba_to_clusters:
+                connect_synapse_to_cluster(y_gaba[0], cluster_positions[0], cluster_radius=cluster_size, ax=ax,
+                                           color="blue")
+                connect_synapse_to_cluster(y_gaba[1], cluster_positions[1], cluster_radius=cluster_size, ax=ax,
+                                           color="blue")
+                connect_synapse_to_cluster(y_gaba[2], cluster_positions[1], cluster_radius=cluster_size, ax=ax,
+                                           color="blue")
+                connect_synapse_to_cluster(y_gaba[3], cluster_positions[2], cluster_radius=cluster_size, ax=ax,
+                                           color="blue")
+
+            for c in cluster_positions:
+                connect_cluster_to_soma(
+                    cluster=c,
+                    soma_center=soma_center,
+                    soma_radius=soma_radius,
+                    ax=ax
+                )
+
+            for y in y_gaba:
+                connect_train_to_soma(
+                    x0=-5.5,
+                    y=y,
+                    duration=6.5,
+                    soma_center=soma_center,
+                    soma_radius=soma_radius,
+                    ax=ax,
+                    color="blue"
+                )
+
+            import matplotlib.lines as mlines
+
+            ampa_handle = mlines.Line2D(
+                [],
+                [],
+                color="red",
+                marker="o",
+                linestyle="None",
+                label="AMPA Synapse"
+            )
+
+            gaba_handle = mlines.Line2D(
+                [],
+                [],
+                color="blue",
+                marker="o",
+                linestyle="None",
+                label="GABA Synapse"
+            )
+
+            cluster_handle = mlines.Line2D(
+                [],
+                [],
+                color="black",
+                marker="o",
+                linestyle="None",
+                label="Synaptic cluster"
+            )
+
+            # =========================
+            # AMPA (red dotted arrow)
+            # =========================
+            ampa_spike_handle = mlines.Line2D(
+                [0, 1], [0, 0],
+                color="red",
+                lw=1.5,
+                linestyle=":",
+                marker=r"$\rightarrow$",
+                markersize=12,
+                markevery=[1],
+                label="AMPA spike"
+            )
+
+            # =========================
+            # GABA (blue dotted arrow)
+            # =========================
+            gaba_spike_handle = mlines.Line2D(
+                [0, 1], [0, 0],
+                color="blue",
+                lw=1.5,
+                linestyle=":",
+                marker=r"$\rightarrow$",
+                markersize=12,
+                markevery=[1],
+                label="GABA spike"
+            )
+
+            nmda_handle = mlines.Line2D(
+                [0, 1], [0, 0],
+                color="black",
+                lw=0,
+                marker=r"$\rightarrow$",
+                markersize=12,
+                markevery=[1],
+                label="NMDA current"
+            )
+
+            ax.legend(
+                handles=[ampa_handle, gaba_handle, cluster_handle, ampa_spike_handle, gaba_spike_handle,
+                         nmda_handle],
+                loc="upper right"
+            )
+
+            ax.set_title(
+                "Schematics of iso-potential single-compartment model with NMDA Clusters",
+                fontsize=14,
+                pad=12
+            )
+
+            return fig, ax
+
+        # Example
+        draw_schematic(n_ampa=4, n_gaba=4, K=10, seed=3)
+        plt.show()
+
+        # Example
+        draw_schematic(n_ampa=4, n_gaba=4, K=10, seed=3, ampa_to_clusters=True)
+        plt.show()
+
+        # Example
+        draw_schematic(n_ampa=4, n_gaba=4, K=10, seed=3, ampa_to_clusters=True, distance_kluster_to_soma_circle=1)
+        plt.show()
+
+        # Example
+        draw_schematic(n_ampa=4, n_gaba=4, K=10, seed=3, ampa_to_clusters=True, gaba_to_clusters=True)
+        plt.show()
+
 
 if __name__ == '__main__':
     unittest.main()
