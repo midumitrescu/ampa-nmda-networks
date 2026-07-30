@@ -3,13 +3,40 @@ from typing import Callable
 
 import matplotlib.pyplot as plt
 import numpy as np
-from brian2 import cm, uF, ohm, um, Quantity, is_dimensionless, get_dimensions, volt, have_same_dimensions, mV
+from brian2 import cm, uF, ohm, um, Quantity, is_dimensionless, get_dimensions, volt, have_same_dimensions, mV, uA, uamp
 from brian2.units import second, ms
 from brian2.units.allunits import ampere, mampere
 from joblib import Parallel, delayed
 from scipy.integrate import solve_ivp
 from scipy.sparse import diags
 
+# TODO: Normalize the way Dayan has it. ie = Ie τm δ(x)δ(t)/ 2πa. A is the radius! We have a slightly different formulation. But Still
+def dirac_delta(x0:Quantity, t0:Quantity, w:Quantity, x: np.ndarray[Quantity], r_of_x: np.ndarray[Quantity], t:Quantity, dx: Quantity, dt:Quantity) -> np.ndarray[Quantity]:
+
+    if is_dimensionless(t0):
+        t0 = t0 * ms
+    if is_dimensionless(x0):
+        x0 = x0 * um
+    if t0 - t < 0 or t0 - t >= dt:
+        return np.zeros(len(x)) * mampere / cm ** 2
+
+    result = np.zeros(len(x)) * mampere / cm ** 2
+
+    if x0 <= x[0]:
+        result[0] = w / dx
+
+    elif x0 >= x[-1]:
+        result[-1] = w / dx
+
+    else:
+        i = np.searchsorted(x, x0) - 1
+        alpha = (x0 - x[i]) / dx
+
+        result[i] = w * (1.0 - alpha) / dx
+        result[i + 1] = w * alpha / dx
+
+    assert have_same_dimensions(result[0], 1 * mampere / cm ** 2)
+    return result
 
 def plot_difussion_solution(times, x, r_of_x, V_s, verbose=True):
 
@@ -971,26 +998,9 @@ class TaperedDendritesPDECase(unittest.TestCase):
                 assert have_same_dimensions(u0, 1 * volt)
                 assert have_same_dimensions(u0, 1 * volt)
 
-            def synaptic_input_profile(t, t0=3.5, x0=6.5, I0=1.0, sigma=0.05):
+            def synaptic_input_profile(t, t0=3.5, x0=6.5*um):
 
-                #TODO: attention. np.zeroes_like(x) has units of distance
-                result = np.zeros(len(x)) * mampere / cm ** 2
-                assert have_same_dimensions(result[0], 1 * mampere / cm**2)
-                return result
-                """
-                Models a spatio-temporal Dirac delta impulse input.
-                """
-                # 1. Temporal component: Smooth Gaussian regularized delta
-                temporal_delta = (1.0 / (sigma * np.sqrt(2 * np.pi))) * np.exp(-((t - t0) ** 2) / (2 * sigma ** 2))
-
-                # 2. Spatial component: Step indicator normalized by mesh size
-                spatial_delta = np.zeros_like(x)
-                closest_node_index = np.argmin(np.abs(x - x0))
-                spatial_delta[closest_node_index] = 1.0 / dx
-
-                # Combined current injection vector
-                I_injected = I0 * temporal_delta * spatial_delta * mampere / cm**2
-                return I_injected
+               return dirac_delta(x0=x0, t0=t0, w=1 * uamp / cm**2, x=x, t=t, dx=dx, dt=dt)
 
             def linear_taper_cable_equation(t, V):
                 """
@@ -1102,7 +1112,7 @@ class TaperedDendritesPDECase(unittest.TestCase):
         # for splits in [50, 100, 200, 250, 500, 750, 1000, 1250, 1500]:
         for splits in [10]:
             x2_values = np.linspace(0.1 * um, L - 0.1 * um, splits)
-            #x2_values = [6.5 * um, 490*um]
+            x2_values = [6.5 * um, 490*um]
             results = Parallel(
                 n_jobs=-3 if len(x2_values) > 2 else 1,  # use all CPU cores
                 backend="loky",  # process-based (default)
