@@ -2,12 +2,14 @@ import unittest
 
 import numpy as np
 
-from brian2 import ms, um, uamp, cm, have_same_dimensions, ufarad, ohm, second, mV, volt, Hz, meter
-from brian2.units.allunits import mampere
+from brian2 import ms, um, uamp, cm, have_same_dimensions, ufarad, ohm, second, mV, volt, Hz, meter, uF
+from brian2.units.allunits import mampere, pampere, ampere
 from scipy.sparse import diags
 
 from iteration_19_tapered_dendrites.TaperredDendritesPDE import dirac_delta
 from numpy.testing import assert_allclose
+
+from CylindricalDendritesPDE import dirac_delta as dirac_cylindrical
 
 
 class TestPDECases(unittest.TestCase):
@@ -214,6 +216,78 @@ class TestPDECases(unittest.TestCase):
             nnz = np.count_nonzero(np.abs(result / (mampere / cm ** 2)) > 1e-12)
             self.assertEqual(nnz, 1, msg=f"Node {x0} has 2 nonzero entries: {result[np.where(result != 0)]}")
 
+    def test_dirac_delta_units(self):
+        c_m = 1 * uF / cm ** 2
+        Rm = 2 * 1E4 * ohm * cm ** 2
+        gL = 1 / Rm
+        # 1. Parameters
+        L = 500.0 * um
+        N = 11
+        x = np.linspace(0, L, N)
+        dx = L / (N - 1)  # um
+
+        tau = c_m / gL  # ms
+
+        assert have_same_dimensions(tau, 1 * second)
+
+        print("tau=", tau)
+
+        w = 100 * pampere
+        r_0 = 2 * um
+
+        result = dirac_cylindrical(
+            x0=-5 * um,
+            t0=6.00000009 * ms,
+            t=6 * ms,
+            dt=0.1 * ms,
+            tau_m=tau,
+            x=x,
+            r_of_x=r_0,
+            dx=dx,
+            I_e=w
+        )
+
+        self.assertTrue(have_same_dimensions(result[0], 1 * mampere / cm ** 2))
+        self.assertEqual(result[1:].shape, (10,))
+        self.assertEqual(result[0] / (uamp / cm**2), 3183.098861837907)
+        self.assertEqual(result[0] / (ampere / meter**2), 31.83098861837907)
+        assert_allclose(result[1:] / (uamp / cm**2), 0)
+
+    def test_dirac_delta_units_for_no_input(self):
+        c_m = 1 * uF / cm ** 2
+        Rm = 2 * 1E4 * ohm * cm ** 2
+        gL = 1 / Rm
+        # 1. Parameters
+        L = 500.0 * um
+        N = 11
+        x = np.linspace(0, L, N)
+        dx = L / (N - 1)  # um
+
+        tau = c_m / gL  # ms
+
+        assert have_same_dimensions(tau, 1 * second)
+
+        print("tau=", tau)
+
+        w = 100 * pampere
+        r_0 = 2 * um
+
+        result = dirac_cylindrical(
+            x0=-5 * um,
+            t0=5 * ms,
+            t=6 * ms,
+            dt=0.1 * ms,
+            tau_m=tau,
+            x=x,
+            r_of_x=r_0,
+            dx=dx,
+            I_e=w
+        )
+
+        self.assertTrue(have_same_dimensions(result[0], 1 * mampere / cm ** 2))
+        self.assertEqual(result.shape, (11,))
+        assert_allclose(result / (uamp / cm ** 2), 0)
+
 
 class TestLinearTaperCableOneStep(unittest.TestCase):
 
@@ -234,9 +308,11 @@ class TestLinearTaperCableOneStep(unittest.TestCase):
         self.tau = self.cm / self.gL
 
         self.r0 = 2 * um
-        rL = 0.5 * um
+        self.rL = 0.5 * um
 
-        self.k = (1 - rL / self.r0) / self.L
+        self.k = (1 - self.rL / self.r0) / self.L
+        self.r_of_x = self.r0 * (1 - self.k * self.x)
+
 
         self.a = (
                 self.k * self.r0 /
@@ -351,7 +427,8 @@ class TestLinearTaperCableOneStep(unittest.TestCase):
             dx=self.dx,
             dt=self.dt,
             x=self.x,
-            w=1 * uamp / cm ** 2
+            r_of_x=self.r_of_x,
+            w=1 * uamp / cm
         )
 
         dVdt = self.A @ V + I_syn / self.cm
