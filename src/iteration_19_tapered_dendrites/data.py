@@ -1,19 +1,75 @@
 from dataclasses import dataclass
 
-from brian2 import Quantity, farad, meter, ohm, siemens, second
+from brian2 import Quantity, farad, meter, ohm, siemens, second, have_same_dimensions, volt, is_dimensionless
 from brian2.units.allunits import ampere
 from dataclasses import replace
 import numpy as np
 
-def _to_SI(value, unit):
+
+def to_SI(value, unit = 1):
     if value is None:
         return None
+
+    if np.ndim(value) == 0:
+        sample = value
+    else:
+        sample = value.flat[0]
+
+    # Time
+    if have_same_dimensions(sample, second):
+        unit = second
+
+    # Length
+    elif have_same_dimensions(sample, meter):
+        unit = meter
+
+    # Voltage
+    elif have_same_dimensions(sample, volt):
+        unit = volt
+
+    # Current
+    elif have_same_dimensions(sample, ampere):
+        unit = ampere
+
+    # Current density
+    elif have_same_dimensions(sample, ampere / meter ** 2):
+        unit = ampere / meter ** 2
+
+    # Capacitance density
+    elif have_same_dimensions(sample, farad / meter ** 2):
+        unit = farad / meter ** 2
+
+    # Conductance density
+    elif have_same_dimensions(sample, siemens / meter ** 2):
+        unit = siemens / meter ** 2
+
+    # Membrane resistance
+    elif have_same_dimensions(sample, ohm * meter ** 2):
+        unit = ohm * meter ** 2
+
+    # Axial resistivity
+    elif have_same_dimensions(sample, ohm * meter):
+        unit = ohm * meter
+
+    # Diffusion coefficient
+    elif have_same_dimensions(sample, meter ** 2 / second):
+        unit = meter ** 2 / second
+
+    # Frequency / rate
+    elif have_same_dimensions(sample, 1 / second):
+        unit = 1 / second
+
+    # Dimensionless
+    elif is_dimensionless(sample):
+        unit = 1
+
     value_in_unit = value / unit
 
     if np.isscalar(value_in_unit):
         return float(value_in_unit)
 
     return np.asarray(value_in_unit, dtype=float)
+
 
 @dataclass(frozen=True)
 class NumericalCableParameters:
@@ -22,19 +78,21 @@ class NumericalCableParameters:
     All values are floats in SI base units.
     """
 
-    c_m: float        # F/m^2
-    Rm: float         # ohm*m^2
-    gL: float         # S/m^2
-    ra: float         # ohm*m
+    c_m: float  # F/m^2
+    Rm: float  # ohm*m^2
+    gL: float  # S/m^2
+    ra: float  # ohm*m
 
     N: int
-    L: float          # m
-    dx: float         # m
-    tau: float        # s
-    r0: float         # m
-    b: float          # m^2/s
+    L: float  # m
+    dx: float  # m
+    tau: float  # s
+    r0: float  # m
+    b: float  # m^2/s
 
-    I_e: float        # A
+    I_e: float  # A
+    t: float = 0.003  # seconds
+    dt: float = 3E-6  # seconds
     x: np.ndarray | None = None
 
     def __str__(self):
@@ -50,9 +108,10 @@ class NumericalCableParameters:
             f"  b   = {self.b:.4e} m²/s\n"
             f"  Ie  = {self.I_e:.4e} A"
         )
+
+
 @dataclass(frozen=True)
 class CableParameters:
-
     N: int = 101
     c_m: Quantity | None = None
     Rm: Quantity | None = None
@@ -67,6 +126,10 @@ class CableParameters:
     b: Quantity | None = None
 
     I_e: Quantity | None = None
+
+    # simulation parameters
+    t: Quantity | None = None
+    dt: Quantity | None = None
 
     x: np.ndarray | None = None
 
@@ -83,6 +146,8 @@ class CableParameters:
             f"  r0  = {self.r0}\n"
             f"  b   = {self.b}\n"
             f"  I_e = {self.I_e}\n"
+            f"  t   = {self.t}\n"
+            f"  dt  = {self.dt}\n"
         )
 
         if self.x is not None:
@@ -92,6 +157,7 @@ class CableParameters:
 
     def __post_init__(self):
 
+        # Rm -> gL
         if self.Rm is not None and self.gL is None:
             object.__setattr__(
                 self,
@@ -99,6 +165,7 @@ class CableParameters:
                 1 / self.Rm
             )
 
+        # c_m + gL -> tau
         if (
                 self.c_m is not None
                 and self.gL is not None
@@ -110,17 +177,10 @@ class CableParameters:
                 self.c_m / self.gL
             )
 
-        if self.x is None and self.L is not None and self.N is not None:
-            object.__setattr__(
-                self,
-                "x",
-                np.linspace(0, float(self.L / meter), self.N) * meter
-            )
-
+        # L + N -> dx and x
         if (
                 self.L is not None
                 and self.N is not None
-                and self.dx is None
         ):
             object.__setattr__(
                 self,
@@ -128,6 +188,18 @@ class CableParameters:
                 self.L / (self.N - 1)
             )
 
+            if self.x is None or len(self.x) != self.N:
+                object.__setattr__(
+                    self,
+                    "x",
+                    np.linspace(
+                        0,
+                        float(self.L / meter),
+                        self.N
+                    ) * meter
+                )
+
+        # r0 + c_m + ra -> b
         if (
                 self.r0 is not None
                 and self.c_m is not None
@@ -142,20 +214,23 @@ class CableParameters:
 
     def to_numerical(self):
         return NumericalCableParameters(
-            c_m=_to_SI(self.c_m, farad / meter ** 2),
-            Rm=_to_SI(self.Rm, ohm * meter ** 2),
-            gL=_to_SI(self.gL, siemens / meter ** 2),
-            ra=_to_SI(self.ra, ohm * meter),
+            c_m=to_SI(self.c_m, farad / meter ** 2),
+            Rm=to_SI(self.Rm, ohm * meter ** 2),
+            gL=to_SI(self.gL, siemens / meter ** 2),
+            ra=to_SI(self.ra, ohm * meter),
             N=self.N,
-            L=_to_SI(self.L, meter),
-            dx=_to_SI(self.dx, meter),
-            x=_to_SI(self.x, meter),
-            tau=_to_SI(self.tau, second),
-            r0=_to_SI(self.r0, meter),
+            L=to_SI(self.L, meter),
+            dx=to_SI(self.dx, meter),
+            x=to_SI(self.x, meter),
+            tau=to_SI(self.tau, second),
+            r0=to_SI(self.r0, meter),
 
-            b=_to_SI(self.b, meter ** 2 / second),
+            b=to_SI(self.b, meter ** 2 / second),
 
-            I_e=_to_SI(self.I_e, ampere)
+            t=to_SI(self.t, second),
+            dt=to_SI(self.dt, second),
+
+            I_e=to_SI(self.I_e, ampere)
         )
 
     @classmethod
@@ -176,6 +251,10 @@ class CableParameters:
             tau=other.tau,
             r0=other.r0,
             b=other.b,
+
+            t=other.t,
+            dt=other.dt,
+
             I_e=other.I_e,
         )
 
@@ -199,7 +278,9 @@ class CableParameters:
 
             b=None,  # m^2/s
 
-            I_e=None  # A
+            I_e=None,  # A
+            t=None,  # s
+            dt=None  # s
     ):
 
         # Attach Brian2 units
@@ -232,6 +313,9 @@ class CableParameters:
         if b is None and r0 is not None and c_m is not None and ra is not None:
             b = r0 / (2 * c_m * ra)
 
+        t = None if t is None else t * second
+        dt = None if dt is None else dt * second
+
         return cls(
             c_m=c_m,
             Rm=Rm,
@@ -247,8 +331,19 @@ class CableParameters:
             r0=r0,
             b=b,
 
-            I_e=I_e
+            I_e=I_e,
+            t=t,
+            dt=dt
         )
+
+    def with_property(self, **changes):
+        """
+        Return a new CableParameters object with updated Brian2 quantities.
+
+        Derived quantities are recomputed automatically by __post_init__.
+        """
+
+        return replace(self, **changes)
 
     def with_SI_properties(self, **changes):
 
@@ -291,6 +386,12 @@ class CableParameters:
 
             elif key == "N":
                 converted[key] = value
+
+            elif key == "t":
+                converted[key] = value * second
+
+            elif key == "dt":
+                converted[key] = value * second
 
             else:
                 raise ValueError(

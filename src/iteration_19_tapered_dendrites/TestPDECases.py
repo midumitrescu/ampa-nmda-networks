@@ -6,10 +6,12 @@ from brian2 import ms, um, uamp, cm, have_same_dimensions, ufarad, ohm, second, 
 from brian2.units.allunits import mampere, pampere, ampere
 from scipy.sparse import diags
 
+from iteration_19_tapered_dendrites.CylindricalDendritesPDE import dirac_delta_unitless
 from iteration_19_tapered_dendrites.TaperredDendritesPDE import dirac_delta
 from numpy.testing import assert_allclose
 
 from CylindricalDendritesPDE import dirac_delta as dirac_cylindrical
+from iteration_19_tapered_dendrites.data import to_SI
 
 
 class TestPDECases(unittest.TestCase):
@@ -287,6 +289,41 @@ class TestPDECases(unittest.TestCase):
         self.assertTrue(have_same_dimensions(result[0], 1 * mampere / cm ** 2))
         self.assertEqual(result.shape, (11,))
         assert_allclose(result / (uamp / cm ** 2), 0)
+
+    def test_dirac_unitless_returns_float_array(self):
+
+        c_m = 1 * uF / cm ** 2
+        Rm = 2 * 1E4 * ohm * cm ** 2
+        gL = 1 / Rm
+        # 1. Parameters
+        L = 500.0 * um
+        N = 11
+        x = np.linspace(0, L, N)
+        dx = L / (N - 1)  # um
+
+        tau = c_m / gL  # ms
+
+        w = 100 * pampere
+        r_0 = 2 * um
+
+        result = dirac_delta_unitless(
+            x0=to_SI(-5 * um, meter),
+            t0=to_SI(6.00000009 * ms, second),
+            t=to_SI(6 * ms, second),
+            dt=to_SI(0.1 * ms, second),
+            tau_m=to_SI(tau, second),
+            x=to_SI(x, meter),
+            r_of_x=to_SI(r_0, meter),
+            dx=to_SI(dx, meter),
+            I_e=to_SI(w, ampere)
+        )
+
+        self.assertIsInstance(result, np.ndarray)
+        self.assertEqual(result.dtype, np.float64)
+
+        self.assertEqual(result[0], 31.83098861837907)
+        assert_allclose(result[1:] / (uamp / cm ** 2), 0)
+
 
 
 class TestLinearTaperCableOneStep(unittest.TestCase):
