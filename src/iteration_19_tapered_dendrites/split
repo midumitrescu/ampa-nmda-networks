@@ -1,0 +1,161 @@
+simulation_params = default_params.with_property(t=t_max, N=x_N)
+        N = simulation_params.N
+        si_units = simulation_params.to_numerical()
+
+        # 1. Parameters
+        dx = si_units.dx
+        tau = si_units.tau
+
+        # Spatial domain and initial condition
+        x = si_units.x
+        r_0 = si_units.r0
+
+        b = si_units.b
+
+        difussion = np.ones(N - 1) * b / dx ** 2
+        difussion_decay = np.ones(N) * (- 2 * b / dx ** 2)
+        leak = np.ones(N) * (- 1/tau)
+
+        # Sparse tridiagonal matrix
+        A = diags(
+            diagonals=[difussion, difussion_decay, difussion],
+            offsets=[-1, 0, 1],
+            format="lil"
+        )
+
+        # ensure boundary conditions automatically in A matrix
+        A[0, 0] = -1 / tau - 2 * b / dx ** 2
+        A[0, 1] = 2 * b / dx ** 2
+        A[-1, -2] = 2 * b / dx ** 2
+        A[-1, -1] = -1 / tau - 2 * b / dx ** 2
+
+
+        # Sparse tridiagonal matrix
+        D = diags(
+            diagonals=[difussion, difussion_decay, difussion],
+            offsets=[-1, 0, 1],
+            format="lil"
+        )
+
+        L = diags(
+            diagonals=[leak],
+            offsets=[0],
+            format="lil"
+        )
+
+        # ensure boundary conditions automatically in A matrix
+        D[0, 0] = - 2 * b / dx ** 2
+        D[0, 1] = 2 * b / dx ** 2
+        D[-1, -2] = 2 * b / dx ** 2
+        D[-1, -1] = - 2 * b / dx ** 2
+
+        def synaptic_input_profile(t, x0, dt):
+            return dirac_delta_unitless(x0=x0, t0=to_SI(1 * ms), x=x, t=t, dx=dx, dt=dt, I_e=to_SI(1.5 * pampere), tau_m=tau, r_of_x=r_0)
+
+        def crank_nicolson_unitless(x0, t_span, V0, dt=to_SI(0.01 * ms), saved_frames=1, verbose=False):
+
+            """
+            Solve dV/dt = A V using Crank-Nicolson.
+
+            (I - dt/2 A) V[n+1] = (I + dt/2 A) V[n]
+            """
+
+            t0, tf = t_span
+
+            # Number of time steps
+            num_steps = int(np.ceil((tf - t0) / dt))
+
+            # Saving
+            save_every = int(np.ceil(num_steps / saved_frames))
+            num_save = num_steps // save_every + 1
+
+            times = np.zeros(num_save)
+            sol = np.zeros((2, num_save, len(V0)))
+
+            # Convert dt if using quantities
+            dt = float(dt)
+
+            # Identity matrix
+            I = eye(D.shape[0], format="csc")
+
+            # Crank-Nicolson matrices
+            L_D = (I - 0.5 * dt * D).tocsc()
+            R_D = (I + 0.5 * dt * D).tocsc()
+
+            # Crank-Nicolson matrices
+            L_L = (I - 0.5 * dt * L).tocsc()
+            R_L = (I + 0.5 * dt * L).tocsc()
+
+            # Factorize once
+            solve_D = factorized(L_D)
+            solve_L = factorized(L_L)
+
+
+            # Initial condition
+            t = t0
+            V = V0.copy()
+
+            times[0] = t
+            sol[:, 0] = V
+
+            for step in range(1, num_steps + 1):
+
+                dt_step = min(dt, tf - t)
+
+                # RHS
+                input_t_and_t_half = 1 / 2 * dt * (synaptic_input_profile(t=t, x0=x0, dt=dt / 2) + synaptic_input_profile(t=t + dt / 2, x0=x0,
+                                                                                                   dt=dt / 2))
+                rhs_D = R_D @ V + input_t_and_t_half
+                rhs_L = R_L @ V + input_t_and_t_half
+
+                # Solve:
+                # (I - dt/2 A) V_new = rhs
+                V_D = solve_D(rhs_D)
+                V_L = solve_L(rhs_L)
+
+                V = V_D + V_L
+
+                t += dt_step
+
+                if step % save_every == 0:
+                    iteration = step // save_every
+
+                    if verbose:
+                        print(
+                            f"[CN {iteration}/{num_save}] "
+                            f"step {step}/{num_steps}"
+                        )
+
+                    times[iteration] = t
+                    sol[0, iteration] = V_L
+                    sol[1, iteration] = V_D
+
+            return times, sol
+
+        def solve(x0, plot=True, t_max=to_SI(300 * ms), dt=to_SI(0.01 * ms)):
+
+            print(f"tau = {tau}")
+            print(f"dt = {dt}")
+
+            u0 = np.zeros(len(x))
+
+            print(f"V0: {u0[0]}. Dimension {get_dimensions(u0[0])}")
+
+            if verbose:
+                assert is_dimensionless(u0)
+
+            # 3. Solve the ODE via crank nicolson (x0, t_span, V0, dt =0.01 * ms, saved_frames=1, plot=True, verbose=False):
+            times, V_s = crank_nicolson_unitless(t_span=(0, t_max), x0=x0, V0=u0, dt=dt, saved_frames=400)
+
+            if verbose:
+                assert is_dimensionless(times[0])
+                assert is_dimensionless(V_s[0][0])
+                assert is_dimensionless(V_s[0])
+
+            if plot:
+                plot_difussion_unitless_split(times=times, V_s=V_s, simulation_params=si_units, dt=dt, sim_type="Crank-Nicolson")
+
+            return np.max(V_s), np.argmax(V_s[1]), dt, x0
+
+            # for splits in [50, 100, 200, 250, 500, 750, 1000, 1250, 1500]:
+        return solve(x0=x0, dt=dt, t_max=t_max, plot=True)
