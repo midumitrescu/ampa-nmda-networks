@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from brian2 import ms, um, uamp, cm, have_same_dimensions, ufarad, ohm, second, mV, volt, Hz, meter, uF
+from brian2 import ms, um, uamp, cm, have_same_dimensions, ufarad, ohm, second, mV, volt, Hz, meter, uF, coulomb
 from brian2.units.allunits import mampere, pampere, ampere
 from scipy.sparse import diags
 
@@ -227,6 +227,7 @@ class TestPDECases(unittest.TestCase):
         N = 11
         x = np.linspace(0, L, N)
         dx = L / (N - 1)  # um
+        dt = 0.01 * ms
 
         tau = c_m / gL  # ms
 
@@ -241,7 +242,7 @@ class TestPDECases(unittest.TestCase):
             x0=-5 * um,
             t0=6.00000009 * ms,
             t=6 * ms,
-            dt=0.1 * ms,
+            dt=dt,
             tau_m=tau,
             x=x,
             r_of_x=r_0,
@@ -251,9 +252,30 @@ class TestPDECases(unittest.TestCase):
 
         self.assertTrue(have_same_dimensions(result[0], 1 * mampere / cm ** 2))
         self.assertEqual(result[1:].shape, (10,))
-        self.assertEqual(result[0] / (uamp / cm**2), 3183.098861837907)
-        self.assertEqual(result[0] / (ampere / meter**2), 31.83098861837907)
+        self.assertAlmostEqual(31830.98861837907, result[0] / (uamp / cm**2), places=8)
+        self.assertAlmostEqual(318.3098861837907, result[0] / (ampere / meter**2), places=8)
         assert_allclose(result[1:] / (uamp / cm**2), 0)
+
+        # ------------------------------------------------------------------
+        # Charge conservation:
+        # ∑ i_e · (2πr) · dx · dt = I_e τ_m
+        # ------------------------------------------------------------------
+
+        injected_charge = np.sum(result * (2 * np.pi * r_0) * dx * dt)
+
+        self.assertTrue(have_same_dimensions(injected_charge, coulomb))
+        self.assertAlmostEqual(
+            injected_charge / coulomb,
+            (w * tau) / coulomb,
+            places=12
+        )
+
+        # Equivalent invariant:
+        self.assertAlmostEqual(
+            np.sum(result) / (ampere / meter ** 2),
+            (w * tau / (2 * np.pi * r_0 * dx * dt)) / (ampere / meter ** 2),
+            places=12
+        )
 
     def test_dirac_delta_units_for_no_input(self):
         c_m = 1 * uF / cm ** 2
