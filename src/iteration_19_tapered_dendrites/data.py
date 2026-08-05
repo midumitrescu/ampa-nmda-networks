@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass
 
 from brian2 import Quantity, farad, meter, ohm, siemens, second, have_same_dimensions, volt, is_dimensionless
@@ -109,6 +110,9 @@ class NumericalCableParameters:
             f"  Ie  = {self.I_e:.4e} A"
         )
 
+    def length_constant(self):
+        return math.sqrt(self.r0 * self.Rm / (2 * self.ra))
+
 
 @dataclass(frozen=True)
 class CableParameters:
@@ -154,6 +158,10 @@ class CableParameters:
             s += f"  x   = [{self.x[0]} -> {self.x[-1]}] ({len(self.x)} points)\n"
 
         return s
+
+    def length_constant(self):
+        lambda_sq = self.r0 * self.Rm / (2 * self.ra)
+        return np.sqrt(lambda_sq)
 
     def __post_init__(self):
 

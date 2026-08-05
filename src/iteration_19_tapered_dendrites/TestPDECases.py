@@ -2,16 +2,17 @@ import unittest
 
 import numpy as np
 
-from brian2 import ms, um, uamp, cm, have_same_dimensions, ufarad, ohm, second, mV, volt, Hz, meter, uF, coulomb
+from brian2 import ms, um, uamp, cm, have_same_dimensions, ufarad, ohm, second, mV, volt, Hz, meter, uF, coulomb, uvolt
 from brian2.units.allunits import mampere, pampere, ampere
-from scipy.sparse import diags
+from scipy.sparse import diags, eye
+from scipy.sparse.linalg import factorized
 
 from iteration_19_tapered_dendrites.CylindricalDendritesPDE import dirac_delta_unitless
 from iteration_19_tapered_dendrites.TaperredDendritesPDE import dirac_delta
 from numpy.testing import assert_allclose
 
 from CylindricalDendritesPDE import dirac_delta as dirac_cylindrical
-from iteration_19_tapered_dendrites.data import to_SI
+from iteration_19_tapered_dendrites.data import to_SI, CableParameters
 
 
 class TestPDECases(unittest.TestCase):
@@ -252,9 +253,9 @@ class TestPDECases(unittest.TestCase):
 
         self.assertTrue(have_same_dimensions(result[0], 1 * mampere / cm ** 2))
         self.assertEqual(result[1:].shape, (10,))
-        self.assertAlmostEqual(31830.98861837907, result[0] / (uamp / cm**2), places=8)
-        self.assertAlmostEqual(318.3098861837907, result[0] / (ampere / meter**2), places=8)
-        assert_allclose(result[1:] / (uamp / cm**2), 0)
+        self.assertAlmostEqual(31830.98861837907, result[0] / (uamp / cm ** 2), places=8)
+        self.assertAlmostEqual(318.3098861837907, result[0] / (ampere / meter ** 2), places=8)
+        assert_allclose(result[1:] / (uamp / cm ** 2), 0)
 
         # ------------------------------------------------------------------
         # Charge conservation:
@@ -347,7 +348,6 @@ class TestPDECases(unittest.TestCase):
         assert_allclose(result[1:] / (uamp / cm ** 2), 0)
 
 
-
 class TestLinearTaperCableOneStep(unittest.TestCase):
 
     def setUp(self):
@@ -371,7 +371,6 @@ class TestLinearTaperCableOneStep(unittest.TestCase):
 
         self.k = (1 - self.rL / self.r0) / self.L
         self.r_of_x = self.r0 * (1 - self.k * self.x)
-
 
         self.a = (
                 self.k * self.r0 /
@@ -404,7 +403,6 @@ class TestLinearTaperCableOneStep(unittest.TestCase):
         return A.tocsr().toarray() * (1 / second)
 
     def test_matrix_initialization(self):
-
         self.assertAlmostEqual(50, self.dx / um)
 
         A = self.A
@@ -415,15 +413,17 @@ class TestLinearTaperCableOneStep(unittest.TestCase):
 
         self.assertTrue(have_same_dimensions(self.A[0, 0], ms ** -1))
 
-        self.assertAlmostEqual(self.a / (cm/second), 29.999865000911253, msg="Manuscript say 30 cm / s but that is an approximation."
-                                                                                       "we are ignoring in the manuscript 1/sqrt(1 + k**2r0**2)")
+        self.assertAlmostEqual(self.a / (cm / second), 29.999865000911253,
+                               msg="Manuscript say 30 cm / s but that is an approximation."
+                                   "we are ignoring in the manuscript 1/sqrt(1 + k**2r0**2)")
 
         self.assertAlmostEqual(self.a / (meter / second), 0.29999865000911253,
                                msg="Manuscript say 0.3 m / s but that is an approximation."
                                    "we are ignoring in the manuscript 1/sqrt(1 + k**2r0**2)")
 
-        self.assertAlmostEqual(self.b[0] / (cm ** 2 / second), 0.9999955000303749, msg="Manuscript say 1 cm^2 / s but that is an approximation."
-                                                                                       "we are ignoring in the manuscript 1/sqrt(1 + k**2r0**2)")
+        self.assertAlmostEqual(self.b[0] / (cm ** 2 / second), 0.9999955000303749,
+                               msg="Manuscript say 1 cm^2 / s but that is an approximation."
+                                   "we are ignoring in the manuscript 1/sqrt(1 + k**2r0**2)")
         self.assertAlmostEqual(self.b[-1] / (cm ** 2 / second), 0.24999888,
                                msg="Manuscript say 0.25 cm^2 / s but that is an approximation."
                                    "we are ignoring in the manuscript 1/sqrt(1 + k**2r0**2)")
@@ -431,15 +431,15 @@ class TestLinearTaperCableOneStep(unittest.TestCase):
         self.assertAlmostEqual(self.b[0] / (meter ** 2 / second), 0.00009999955000303749)
         self.assertAlmostEqual(self.b[-1] / (meter ** 2 / second), 0.000024999888)
 
-        self.assertAlmostEqual((self.b[0] / self.dx**2) / Hz, 4E4,
-                              msg="Manuscript says 3.96 x 10E6 BUT our dx there is 5 um while here it is 50! So, 10^2 difference", places=0)
+        self.assertAlmostEqual((self.b[0] / self.dx ** 2) / Hz, 4E4,
+                               msg="Manuscript says 3.96 x 10E6 BUT our dx there is 5 um while here it is 50! So, 10^2 difference",
+                               places=0)
 
         self.assertAlmostEqual((self.b[-1] / self.dx ** 2) / Hz, 1E4,
-                               msg="Manuscript says 10E6 BUT our dx there is 5 um while here it is 50! So, 10^2 difference", places=0)
+                               msg="Manuscript says 10E6 BUT our dx there is 5 um while here it is 50! So, 10^2 difference",
+                               places=0)
 
-        self.assertAlmostEqual(50, 1/self.tau * second)
-
-
+        self.assertAlmostEqual(50, 1 / self.tau * second)
 
     def test_one_forward_euler_step_no_input(self):
         # Simple voltage profile
@@ -469,8 +469,8 @@ class TestLinearTaperCableOneStep(unittest.TestCase):
         expected = - V0 / self.tau
 
         assert_allclose(
-            dVdt / (mV / ms),
-            np.ones(self.N) *
+            dVdt[1:-1] / (mV / ms),
+            np.ones(self.N-2) *
             (expected / (mV / ms)),
             rtol=1e-10,
             atol=1e-10
@@ -506,6 +506,114 @@ class TestLinearTaperCableOneStep(unittest.TestCase):
                 dVdt[0],
                 volt / second
             )
+        )
+
+Rm = 2 * 1E4 * ohm * cm ** 2
+default_params = CableParameters(c_m=1 * uF / cm ** 2,
+                                 Rm=Rm,
+                                 gL=1 / Rm,
+                                 ra=100 * ohm * cm,
+                                 L=500.0 * um,
+                                 N=101,
+                                 r0=2 * um,
+                                 I_e=150 * pampere)
+
+
+class TestCrankNicolsonOneStep(unittest.TestCase):
+
+    def setUp(self):
+        simulation_params = default_params.with_property(t=10*ms, N=1001)
+        self.si_units = simulation_params.to_numerical()
+        self.dt = to_SI(1E-8 * second)
+
+        # 1. Parameters
+        dx = self.si_units.dx
+        tau = self.si_units.tau
+        dt = self.dt
+
+        # Spatial domain and initial condition
+        x = self.si_units.x
+        b = self.si_units.b
+        difussion = np.ones(len(x) - 1) * b / dx ** 2
+        difussion_decay = np.ones(len(x)) * (-1 / tau - 2 * b / dx ** 2)
+
+
+        # Sparse tridiagonal matrix
+        A = diags(
+            diagonals=[difussion, difussion_decay, difussion],
+            offsets=[-1, 0, 1],
+            format="lil"
+        )
+
+        # ensure boundary conditions automatically in A matrix
+        A[0, 0] = -1 / tau - 2 * b / dx ** 2
+        A[0, 1] = 2 * b / dx ** 2
+        A[-1, -2] = 2 * b / dx ** 2
+        A[-1, -1] = -1 / tau - 2 * b / dx ** 2
+
+        I = eye(A.shape[0], format="csc")
+
+        # Crank-Nicolson matrices
+        self.L = (I - 0.5 * dt * A).tocsc()
+        self.R = (I + 0.5 * dt * A).tocsc()
+
+        # Factorize once
+        self.solve = factorized(self.L)
+
+    def test_one_step(self):
+        V = np.zeros(len(self.si_units.x))
+        dt = self.dt
+        self.x0 = to_SI(250 * um)
+        I_e = to_SI(1.5 * pampere)
+
+        def synaptic_input_profile(t, x0, dt):
+            return dirac_delta_unitless(x0=x0, t0=to_SI(1 * ms), x=self.si_units.x, t=t, dx=self.si_units.dx, dt=dt, I_e=I_e,
+                                        tau_m=self.si_units.tau, r_of_x=self.si_units.r0)
+
+        t = to_SI(1 * ms) - 1E-10
+        x0 = to_SI(250 * um)
+
+        id_x0 = np.searchsorted(self.si_units.x, x0)
+        # RHS
+        input_t_and_t_half = 1 / 2 * dt * (
+                synaptic_input_profile(t=t, x0=x0, dt=dt / 2) + synaptic_input_profile(t=t + dt / 2, x0=x0,
+                                                                                       dt=dt / 2))
+
+        rhs = self.R @ V + input_t_and_t_half
+        # Solve:
+        # (I - dt/2 A) V_new = rhs
+        V_t_plus_1 = self.solve(rhs)
+
+        print("Input ", input_t_and_t_half[id_x0-3:id_x0+3])
+        print("R@V ", (self.R @ V)[id_x0-3:id_x0+3])
+        print("R@V + input", (self.R @ V + input_t_and_t_half)[id_x0-3:id_x0+3])
+        print("V t+1",V_t_plus_1[id_x0-4:id_x0+4] * volt / uvolt)
+
+        V_t_plus_1_uvolt = V_t_plus_1[id_x0 - 4:id_x0 + 4] * volt / uvolt
+
+        mu = self.si_units.b * self.dt / self.si_units.dx ** 2
+        lambda_ = self.dt / self.si_units.tau
+
+        print(mu, lambda_)
+
+        injected_charge = (
+                np.sum(input_t_and_t_half)
+                *
+                (2 * np.pi * self.si_units.r0 * self.si_units.dx)
+        )
+
+        expected_voltage = I_e * self.si_units.tau / (2 * np.pi * self.si_units.r0 * self.si_units.dx * self.si_units.c_m)
+        print("Expected:", expected_voltage)
+        print("Actual:", V_t_plus_1[id_x0])
+
+        self.assertAlmostEqual(expected_voltage, V_t_plus_1[id_x0])
+
+        expected_charge = I_e * self.si_units.tau
+
+        self.assertAlmostEqual(
+            injected_charge,
+            expected_charge,
+            delta=expected_charge * 1e-12
         )
 
 

@@ -27,7 +27,7 @@ def assert_quantity_equal(a, b):
     assert have_same_dimensions(a, b)
     assert np.isclose(float(a / b), 1.0)
 
-class MyTestCase(unittest.TestCase):
+class DataClassesTestCase(unittest.TestCase):
 
     @staticmethod
     def test_override_equals_rebuild():
@@ -215,6 +215,25 @@ class MyTestCase(unittest.TestCase):
         self.assertAlmostEqual(0.02, p.tau / second)
         numerical = p.to_numerical()
         self.assertAlmostEqual(0.02, numerical.tau)
+
+    def test_electrotonic_lenght(self):
+        Rm = 2 * 1E4 * ohm * cm ** 2
+
+        p = CableParameters(c_m=1 * uF / cm ** 2,
+                            Rm=Rm,
+                            gL=1 / Rm,
+                            ra=100 * ohm * cm,
+                            L=500.0 * um,
+                            N=101,
+                            r0=2 * um,
+                            I_e=150 * pampere)
+
+
+        self.assertTrue(have_same_dimensions(p.length_constant(), meter))
+        print(p.length_constant())
+
+        print(p.L / p.length_constant())
+        print(p.to_numerical().length_constant())
 
     def test_numbers_used_in_simulation(self):
         Rm = 2 * 1E4 * ohm * cm ** 2
