@@ -17,7 +17,7 @@ from iteration_19_tapered_dendrites.data import CableParameters, to_SI, Numerica
 Rm = 2 * 1E4 * ohm * cm ** 2
 
 default_params = CableParameters(c_m=1 * uF / cm ** 2,
-                                 Rm=Rm,
+                                 rm=Rm,
                                  gL=1 / Rm,
                                  ra=100 * ohm * cm,
                                  L=500.0 * um,

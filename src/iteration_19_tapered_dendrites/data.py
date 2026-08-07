@@ -7,7 +7,7 @@ from dataclasses import replace
 import numpy as np
 
 
-def to_SI(value, unit = 1):
+def to_SI(value, unit = None):
     if value is None:
         return None
 
@@ -16,53 +16,54 @@ def to_SI(value, unit = 1):
     else:
         sample = value.flat[0]
 
-    # Time
-    if have_same_dimensions(sample, second):
-        unit = second
+    if unit is None:
+        # Time
+        if have_same_dimensions(sample, second):
+            unit = second
 
-    # Length
-    elif have_same_dimensions(sample, meter):
-        unit = meter
+        # Length
+        elif have_same_dimensions(sample, meter):
+            unit = meter
 
-    # Voltage
-    elif have_same_dimensions(sample, volt):
-        unit = volt
+        # Voltage
+        elif have_same_dimensions(sample, volt):
+            unit = volt
 
-    # Current
-    elif have_same_dimensions(sample, ampere):
-        unit = ampere
+        # Current
+        elif have_same_dimensions(sample, ampere):
+            unit = ampere
 
-    # Current density
-    elif have_same_dimensions(sample, ampere / meter ** 2):
-        unit = ampere / meter ** 2
+        # Current density
+        elif have_same_dimensions(sample, ampere / meter ** 2):
+            unit = ampere / meter ** 2
 
-    # Capacitance density
-    elif have_same_dimensions(sample, farad / meter ** 2):
-        unit = farad / meter ** 2
+        # Capacitance density
+        elif have_same_dimensions(sample, farad / meter ** 2):
+            unit = farad / meter ** 2
 
-    # Conductance density
-    elif have_same_dimensions(sample, siemens / meter ** 2):
-        unit = siemens / meter ** 2
+        # Conductance density
+        elif have_same_dimensions(sample, siemens / meter ** 2):
+            unit = siemens / meter ** 2
 
-    # Membrane resistance
-    elif have_same_dimensions(sample, ohm * meter ** 2):
-        unit = ohm * meter ** 2
+        # Membrane resistance
+        elif have_same_dimensions(sample, ohm * meter ** 2):
+            unit = ohm * meter ** 2
 
-    # Axial resistivity
-    elif have_same_dimensions(sample, ohm * meter):
-        unit = ohm * meter
+        # Axial resistivity
+        elif have_same_dimensions(sample, ohm * meter):
+            unit = ohm * meter
 
-    # Diffusion coefficient
-    elif have_same_dimensions(sample, meter ** 2 / second):
-        unit = meter ** 2 / second
+        # Diffusion coefficient
+        elif have_same_dimensions(sample, meter ** 2 / second):
+            unit = meter ** 2 / second
 
-    # Frequency / rate
-    elif have_same_dimensions(sample, 1 / second):
-        unit = 1 / second
+        # Frequency / rate
+        elif have_same_dimensions(sample, 1 / second):
+            unit = 1 / second
 
-    # Dimensionless
-    elif is_dimensionless(sample):
-        unit = 1
+        # Dimensionless
+        elif is_dimensionless(sample):
+            unit = 1
 
     value_in_unit = value / unit
 
@@ -80,9 +81,9 @@ class NumericalCableParameters:
     """
 
     c_m: float  # F/m^2
-    Rm: float  # ohm*m^2
+    rm: float  # ohm*m^2
     gL: float  # S/m^2
-    ra: float  # ohm*m
+    ra: float  # ohm*m. This one is called rL in Dayan
 
     N: int
     L: float  # m
@@ -100,7 +101,7 @@ class NumericalCableParameters:
         return (
             "NumericalCableParameters (SI)\n"
             f"  c_m = {self.c_m:.4e} F/m²\n"
-            f"  Rm  = {self.Rm:.4e} Ω·m²\n"
+            f"  rm  = {self.rm:.4e} Ω·m²\n"
             f"  ra  = {self.ra:.4e} Ω·m\n"
             f"  N   = {self.N}\n"
             f"  L   = {self.L:.4e} m\n"
@@ -110,15 +111,18 @@ class NumericalCableParameters:
             f"  Ie  = {self.I_e:.4e} A"
         )
 
-    def length_constant(self):
-        return math.sqrt(self.r0 * self.Rm / (2 * self.ra))
+    def lambd(self):
+        return math.sqrt(self.r0 * self.rm / (2 * self.ra))
+
+    def R_lambda(self): # Ohm
+        return self.rm / (2 * np.pi * self.r0 * self.lambd())
 
 
 @dataclass(frozen=True)
 class CableParameters:
     N: int = 101
     c_m: Quantity | None = None
-    Rm: Quantity | None = None
+    rm: Quantity | None = None
     gL: Quantity | None = None
     ra: Quantity | None = None
 
@@ -141,7 +145,7 @@ class CableParameters:
         s = (
             "CableParameters:\n"
             f"  c_m = {self.c_m}\n"
-            f"  Rm  = {self.Rm}\n"
+            f"  Rm  = {self.rm}\n"
             f"  ra  = {self.ra}\n"
             f"  L   = {self.L}\n"
             f"  N   = {self.N}\n"
@@ -159,18 +163,18 @@ class CableParameters:
 
         return s
 
-    def length_constant(self):
-        lambda_sq = self.r0 * self.Rm / (2 * self.ra)
+    def lambd(self):
+        lambda_sq = self.r0 * self.rm / (2 * self.ra)
         return np.sqrt(lambda_sq)
 
     def __post_init__(self):
 
         # Rm -> gL
-        if self.Rm is not None and self.gL is None:
+        if self.rm is not None and self.gL is None:
             object.__setattr__(
                 self,
                 "gL",
-                1 / self.Rm
+                1 / self.rm
             )
 
         # c_m + gL -> tau
@@ -223,7 +227,7 @@ class CableParameters:
     def to_numerical(self):
         return NumericalCableParameters(
             c_m=to_SI(self.c_m, farad / meter ** 2),
-            Rm=to_SI(self.Rm, ohm * meter ** 2),
+            rm=to_SI(self.rm, ohm * meter ** 2),
             gL=to_SI(self.gL, siemens / meter ** 2),
             ra=to_SI(self.ra, ohm * meter),
             N=self.N,
@@ -249,7 +253,7 @@ class CableParameters:
         """
         return cls.from_SI(
             c_m=other.c_m,
-            Rm=other.Rm,
+            rm=other.rm,
             gL=other.gL,
             ra=other.ra,
             L=other.L,
@@ -271,7 +275,7 @@ class CableParameters:
             cls,
             *,
             c_m=None,  # F/m^2
-            Rm=None,  # ohm*m^2
+            rm=None,  # ohm*m^2
             gL=None,  # S/m^2
             ra=None,  # ohm*m
 
@@ -293,7 +297,7 @@ class CableParameters:
 
         # Attach Brian2 units
         c_m = None if c_m is None else c_m * farad / meter ** 2
-        Rm = None if Rm is None else Rm * ohm * meter ** 2
+        rm = None if rm is None else rm * ohm * meter ** 2
         gL = None if gL is None else gL * siemens / meter ** 2
         ra = None if ra is None else ra * ohm * meter
 
@@ -309,8 +313,8 @@ class CableParameters:
         I_e = None if I_e is None else I_e * ampere
 
         # Derived quantities
-        if gL is None and Rm is not None:
-            gL = 1 / Rm
+        if gL is None and rm is not None:
+            gL = 1 / rm
 
         if tau is None and c_m is not None and gL is not None:
             tau = c_m / gL
@@ -326,7 +330,7 @@ class CableParameters:
 
         return cls(
             c_m=c_m,
-            Rm=Rm,
+            rm=rm,
             gL=gL,
             ra=ra,
 
@@ -365,7 +369,7 @@ class CableParameters:
             elif key == "c_m":
                 converted[key] = value * farad / meter ** 2
 
-            elif key == "Rm":
+            elif key == "rm":
                 converted[key] = value * ohm * meter ** 2
 
             elif key == "gL":
@@ -410,9 +414,9 @@ class CableParameters:
         values.update(converted)
 
         # Recompute derived quantities
-        if "Rm" in converted or "gL" in converted:
-            if values["Rm"] is not None:
-                values["gL"] = 1 / values["Rm"]
+        if "rm" in converted or "gL" in converted:
+            if values["rm"] is not None:
+                values["gL"] = 1 / values["rm"]
 
         if (
                 values["c_m"] is not None

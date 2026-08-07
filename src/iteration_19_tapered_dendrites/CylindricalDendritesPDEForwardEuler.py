@@ -16,7 +16,7 @@ from iteration_19_tapered_dendrites.data import CableParameters, to_SI
 Rm = 2 * 1E4 * ohm * cm ** 2
 
 default_params = CableParameters(c_m=1 * uF / cm ** 2,
-                                 Rm=Rm,
+                                 rm=Rm,
                                  gL=1 / Rm,
                                  ra=100 * ohm * cm,
                                  L=500.0 * um,
@@ -187,7 +187,7 @@ def run_simulation_unitless(x_N, t_max,verbose=False):
             assert is_dimensionless(V_s[0])
 
         if plot:
-            plot_difussion_unitless(times=times, V_s=V_s, simulation_params=si_units, dt=dt)
+            plot_difussion_unitless(times=times, V_s=V_s, p=si_units, dt=dt)
 
         return np.max(V_s), np.argmax(V_s[1]), dt, x0
 

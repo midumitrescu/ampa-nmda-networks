@@ -1,6 +1,7 @@
 import unittest
 
 import numpy as np
+from numpy.testing import assert_almost_equal, assert_array_equal
 
 from brian2 import ms, um, uamp, cm, have_same_dimensions, ufarad, ohm, second, mV, volt, Hz, meter, uF, coulomb, uvolt
 from brian2.units.allunits import mampere, pampere, ampere
@@ -12,7 +13,7 @@ from iteration_19_tapered_dendrites.TaperredDendritesPDE import dirac_delta
 from numpy.testing import assert_allclose
 
 from CylindricalDendritesPDE import dirac_delta as dirac_cylindrical
-from iteration_19_tapered_dendrites.data import to_SI, CableParameters
+from iteration_19_tapered_dendrites.data import to_SI, CableParameters, NumericalCableParameters
 
 
 class TestPDECases(unittest.TestCase):
@@ -510,13 +511,205 @@ class TestLinearTaperCableOneStep(unittest.TestCase):
 
 Rm = 2 * 1E4 * ohm * cm ** 2
 default_params = CableParameters(c_m=1 * uF / cm ** 2,
-                                 Rm=Rm,
+                                 rm=Rm,
                                  gL=1 / Rm,
                                  ra=100 * ohm * cm,
                                  L=500.0 * um,
                                  N=101,
                                  r0=2 * um,
                                  I_e=150 * pampere)
+
+
+def create_difussion_matrix(p: NumericalCableParameters):
+
+    x = p.x
+    dx = p.dx
+
+    tau = p.tau
+    b = p.b
+
+    difussion = np.ones(len(x) - 1) * b / dx ** 2
+    difussion_decay = np.ones(len(x)) * (-1 / tau - 2 * b / dx ** 2)
+
+    # Sparse tridiagonal matrix
+    A = diags(
+        diagonals=[difussion, difussion_decay, difussion],
+        offsets=[-1, 0, 1],
+        format="lil"
+    )
+
+    # ensure boundary conditions automatically in A matrix
+    #A[0, 0] = -1 / tau - 2 * b / dx ** 2
+    A[0, 1] = 2 * b / dx ** 2
+    A[-1, -2] = 2 * b / dx ** 2
+    #A[-1, -1] = -1 / tau - 2 * b / dx ** 2
+    return A
+
+class TestForwardEulerInCylinderOneStep(unittest.TestCase):
+
+    def test_parameter_values_small_N(self):
+        simulation_params = default_params.with_property(t=10 * ms, N=11)
+        p = simulation_params.to_numerical()
+
+        A = create_difussion_matrix(p)
+        self.assertEqual(1E-4, p.b)
+        self.assertEqual(1, simulation_params.b / cm ** 2 * second)
+
+        self.assertAlmostEqual(np.sqrt(2)*1E-3, p.lambd())
+        self.assertAlmostEqual(np.sqrt(2) * 1E-3, simulation_params.lambd() / meter)
+        self.assertAlmostEqual(np.sqrt(2)*1E3, simulation_params.lambd() / um)
+        self.assertAlmostEqual(np.sqrt(2) / 10, simulation_params.lambd() / cm)
+
+        diag = -1/p.tau - 2 /25 * 1E6
+        diag_cp = -1/0.02 - 2 /25 * 1E6
+        assert_array_equal(np.ones(9) * diag, A.diagonal()[1:10])
+
+        diff = 1 / 25 * 1E6
+
+        assert_allclose(np.ones(9) * diff, A.diagonal(-1)[:-1])
+        self.assertAlmostEqual(2 / 25 * 1E6, A.diagonal(-1)[-1])
+
+        assert_allclose(np.ones(9) * diff, A.diagonal(1)[1:])
+        self.assertAlmostEqual(2 / 25 * 1E6, A.diagonal(1)[0])
+
+
+
+
+    def test_parameter_values_moderate_N(self):
+        simulation_params = default_params.with_property(t=10 * ms, N=101)
+        p = simulation_params.to_numerical()
+
+        A = create_difussion_matrix(p)
+        self.assertEqual(1E-4, p.b)
+        self.assertEqual(1, simulation_params.b / cm ** 2 * second)
+        self.assertAlmostEqual(np.sqrt(2) * 1E-3, simulation_params.lambd() / meter)
+        self.assertAlmostEqual(np.sqrt(2) * 1E3, simulation_params.lambd() / um)
+        self.assertAlmostEqual(np.sqrt(2) / 10, simulation_params.lambd() / cm)
+
+        self.assertAlmostEqual(5E-6, p.dx)
+        self.assertAlmostEqual(5, simulation_params.dx / um)
+
+        diag = -1 / p.tau - 2 / 25 * 1E8
+        diag_cp = -1 / 0.02 - 2 / 25 * 1E8
+        assert_allclose(np.ones(101) * diag, A.diagonal())
+        assert_allclose(np.ones(101) * diag_cp, A.diagonal())
+
+        diff = 1 / 25 * 1E8
+
+        assert_allclose(np.ones(99) * diff, A.diagonal(-1)[:-1])
+        self.assertAlmostEqual(2 / 25 * 1E8, A.diagonal(-1)[-1])
+
+        assert_allclose(np.ones(99) * diff, A.diagonal(1)[1:])
+        self.assertAlmostEqual(2 / 25 * 1E8, A.diagonal(1)[0])
+
+    def test_parameter_values_large_N(self):
+        simulation_params = default_params.with_property(t=10 * ms, N=1001)
+        p = simulation_params.to_numerical()
+
+        A = create_difussion_matrix(p)
+        self.assertEqual(1E-4, p.b)
+        self.assertEqual(1, simulation_params.b / cm ** 2 * second)
+        self.assertAlmostEqual(np.sqrt(2) * 1E-3, simulation_params.lambd() / meter)
+        self.assertAlmostEqual(np.sqrt(2) * 1E3, simulation_params.lambd() / um)
+        self.assertAlmostEqual(np.sqrt(2) / 10, simulation_params.lambd() / cm)
+
+        self.assertEqual(5E-7, p.dx)
+        self.assertEqual(0.5, simulation_params.dx / um)
+
+        diag = -1 / p.tau - 2 / 25 * 1E10
+        diag_cp = -1 / 0.02 - 2 / 25 * 1E10
+        assert_allclose(np.ones(1001) * diag, A.diagonal())
+        assert_allclose(np.ones(1001) * diag_cp, A.diagonal())
+
+        diff = 1 / 25 * 1E10
+
+        assert_allclose(np.ones(999) * diff, A.diagonal(-1)[:-1])
+        self.assertAlmostEqual(2 / 25 * 1E10, A.diagonal(-1)[-1])
+
+        assert_allclose(np.ones(999) * diff, A.diagonal(1)[1:])
+        self.assertAlmostEqual(2 / 25 * 1E10, A.diagonal(1)[0])
+
+
+    def test_one_dirac_step(self):
+        simulation_params = default_params.with_property(t=10 * ms, N=6)
+        p = simulation_params.to_numerical()
+
+        # 1. Parameters
+        dx = p.dx
+        dt = to_SI(1E-8 * second)
+
+        A = create_difussion_matrix(p)
+
+        V = np.zeros(len(p.x))
+
+        x0 = to_SI(200 * um)
+        t0 = to_SI(1 * ms)
+        I_e = to_SI(1.5 * pampere)
+
+        dx = p.dx
+
+        def synaptic_input_profile(t, x0, dt):
+            return dirac_delta_unitless(x0=x0, t0=t0, x=p.x, t=t, dx=dx, dt=dt, I_e=I_e,
+                                        tau_m=p.tau, r_of_x=p.r0)
+
+        t = t0 - 0.1 * dt
+
+        i_of_t = synaptic_input_profile(t, x0, dt)
+        inputed_current = dx * dt * np.sum(i_of_t)
+
+        self.assertEqual(I_e * p.tau / (2 * np.pi * p.r0), inputed_current)
+
+
+        V_n_euler = np.copy(V)
+        V_n_plus_1_euler = V_n_euler + dt * (A @ V_n_euler + i_of_t)
+
+        print(f"{I_e * p.tau / (2 * np.pi * p.r0 * dx) : .6e}")
+        print(f"{V_n_plus_1_euler[2] : .6e}")
+
+        self.assertAlmostEqual(I_e * p.tau / (2 * np.pi * p.r0 * dx), V_n_plus_1_euler[2])
+        self.assertAlmostEqual(I_e * p.tau / (2 * np.pi * p.r0), V_n_plus_1_euler[2] * dx)
+
+
+    def test_current_injection_increased_x_discretization(self):
+        simulation_params = default_params.with_property(t=10 * ms, N=101)
+        p = simulation_params.to_numerical()
+
+        # 1. Parameters
+        dx = p.dx
+        dt = to_SI(1E-8 * second)
+
+        A = create_difussion_matrix(p)
+
+        V = np.zeros(len(p.x))
+
+        x0 = to_SI(250 * um)
+        t0 = to_SI(1 * ms)
+        I_e = to_SI(1.5 * pampere)
+
+        dx = p.dx
+
+        def synaptic_input_profile(t, x0, dt):
+            return dirac_delta_unitless(x0=x0, t0=t0, x=p.x, t=t, dx=dx, dt=dt, I_e=I_e,
+                                        tau_m=p.tau, r_of_x=p.r0)
+
+        t = t0 - 0.1 * dt
+
+        x0_index = 50
+
+        i_of_t = synaptic_input_profile(t, x0, dt)
+        inputed_current = dx * dt * np.sum(i_of_t)
+
+        self.assertEqual(I_e * p.tau / (2 * np.pi * p.r0), inputed_current)
+
+        V_n_euler = np.copy(V)
+        V_n_plus_1_euler = V_n_euler + dt * (A @ V_n_euler + i_of_t)
+
+        print(f"{I_e * p.tau / (2 * np.pi * p.r0 * dx) : .6e}")
+        print(f"{V_n_plus_1_euler[2] : .6e}")
+
+        self.assertAlmostEqual(I_e * p.tau / (2 * np.pi * p.r0 * dx), V_n_plus_1_euler[x0_index])
+        self.assertAlmostEqual(I_e * p.tau / (2 * np.pi * p.r0), V_n_plus_1_euler[x0_index] * dx)
+
 
 
 class TestCrankNicolsonOneStep(unittest.TestCase):
@@ -553,6 +746,7 @@ class TestCrankNicolsonOneStep(unittest.TestCase):
 
         I = eye(A.shape[0], format="csc")
 
+        self.A = A
         # Crank-Nicolson matrices
         self.L = (I - 0.5 * dt * A).tocsc()
         self.R = (I + 0.5 * dt * A).tocsc()
@@ -565,9 +759,10 @@ class TestCrankNicolsonOneStep(unittest.TestCase):
         dt = self.dt
         self.x0 = to_SI(250 * um)
         I_e = to_SI(1.5 * pampere)
+        dx = self.si_units.dx
 
         def synaptic_input_profile(t, x0, dt):
-            return dirac_delta_unitless(x0=x0, t0=to_SI(1 * ms), x=self.si_units.x, t=t, dx=self.si_units.dx, dt=dt, I_e=I_e,
+            return dirac_delta_unitless(x0=x0, t0=to_SI(1 * ms), x=self.si_units.x, t=t, dx=dx, dt=dt, I_e=I_e,
                                         tau_m=self.si_units.tau, r_of_x=self.si_units.r0)
 
         t = to_SI(1 * ms) - 1E-10
@@ -575,9 +770,24 @@ class TestCrankNicolsonOneStep(unittest.TestCase):
 
         id_x0 = np.searchsorted(self.si_units.x, x0)
         # RHS
-        input_t_and_t_half = 1 / 2 * dt * (
-                synaptic_input_profile(t=t, x0=x0, dt=dt / 2) + synaptic_input_profile(t=t + dt / 2, x0=x0,
-                                                                                       dt=dt / 2))
+        syn_input_t = synaptic_input_profile(t=t, x0=x0, dt=dt / 2)
+        syn_input_t_half = synaptic_input_profile(t=t + dt / 2, x0=x0, dt=dt / 2)
+        input_t_and_t_half = 1 / 2 * dt * (syn_input_t + syn_input_t_half)
+
+        inputed_current = dx * dt/2 * np.sum(syn_input_t)
+
+        self.assertEqual(I_e * self.si_units.tau / (2 * np.pi * self.si_units.r0), inputed_current)
+
+        self.assertEqual(0 , np.sum(syn_input_t_half))
+
+
+        V_n_euler = np.copy(V)
+        V_n_plus_1_euler = V_n_euler + dt * ( self.A @ V_n_euler + input_t_and_t_half)
+
+        print(f"{I_e * self.si_units.tau / (2 * np.pi * self.si_units.r0) : .6e}")
+        print(f"{V_n_plus_1_euler[500] * dt : .6e}")
+
+        self.assertEqual(I_e * self.si_units.tau / (2 * np.pi * self.si_units.r0 * dx), V_n_plus_1_euler[500])
 
         rhs = self.R @ V + input_t_and_t_half
         # Solve:
@@ -615,6 +825,18 @@ class TestCrankNicolsonOneStep(unittest.TestCase):
             expected_charge,
             delta=expected_charge * 1e-12
         )
+
+    def test_prefactor(self):
+
+
+        numerical_prefactor = self.si_units.I_e * self.si_units.tau / (2 * np.pi * self.si_units.r0)
+
+        theory_prefactor = self.si_units.I_e * self.si_units.R_lambda()
+        # r_lambda =  self.rm / (2 * np.pi * self.r0 * self.lambd())
+        # lambd = math.sqrt(self.r0 * self.rm / (2 * self.ra))
+        print(numerical_prefactor / theory_prefactor)
+
+        print(self.si_units.tau * self.si_units.lambd() / self.si_units.rm)
 
 
 if __name__ == '__main__':
