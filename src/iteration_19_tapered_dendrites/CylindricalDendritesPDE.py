@@ -4,8 +4,10 @@ from typing import Callable
 
 import matplotlib.pyplot as plt
 import numpy as np
+from pathlib import Path
+
 from brian2 import cm, uF, ohm, um, Quantity, is_dimensionless, get_dimensions, volt, have_same_dimensions, mV, meter, \
-    umeter, msecond, mvolt
+    umeter, msecond, mvolt, nsecond, psecond
 from brian2.units import second, ms
 from brian2.units.allunits import ampere, mampere, pampere
 from joblib import Parallel, delayed
@@ -41,19 +43,19 @@ def is_debugging():
 def run_simulation_unitless(x_N, t_max,verbose=False, saved_frames = 1200):
     simulation_params = default_params.with_property(t=t_max, N=x_N)
     N = simulation_params.N
-    si_units = simulation_params.to_numerical()
+    p = simulation_params.to_numerical()
 
     # 1. Parameters
-    c_m = si_units.c_m
-    dx = si_units.dx
-    tau = si_units.tau
+    c_m = p.c_m
+    dx = p.dx
+    tau = p.tau
 
     # Spatial domain and initial condition
-    x = si_units.x
-    r_0 = si_units.r0
+    x = p.x
+    r_0 = p.r0
 
     r_of_x = np.ones(N) * r_0
-    b = si_units.b
+    b = p.b
 
     difussion = np.ones(N - 1) * b / dx ** 2
     difussion_decay = np.ones(N) * (-1 / tau - 2 * b / dx ** 2)
@@ -104,7 +106,7 @@ def run_simulation_unitless(x_N, t_max,verbose=False, saved_frames = 1200):
             assert is_dimensionless(u0)
 
         def synaptic_input_profile(t):
-            return dirac_delta_unitless(x0=x0, t0=to_SI(0.1 * ms, second), I_e=to_SI(1.5 * pampere, ampere), x=x, t=t, dx=dx, dt=dt, tau_m=tau, r_of_x=r_0)
+            return dirac_delta_unitless(x0=x0, t0=to_SI(0.1 * ms, second), I_e=p.I_e, x=x, t=t, dx=dx, dt=dt, tau_m=tau, r_of_x=r_0)
 
         def cylindrical_cable_equation(t, V):
             """
@@ -189,7 +191,7 @@ def run_simulation_unitless(x_N, t_max,verbose=False, saved_frames = 1200):
             assert is_dimensionless(V_s[0])
 
         if plot:
-            plot_difussion_unitless(times=times, V_s=V_s, p=si_units, dt=dt)
+            plot_difussion_unitless(times=times, V_s=V_s, p=p)
 
         return np.max(V_s), np.argmax(V_s[1]), dt, x0
 
@@ -204,20 +206,20 @@ def run_simulation_unitless(x_N, t_max,verbose=False, saved_frames = 1200):
         backend="loky",  # process-based (default)
         verbose=10)(delayed(solve)(x2, dt=dt, t_max=t_max, plot=True) for x2, dt in calls)
 
-def simulate_crank_nicolson_split(x_N=301, dt=to_SI(0.001 * ms), x0=to_SI(250*um), t0=to_SI(0.1 * ms), t_max=to_SI(30 * ms), saved_frames = 1200, verbose=True):
-    simulation_params = default_params.with_property(t=t_max, N=x_N)
-    N = simulation_params.N
-    si_units = simulation_params.to_numerical()
+def simulate_crank_nicolson_split(x_N=301, dt_=to_SI(0.001 * ms), x0=to_SI(250*um), t0=to_SI(0.1 * ms), t_max=to_SI(30 * ms), saved_frames = 1200, verbose=True, plot=False):
+    simulation_params = default_params.with_SI_properties(t=t_max, N=x_N, dt=dt_)
+    p = simulation_params.to_numerical()
+    N = p.N
 
     # 1. Parameters
-    dx = si_units.dx
-    tau = si_units.tau
+    dx = p.dx
+    tau = p.tau
 
     # Spatial domain and initial condition
-    x = si_units.x
-    r_0 = si_units.r0
+    x = p.x
+    r_0 = p.r0
 
-    b = si_units.b
+    b = p.b
 
     difussion = np.ones(N - 1) * b / dx ** 2
     difussion_decay = np.ones(N) * (- 2 * b / dx ** 2)
@@ -243,10 +245,10 @@ def simulate_crank_nicolson_split(x_N=301, dt=to_SI(0.001 * ms), x0=to_SI(250*um
     D[-1, -1] = - 2 * b / dx ** 2
 
     def synaptic_input_profile(t, x0, dt):
-        return dirac_delta_unitless(x0=x0, t0=t0, x=x, t=t, dx=dx, dt=dt, I_e=to_SI(1.5 * pampere),
+        return dirac_delta_unitless(x0=x0, t0=t0, x=x, t=t, dx=dx, dt=dt, I_e=p.I_e,
                                     tau_m=tau, r_of_x=r_0)
 
-    def crank_nicolson_unitless_split(x0, t_span, V0, dt=to_SI(0.01 * ms), saved_frames=1, verbose=False):
+    def crank_nicolson_unitless_split(x0, t_span, V0, saved_frames=1, verbose=False):
 
         """
         Solve dV/dt = A V using Crank-Nicolson.
@@ -257,7 +259,7 @@ def simulate_crank_nicolson_split(x_N=301, dt=to_SI(0.001 * ms), x0=to_SI(250*um
         t0, tf = t_span
 
         # Number of time steps
-        num_steps = int(np.ceil((tf - t0) / dt))
+        num_steps = int(np.ceil((tf - t0) / p.dt))
 
         # Saving
         save_every = int(np.ceil(num_steps / saved_frames))
@@ -267,7 +269,7 @@ def simulate_crank_nicolson_split(x_N=301, dt=to_SI(0.001 * ms), x0=to_SI(250*um
         sol = np.zeros((3, num_save, len(V0)))
 
         # Convert dt if using quantities
-        dt = float(dt)
+        dt = p.dt
 
         # Identity matrix
         I = eye(D.shape[0], format="csc")
@@ -289,12 +291,12 @@ def simulate_crank_nicolson_split(x_N=301, dt=to_SI(0.001 * ms), x0=to_SI(250*um
 
         for step in range(1, num_steps + 1):
 
-            dt_step = min(dt, tf - t)
+            dt_step = min(p.dt, tf - t)
 
             # RHS
             input_t_and_t_half = 1 / 2 * dt_step * (
-                        synaptic_input_profile(t=t, x0=x0, dt=dt / 2) + synaptic_input_profile(t=t + dt / 2, x0=x0,
-                                                                                               dt=dt / 2))
+                        synaptic_input_profile(t=t, x0=x0, dt=p.dt / 2) + synaptic_input_profile(t=t + p.dt / 2, x0=x0,
+                                                                                               dt=p.dt / 2))
             rhs = R @ V + input_t_and_t_half
 
             # Solve:
@@ -323,10 +325,10 @@ def simulate_crank_nicolson_split(x_N=301, dt=to_SI(0.001 * ms), x0=to_SI(250*um
 
         return times, sol
 
-    def solve(x0, plot=True, t_max=to_SI(300 * ms), dt=to_SI(0.01 * ms)):
+    def solve(x0, plot=True, t_max=to_SI(300 * ms)):
 
         print(f"tau = {tau}")
-        print(f"dt = {dt}")
+        print(f"dt = {p.dt}")
 
         u0 = np.zeros(len(x))
 
@@ -336,7 +338,7 @@ def simulate_crank_nicolson_split(x_N=301, dt=to_SI(0.001 * ms), x0=to_SI(250*um
             assert is_dimensionless(u0)
 
         # 3. Solve the ODE via crank nicolson (x0, t_span, V0, dt =0.01 * ms, saved_frames=1, plot=True, verbose=False):
-        times, V_s = crank_nicolson_unitless_split(t_span=(0, t_max), x0=x0, V0=u0, dt=dt, saved_frames=saved_frames)
+        times, V_s = crank_nicolson_unitless_split(t_span=(0, t_max), x0=x0, V0=u0, saved_frames=saved_frames)
 
         if verbose:
             assert is_dimensionless(times[0])
@@ -344,14 +346,14 @@ def simulate_crank_nicolson_split(x_N=301, dt=to_SI(0.001 * ms), x0=to_SI(250*um
             assert is_dimensionless(V_s[0])
 
         if plot:
-            plot_difussion_unitless_split(times=times, V_s=V_s, simulation_params=si_units, dt=dt,
+            plot_difussion_unitless_split(times=times, V_s=V_s, p=p,
                                           sim_type="Crank-Nicolson split")
 
-        return np.max(V_s), np.argmax(V_s[1]), dt, x0
+        return np.max(V_s), np.argmax(V_s[1]), x0
 
         # for splits in [50, 100, 200, 250, 500, 750, 1000, 1250, 1500]:
 
-    return solve(x0=x0, dt=dt, t_max=t_max, plot=True)
+    return solve(x0=x0, t_max=t_max, plot=plot)
 
 def constant_synaptic_input_profile(t, x0, dt, p: NumericalCableParameters):
     return dirac_delta_unitless(x0=x0, t0=t+0.1 * dt, x=p.x, t=t, dx=p.dx, dt=dt, I_e=p.I_e, tau_m=p.tau, r_of_x=p.r0)
@@ -359,24 +361,24 @@ def constant_synaptic_input_profile(t, x0, dt, p: NumericalCableParameters):
 def synaptic_input_profile(t, x0, dt, p: NumericalCableParameters):
     return dirac_delta_unitless(x0=x0, t0=to_SI(0.1 * ms), I_e=p.I_e, x=p.x, t=t, dx=p.dx, dt=dt, tau_m=p.tau, r_of_x=p.r0)
 
-def simulate_crank_nicolson_constant_input_unitless(x_N=301, dt=to_SI(0.001 * ms), x0=to_SI(250*um), t0=to_SI(0.1 * ms), t_max=to_SI(30 * ms), saved_frames = 1200, verbose=True):
-    simulation_params = default_params.with_property(t=t_max, N=x_N)
-    si_units = simulation_params.to_numerical()
+def simulate_crank_nicolson_constant_input_unitless(x_N=301, dt_=to_SI(0.001 * ms), x0=to_SI(250*um), t0=to_SI(0.1 * ms), t_max=to_SI(30 * ms), saved_frames = 1200, verbose=True, plot=False):
+    simulation_params = default_params.with_property(t=t_max, N=x_N, dt=dt_, L=to_SI(3000 * um))
+    p = simulation_params.to_numerical()
 
     # 1. Parameters
-    dx = si_units.dx
-    tau = si_units.tau
+    dx = p.dx
+    tau = p.tau
 
     # Spatial domain and initial condition
-    x = si_units.x
-    r_0 = si_units.r0
+    x = p.x
+    r_0 = p.r0
 
     r_of_x = np.ones(len(simulation_params.x)) * r_0
 
-    b = si_units.b
+    b = p.b
 
     if verbose:
-        mu = b * dt / dx ** 2
+        mu = b * p.dt / dx ** 2
         if mu < 0.5:
             print(f"mu = {mu:.5f}: very safe")
         elif mu < 2:
@@ -401,7 +403,7 @@ def simulate_crank_nicolson_constant_input_unitless(x_N=301, dt=to_SI(0.001 * ms
     A[-1, -1] = -1 / tau - 2 * b / dx ** 2
     # empirically, this does not work! Stiffness computed when boundary conditions are applied: 306 030  = 3*1E6 vs 7E4 when conditions are not applied
 
-    def crank_nicolson(x0, t_span, V0, dt=to_SI(0.01 * ms), saved_frames=1, verbose=False):
+    def crank_nicolson(x0, t_span, V0, p: NumericalCableParameters, saved_frames=1, verbose=False):
 
         """
         Solve dV/dt = A V using Crank-Nicolson.
@@ -412,7 +414,7 @@ def simulate_crank_nicolson_constant_input_unitless(x_N=301, dt=to_SI(0.001 * ms
         t0, tf = t_span
 
         # Number of time steps
-        num_steps = int(np.ceil((tf - t0) / dt))
+        num_steps = int(np.ceil((tf - t0) / p.dt))
 
         # Saving
         save_every = int(np.ceil(num_steps / saved_frames))
@@ -421,15 +423,12 @@ def simulate_crank_nicolson_constant_input_unitless(x_N=301, dt=to_SI(0.001 * ms
         times = np.zeros(num_save) * t0
         sol = np.zeros((num_save, len(V0)))
 
-        # Convert dt if using quantities
-        dt = float(dt)
-
         # Identity matrix
         I = eye(A.shape[0], format="csc")
 
         # Crank-Nicolson matrices
-        L = (I - 0.5 * dt * A).tocsc()
-        R = (I + 0.5 * dt * A).tocsc()
+        L = (I - 0.5 * p.dt * A).tocsc()
+        R = (I + 0.5 * p.dt * A).tocsc()
 
         # Factorize once
         solve = factorized(L)
@@ -443,12 +442,12 @@ def simulate_crank_nicolson_constant_input_unitless(x_N=301, dt=to_SI(0.001 * ms
 
         for step in range(1, num_steps + 1):
 
-            dt_step = min(dt, tf - t)
+            dt_step = min(p.dt, tf - t)
 
             # RHS
-            input_t_and_t_half = 1 / 2 * dt * (
-                    constant_synaptic_input_profile(t=t, x0=x0, dt=dt / 2, p=si_units) + synaptic_input_profile(t=t + dt / 2, x0=x0,
-                                                                                           dt=dt / 2, p=si_units))
+            input_t_and_t_half = 1 / 2 * p.dt * (
+                    constant_synaptic_input_profile(t=t, x0=x0, dt=p.dt / 2, p=p) + synaptic_input_profile(t=t + p.dt / 2, x0=x0,
+                                                                                           dt=p.dt / 2, p=p))
 
             rhs = R @ V + input_t_and_t_half
             # Solve:
@@ -471,10 +470,10 @@ def simulate_crank_nicolson_constant_input_unitless(x_N=301, dt=to_SI(0.001 * ms
 
         return times, sol
 
-    def solve(x0, plot=True, t_max=to_SI(300 * ms), dt=to_SI(0.01 * ms)):
+    def solve(x0, plot=True, t_max=to_SI(300 * ms)):
 
         print(f"tau = {tau}")
-        print(f"dt = {dt}")
+        print(f"dt = {p.dt}")
 
         u0 = np.zeros(len(x))
 
@@ -484,7 +483,7 @@ def simulate_crank_nicolson_constant_input_unitless(x_N=301, dt=to_SI(0.001 * ms
             assert is_dimensionless(u0)
 
         # 3. Solve the ODE via crank nicolson (x0, t_span, V0, dt =0.01 * ms, saved_frames=1, plot=True, verbose=False):
-        times, V_s = crank_nicolson(t_span=(0, t_max), x0=x0, V0=u0, dt=dt, saved_frames=saved_frames)
+        times, V_s = crank_nicolson(t_span=(0, t_max), x0=x0, V0=u0, p=p, saved_frames=saved_frames)
 
         if verbose:
             assert is_dimensionless(times[0])
@@ -493,13 +492,13 @@ def simulate_crank_nicolson_constant_input_unitless(x_N=301, dt=to_SI(0.001 * ms
 
         if plot:
             # def plot_difussion_unitless(times, V_s, simulation_params: NumericalCableParameters, dt, verbose=True, sim_type="forward Euler")
-            plot_difussion_unitless(times=times, V_s=V_s, dt=dt, p= si_units, sim_type="Crank-Nicolson unitless")
+            plot_difussion_unitless(times=times, V_s=V_s, p= p, sim_type="Crank-Nicolson unitless")
 
-        return np.max(V_s), np.argmax(V_s[1]), dt, x0
+        return np.max(V_s), np.argmax(V_s[1]), x0
 
-    return solve(x0=x0, dt=dt, t_max=t_max, plot=True)
+    return solve(x0=x0, t_max=t_max, plot=plot)
 
-def crank_nicolson(x0, t_span, V0, A, p: NumericalCableParameters, dt=to_SI(0.01 * ms), saved_frames=1, verbose=False):
+def crank_nicolson(x0, t_span, V0, A, p: NumericalCableParameters, saved_frames=1, verbose=False):
 
         """
         Solve dV/dt = A V using Crank-Nicolson.
@@ -510,7 +509,7 @@ def crank_nicolson(x0, t_span, V0, A, p: NumericalCableParameters, dt=to_SI(0.01
         t0, tf = t_span
 
         # Number of time steps
-        num_steps = int(np.ceil((tf - t0) / dt))
+        num_steps = int(np.ceil((tf - t0) / p.dt))
 
         # Saving
         save_every = int(np.ceil(num_steps / saved_frames))
@@ -519,15 +518,12 @@ def crank_nicolson(x0, t_span, V0, A, p: NumericalCableParameters, dt=to_SI(0.01
         times = np.zeros(num_save) * t0
         sol = np.zeros((num_save, len(V0)))
 
-        # Convert dt if using quantities
-        dt = float(dt)
-
         # Identity matrix
         I = eye(A.shape[0], format="csc")
 
         # Crank-Nicolson matrices
-        L = (I - 0.5 * dt * A).tocsc()
-        R = (I + 0.5 * dt * A).tocsc()
+        L = (I - 0.5 * p.dt * A).tocsc()
+        R = (I + 0.5 * p.dt * A).tocsc()
 
         # Factorize once
         solve = factorized(L)
@@ -541,14 +537,34 @@ def crank_nicolson(x0, t_span, V0, A, p: NumericalCableParameters, dt=to_SI(0.01
 
         for step in range(1, num_steps + 1):
 
-            dt_step = min(dt, tf - t)
+            dt_step = min(p.dt, tf - t)
 
             # RHS
-            input_t_and_t_half = 1 / 2 * dt * (
-                    synaptic_input_profile(t=t, x0=x0, dt=dt, p=p) + synaptic_input_profile(t=t + dt, x0=x0,
-                                                                                           dt=dt, p=p))
+            input_t_and_t_half = 1 / 2 * p.dt * (
+                    synaptic_input_profile(t=t, x0=x0, dt=p.dt, p=p) + synaptic_input_profile(t=t + p.dt, x0=x0,
+                                                                                           dt=p.dt, p=p))
+
+            # Before update
+            if np.any(input_t_and_t_half != 0):
+                injection_idx = np.argmax(np.abs(input_t_and_t_half))
+
+                print(f"\nInjection at t = {t:.9e}")
+                print(f"node = {injection_idx}")
+                print(f"V before = {V[injection_idx]:.12e}")
+                print(f"input    = {input_t_and_t_half[injection_idx]:.12e}")
 
             rhs = R @ V + input_t_and_t_half
+
+            # Your time step
+            V_new = V + p.dt * rhs
+
+            if np.any(input_t_and_t_half != 0):
+                print("input     =", input_t_and_t_half[injection_idx])
+                print("rhs total =", rhs[injection_idx])
+
+                print("expected ΔV =", p.dt * rhs[injection_idx])
+                print("observed ΔV =", V_new[injection_idx] - V[injection_idx])
+
             # Solve:
             # (I - dt/2 A) V_new = rhs
             V = solve(rhs)
@@ -569,24 +585,25 @@ def crank_nicolson(x0, t_span, V0, A, p: NumericalCableParameters, dt=to_SI(0.01
 
         return times, sol
 
-def simulate_crank_nicolson_unitless_closed_cylinder(x_N=301, dt=to_SI(0.001 * ms), x0=to_SI(250 * um), t0=to_SI(0.1 * ms), t_max=to_SI(30 * ms), saved_frames = 1200, verbose=True):
-    simulation_params = default_params.with_property(t=t_max, N=x_N)
-    si_units = simulation_params.to_numerical()
+def simulate_crank_nicolson_unitless_closed_cylinder(x_N=301, dt_=to_SI(0.001 * ms), x0=to_SI(250 * um), t0=to_SI(0.1 * ms), t_max=to_SI(30 * ms), L=to_SI(500 * um), saved_frames = 1200, verbose=True, plot=False):
+    simulation_params = default_params.with_SI_properties(t=t_max, N=x_N, dt=dt_, L=L)
+    p = simulation_params.to_numerical()
 
     # 1. Parameters
-    dx = si_units.dx
-    tau = si_units.tau
+    dx = p.dx
+    tau = p.tau
+
+    print(f"Simulating Crank-Nicolson unitless cylinder with dt = {dt_: .5e}")
+    print(f"Simulating Crank-Nicolson unitless cylinder with dt = {simulation_params.dt: .5e}")
 
     # Spatial domain and initial condition
-    x = si_units.x
-    r_0 = si_units.r0
+    x = p.x
+    r_0 = p.r0
 
-    r_of_x = np.ones(len(simulation_params.x)) * r_0
-
-    b = si_units.b
+    b = p.b
 
     if verbose:
-        mu = b * dt / dx ** 2
+        mu = b * p.dt / dx ** 2
         if mu < 0.5:
             print(f"mu = {mu:.5f}: very safe")
         elif mu < 2:
@@ -611,10 +628,10 @@ def simulate_crank_nicolson_unitless_closed_cylinder(x_N=301, dt=to_SI(0.001 * m
     A[-1, -1] = -1 / tau - 2 * b / dx ** 2
     # empirically, this does not work! Stiffness computed when boundary conditions are applied: 306 030  = 3*1E6 vs 7E4 when conditions are not applied
 
-    def solve(x0, plot=True, t_max=to_SI(300 * ms), dt=to_SI(0.01 * ms)):
+    def solve(x0, plot=True, t_max=to_SI(300 * ms)):
 
         print(f"tau = {tau}")
-        print(f"dt = {dt}")
+        print(f"dt = {p.dt}")
 
         u0 = np.zeros(len(x))
 
@@ -624,7 +641,7 @@ def simulate_crank_nicolson_unitless_closed_cylinder(x_N=301, dt=to_SI(0.001 * m
             assert is_dimensionless(u0)
 
         # 3. Solve the ODE via crank nicolson (x0, t_span, V0, dt =0.01 * ms, saved_frames=1, plot=True, verbose=False):
-        times, V_s = crank_nicolson(t_span=(0, t_max), x0=x0, V0=u0, dt=dt, A=A, saved_frames=saved_frames, p=si_units)
+        times, V_s = crank_nicolson(t_span=(0, t_max), x0=x0, V0=u0, A=A, saved_frames=saved_frames, p=p)
 
         if verbose:
             assert is_dimensionless(times[0])
@@ -633,11 +650,11 @@ def simulate_crank_nicolson_unitless_closed_cylinder(x_N=301, dt=to_SI(0.001 * m
 
         if plot:
             # def plot_difussion_unitless(times, V_s, simulation_params: NumericalCableParameters, dt, verbose=True, sim_type="forward Euler")
-            plot_difussion_unitless(times=times, V_s=V_s, dt=dt, p= si_units, sim_type="Crank-Nicolson unitless")
+            plot_difussion_unitless(times=times, V_s=V_s, p= p, sim_type="Crank-Nicolson unitless")
 
-        return np.max(V_s), np.argmax(V_s[1]), dt, x0
+        return np.max(V_s), np.argmax(V_s[1]), p.dt, x0
 
-    return solve(x0=x0, dt=dt, t_max=t_max, plot=True)
+    return solve(x0=x0, t_max=t_max, plot=plot)
 
 
 # TODO: Normalize the way Dayan has it. ie = Ie τm δ(x)δ(t)/ 2πa. A is the radius! We have a slightly different formulation. But Still
@@ -691,7 +708,7 @@ def dirac_delta_unitless(
 
     delta_xt = 1.0 / (dx * dt)
 
-    i_e = I_e * tau_m / (np.pi * r_of_x**2) * delta_xt
+    i_e = I_e * tau_m / (2 * np.pi * r_of_x) * delta_xt
 
     if x0 <= x[0]:
         result[0] = i_e
@@ -714,13 +731,14 @@ def dirac_delta_unitless(
             result[i_e_index] = i_e * (1.0 - alpha)
             result[i_e_index + 1] = i_e * alpha
 
+    verbose=True
     if verbose:
-        print(f"Inserted delta at t={t}. t0={t0}, I_e={I_e}. dt = {dt: .3e} s. Total = {np.sum(result):.6e}")
+        print(f"Inserted delta at t={t}. t0={t0}, I_e={I_e}. dt = {dt: .3e} s. Total = {np.sum(result * 2 * np.pi * r_of_x / tau_m) * dx * dt:.6e}")
     return result
 
-def plot_difussion_unitless_split(times, V_s, simulation_params: NumericalCableParameters, dt, verbose=True, sim_type="forward Euler"):
+def plot_difussion_unitless_split(times, V_s, p: NumericalCableParameters, verbose=True, sim_type="forward Euler"):
 
-    plot_difussion_unitless(times = times, V_s = V_s[0], p= simulation_params, dt=dt, verbose=verbose, sim_type=sim_type)
+    plot_difussion_unitless(times = times, V_s = V_s[0], p= p, verbose=verbose, sim_type=sim_type)
 
     fig, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(
         5, 1,
@@ -729,7 +747,7 @@ def plot_difussion_unitless_split(times, V_s, simulation_params: NumericalCableP
         sharex=True
     )
 
-    x = simulation_params.x * meter / umeter
+    x = p.x * meter / umeter
     times = times * second / msecond
     V_s = V_s * volt / mvolt
     desired_distances = [0, 250]
@@ -786,14 +804,14 @@ def plot_difussion_unitless_split(times, V_s, simulation_params: NumericalCableP
     fig.suptitle(
         f"Split {sim_type.capitalize()} simulation for cable equation in cylinder model \n"
         f"x = [{x[0]} - {x[-1]:.2f}] " r"$\mu$"f"m, split in {len(x)} nodes. \n"
-        f"Max V = {np.max(V_s):.4f} mV. dx={simulation_params.dx * meter / um: .5f} " r"$\mu$"f"m, dt={dt: .3e} s \n"
+        f"Max V = {np.max(V_s):.4f} mV. dx={p.dx * meter / um: .5f} " r"$\mu$"f"m, dt={p.dt: .3e} s \n"
         f""
     )
 
     plt.tight_layout()
     plt.show()
 
-def show_difussion_simulation_as_image(times, V_s, p: NumericalCableParameters, dt, x0 =250 * um, t0=0.1 * ms, verbose=True, sim_type="forward Euler"):
+def show_difussion_simulation_as_image(times, V_s, p: NumericalCableParameters, x0 =250 * um, t0=0.1 * ms, verbose=True, sim_type="forward Euler"):
     if verbose:
         assert is_dimensionless(V_s[0][0])
         assert is_dimensionless(times[0])
@@ -837,7 +855,7 @@ def show_difussion_simulation_as_image(times, V_s, p: NumericalCableParameters, 
     ax1.set_title(
         f"{sim_type.capitalize()} simulation for cable equation in cylinder model \n"
         f"x = [{x[0]} - {x[-1]:.2f}] "r"$\mu$"f"m, split in {len(x)} nodes. \n"
-        f"Max V = {np.max(V_s):.4f} mV. dx={p.dx * meter / um: .5f} "r"$\mu$"f"m, dt={dt: .3e} s \n"
+        f"Max V = {np.max(V_s):.4f} mV. dx={p.dx * meter / um: .5f} "r"$\mu$"f"m, dt={p.dt: .3e} s \n"
         f""
     )
     ax1.set_xlabel(r"x [$\mu$m]")
@@ -948,12 +966,15 @@ def show_difussion_simulation_as_image(times, V_s, p: NumericalCableParameters, 
     show_plots_non_blocking()
 
 
-def plot_difussion_unitless(times, V_s, p: NumericalCableParameters, dt, x0 =250 * um, t0=0.1 * ms, verbose=True, sim_type="forward Euler"):
+def plot_difussion_unitless(times, V_s, p: NumericalCableParameters, x0 =250 * um, t0=0.1 * ms, verbose=True, sim_type="forward Euler"):
     desired_positions = [100, x0 / um, 500]
 
-    show_difussion_simulation_as_image(times=times, V_s = V_s, p=p, dt=dt, x0=x0, t0=t0, verbose=verbose, sim_type=sim_type)
-    plot_tuckwell_solution_infinite_cable(V_s=V_s, desired_positions=desired_positions, p=p, t0=t0, times=times, x0=x0, sim_type=sim_type)
+    show_difussion_simulation_as_image(times=times, V_s = V_s, p=p, x0=x0, t0=t0, verbose=verbose, sim_type=sim_type)
+    #plot_tuckwell_solution_infinite_cable(V_s=V_s, desired_positions=desired_positions, p=p, t0=t0, times=times, x0=x0, sim_type=sim_type)
     plot_tuckwell_solution_closed_cable(V_s=V_s, desired_positions=desired_positions, p=p, t0=t0, times=times, x0=x0, sim_type=sim_type)
+
+    for offset in np.arange(5, 100, step=15):
+        plot_tuckwell_solution_closed_cable_difference(V_s=V_s, desired_positions=desired_positions, p=p, t0=t0, times=times, x0=x0, sim_type=sim_type, t0_offset=offset)
 
 
 def plot_tuckwell_solution_infinite_cable(V_s, desired_positions, p, t0, times, x0, sim_type="forward Euler"):
@@ -1024,57 +1045,85 @@ def plot_tuckwell_solution_infinite_cable(V_s, desired_positions, p, t0, times, 
 
     show_plots_non_blocking()
 
+def save_simulation(times, V_s, p, x0, filename_prefix="cable_sim"):
+    dt_ns = int(round(p.dt * second / psecond))  # dt in nanoseconds, avoids ugly floats
+    x0_um = int(round(x0 / um))
+
+    filename = (
+        f"{filename_prefix}"
+        f"_N{len(p.x)}"
+        f"_L{round(p.L * meter / um)}"
+        f"_dt{dt_ns}ps"
+        f"_x0{x0_um}um"
+        ".npz"
+    )
+
+    path = Path("saved_simulations") / filename
+    path.parent.mkdir(exist_ok=True)
+
+    np.savez_compressed(
+        path,
+        times=times,
+        V_s=V_s,
+        dt=p.dt,
+        x=p.x,
+        x0=x0,
+        tau=p.tau,
+        L=p.L,
+        N=len(p.x),
+        I_e=p.I_e,
+    )
+
+    print(f"Saved {path}")
+    return path
+
+
 def plot_tuckwell_solution_closed_cable(times, V_s, desired_positions, t0, x0, p, sim_type="forward Euler"):
+    save_simulation(times=times, V_s=V_s, p=p, x0=x0)
+
+    V_s_theory = compute_v_theory_tuckwell_closed_rod(times=times, desired_positions=desired_positions, t0=t0, x0=x0, p=p, n_max=101)
 
     times = times * second / ms
     V_s = V_s * volt / mV
     x = p.x * meter / um
     x0 = x0 / um
     t0 = t0 / ms
-    lam = p.lambd() * meter / um  # lambda [um]
-    tau_m = p.tau * second / msecond  # tau_m [ms]
-    D = lam ** 2 / tau_m  # um^2/ms
 
-    t_rel = times - t0
-    # avoid t=0 singularity
-    heavyside = np.ones_like(t_rel)
-    heavyside[t_rel <= 0] = 0
-    t_rel[t_rel <= 0] = 1
-
-    pref_of_t = heavyside * p.I_e * p.R_lambda() * volt / mvolt * np.exp(- t_rel / tau_m)
-
-    n_max = 11
-
-    '''
-V(x,t) = H(t-t_0) * I_e R_\lambda * e^{-(t-t_0)/\tau_m} * \left[ \frac{1}{L} + \frac{2}{L} * 
-        \sum_{n=1}^{\infty}  \cos \left(\frac{n\pi x}{L}\right) \cos \left(\frac{n\pi x_0}{L}\right) \exp \left( -D\left(\frac{n\pi}{L}\right)^2 (t-t_0) \right) \right]
-    '''
-    L = p.L * meter / um
-    x_pos, n_s = np.meshgrid(desired_positions, np.arange(1, n_max))
-    cos_s = 2 / L * np.cos(n_s * np.pi * x_pos / L) * np.cos(n_s * np.pi * x0 / L)
-
-    t_s, n_ts = np.meshgrid(t_rel, np.arange(1, n_max))
-    tu = np.exp(-D * (n_ts * np.pi / L) ** 2 * t_s)
-
-    #V_s_theory = 14.5 * pref_of_t * (1 / L + cos_s.T @ tu)
-    V_s_theory = pref_of_t * (1 / L + cos_s.T @ tu)
-
-
-    fig, (ax1, ax2, ax3) = plt.subplots(
-        3, 1,
-        figsize=(11, 12),
-        gridspec_kw={'height_ratios': [2, 2, 2]}
+    fig, axs = plt.subplots(
+        len(desired_positions), 1,
+        figsize=(11, 12)
     )
 
-    for distance, ax, V_th in zip(desired_positions, [ax1, ax2, ax3], V_s_theory):
-        ax.set_title(f"x={distance: .2f} "r"$\mu$"f"m, x0={x0:.0f} "r"$\mu$"f"m, t0 = {t0} ms")
+    if len(desired_positions) == 1:
+        axs = [axs]
+
+    print("YYYYYYYYYYYYYYYYYYYYYYYYYYY")
+    print(p.R_lambda())
+    print(p.lambd())
+    print(p.I_e)
+    print(p.rm)
+    print(p.ra)
+    print(p.r0)
+
+    print("Simulation Ie =", p.I_e)
+
+    print("Theory prefactor =", p.I_e * p.R_lambda())
+
+    p.to_
+
+    print("R_lambda =", p.R_lambda())
+    print("YYYYYYYYYYYYYYYYYYYYYYYYYYY")
+
+    for distance, ax, V_th in zip(desired_positions, axs, V_s_theory):
         i = np.searchsorted(x, distance)
 
         mean_ratio = np.mean(V_s[100:, i] / V_th[100:])
+        ax.set_title(f"x={distance: .2f} "r"$\mu$"f"m, x0={x0:.0f} "r"$\mu$"f"m, t0 = {t0} ms \n "
+                     f"mean ratio = {mean_ratio: .6f}")
         print(f"XXXXXXXXXXXXXXXX mean ratio for {i}-{distance}: {mean_ratio:.5f}")
         ax.plot(
             times,
-            1/mean_ratio * V_s[:, i],
+            V_s[:, i],
             label=f"Simulation",
             alpha=0.6,
             lw=2
@@ -1107,111 +1156,99 @@ V(x,t) = H(t-t_0) * I_e R_\lambda * e^{-(t-t_0)/\tau_m} * \left[ \frac{1}{L} + \
         ax.set_xlabel("t [ms]")
         ax.set_ylabel("V(x) [mV]")
         ax.legend()
-    fig.suptitle(f"{sim_type.capitalize()} Simulation vs Tuckwell theory closed rod")
+    fig.suptitle(f"{sim_type.capitalize()} Simulation vs Tuckwell theory closed rod dt={p.dt: .6e}")
     fig.tight_layout()
 
     show_plots_non_blocking()
 
+def compute_v_theory_tuckwell_closed_rod(times, desired_positions, t0, x0, p, n_max = 101):
+    times = times * second / ms
+    x0 = x0 / um
+    t0 = t0 / ms
+    lam = p.lambd() * meter / um  # lambda [um]
+    tau_m = p.tau * second / msecond  # tau_m [ms]
+    D = lam ** 2 / tau_m  # um^2/ms
 
-def plot_difussion_solution(times, x, r_of_x, V_s, verbose=True, dt: Quantity = 0 * ms):
-    if verbose:
-        assert have_same_dimensions(x[0], 1 * um)
-        assert have_same_dimensions(r_of_x[0], 1 * um)
-        assert have_same_dimensions(V_s[0][0], 1 * mV)
-        assert have_same_dimensions(times[0], 1 * ms)
+    t_rel = times - t0
+    # avoid t=0 singularity
+    heavyside = np.ones_like(t_rel)
+    heavyside[t_rel < 0] = 0
+    t_rel[t_rel < 0] = 1
 
-    fig, (ax1, ax2, ax3) = plt.subplots(
-        3, 1,
-        figsize=(8, 9),
-        gridspec_kw={'height_ratios': [3, 2, 1]}
+    pref_of_t = heavyside * p.I_e * p.R_lambda() * volt / mvolt * np.exp(- t_rel / tau_m)
+
+    L = p.L * meter / um
+    L_hat = p.L * meter / um
+    x_pos, n_s = np.meshgrid(desired_positions, np.arange(1, n_max))
+    cos_s = 2 / L_hat * np.cos(n_s * np.pi * x_pos / L) * np.cos(n_s * np.pi * x0 / L)
+
+    t_s, n_ts = np.meshgrid(t_rel, np.arange(1, n_max))
+    tu = np.exp(-D * (n_ts * np.pi / L) ** 2 * t_s)
+
+    V_s_theory = pref_of_t * (1 / L + cos_s.T @ tu)
+
+    return V_s_theory
+
+def plot_tuckwell_solution_closed_cable_difference(times, V_s, desired_positions, t0, x0, p, sim_type="forward Euler", t0_offset=80):
+
+    V_s_theory = compute_v_theory_tuckwell_closed_rod(times=times, desired_positions=desired_positions, t0=t0, x0=x0, p=p, n_max = 101)
+
+
+    times = times * second / ms
+    V_s = V_s * volt / mV
+    x = p.x * meter / um
+    x0 = x0 / um
+    t0 = t0 / ms
+
+
+    fig, axs = plt.subplots(
+        len(desired_positions), 1,
+        figsize=(11, 12)
     )
 
-    # ============================================
-    # Top: space-time voltage map
-    # ============================================
-    x = x / um
-    r_of_x = r_of_x / um
-    times = times / ms
-    V_s = V_s / mV
+    if len(desired_positions) == 1:
+        axs = [axs]
 
-    print("x:", x[0], x[-1], len(x))
-    print("times:", times[0], times[-1], len(times))
-    print("V_s:", V_s.shape)
+    for distance, ax, V_th in zip(desired_positions, axs, V_s_theory):
+        i = np.searchsorted(x, distance)
+        ti = np.searchsorted(times, t0) + t0_offset
+        # at ... quick drop
 
-    im = ax1.imshow(
-        V_s,
-        aspect='auto',
-        origin='lower',
-        extent=[x[0], x[-1], times[0], times[-1]],
-        cmap='cividis_r'
-        # vmax=0.05
-    )
+        mean_ratio = np.mean(V_s[ti:, i] / V_th[ti:])
 
-    fig.colorbar(im, ax=ax1, label="Voltage (mV)")
-
-    ax1.set_title(
-        f"Cable equation. Max V = {np.max(V_s):.4f} mV. dt={dt / second : .3e} second"
-    )
-    ax1.set_xlabel(r"x [$\mu$m]")
-    ax1.set_ylabel("t [ms]")
-
-    indices = [0, 3, 20, 50, 80, 99]
-    for i in indices:
-        ax2.plot(
-            times,
-            V_s[:, i],
-            label=f"x = {x[i]:.0f} "r"$\mu$m"
+        v_diff_simulation_minus_theory = V_s[:, i] - mean_ratio * V_th
+        ax.plot(
+            times[ti:],
+            v_diff_simulation_minus_theory[ti:],
+            label=f"Simulation - Theory (scaled)",
+            alpha=0.6,
+            lw=2
         )
+        ax.set_title(f"x={distance: .2f} "r"$\mu$"f"m, x0={x0:.0f} "r"$\mu$"f"m, t0 = {t0} ms \n "
+                     f"mean diff = {np.mean(v_diff_simulation_minus_theory[ti:]): .6e}")
 
-    ax2.set_xlabel("t [ms]")
-    ax2.set_ylabel("V [mV]")
-    ax2.set_title("Voltage at selected positions")
-    ax2.legend()
+        ax.axvline(x=t0, color='gray', linestyle=':', linewidth=1.5)
+        xticks = list(ax.get_xticks())
+        xticks.append(t0)
+        xticks = sorted(set(xticks))
+        ax.set_xticks(xticks)
 
-    # ============================================
-    # Bottom: cone geometry
-    # ============================================
+        # Replace only the t0 tick label
+        labels = []
+        for tick in xticks:
+            if abs(tick - t0) < 1e-12:
+                labels.append(r'$t_0$')
+            else:
+                labels.append(f'{tick:g}')
+        ax.set_xticklabels(labels)
 
-    r = r_of_x
+        ax.set_xlabel("t [ms]")
+        ax.set_ylabel("V(x) [mV]")
+        ax.legend()
+    fig.suptitle(f"Diff of {sim_type.capitalize()} Simulation vs Tuckwell theory closed rod dt={p.dt: .6e}. \n Computing difference in simulation vs fit from t = {times[ti]: .4f} ms")
+    fig.tight_layout()
 
-    # Cone walls
-    ax3.plot(x, r, 'k', linewidth=2)
-    ax3.plot(x, -r, 'k', linewidth=2)
-
-    # Fill cone
-    ax3.fill_between(
-        x,
-        -r,
-        r,
-        color='gray',
-        alpha=0.3
-    )
-
-    # Center axis y=0
-    ax3.axhline(
-        0,
-        color='gray',
-        linestyle=':',
-        linewidth=1.5
-    )
-
-    # Vertical line at x=0
-    ax3.axvline(
-        0,
-        color='gray',
-        linestyle='--',
-        linewidth=1.5
-    )
-
-    ax3.set_xlabel("x")
-    ax3.set_ylabel("radius")
-    ax3.set_title("Cable geometry")
-
-    # ax2.set_aspect('equal', adjustable='box')
-
-    plt.tight_layout()
-    plt.show()
-
+    show_plots_non_blocking()
 
 class CylindricalDendriticTreePDECase(unittest.TestCase):
 
@@ -1247,7 +1284,7 @@ class CylindricalDendriticTreePDECase(unittest.TestCase):
             #n_jobs=1 if is_debugging() else -1,
             backend="loky",
             verbose=10)(
-            delayed(simulate_crank_nicolson_split)(x_N=N, t_max=t_max, dt=dt, x0=x0, verbose=True)
+            delayed(simulate_crank_nicolson_split)(x_N=N, t_max=t_max, dt_=dt, x0=x0, verbose=True)
             for N, x0, dt, t_max in calls
         )
 
@@ -1290,7 +1327,7 @@ class CylindricalDendriticTreePDECase(unittest.TestCase):
         t0 = to_SI(0.1 * ms)
 
 
-        l  = lambda _: simulate_crank_nicolson_unitless_closed_cylinder(x_N=x_N, t_max = t_max, verbose=True, t0=t0, dt=dt, saved_frames = 600, x0=to_SI(250 * um))
+        l  = lambda _: simulate_crank_nicolson_unitless_closed_cylinder(x_N=x_N, t_max = t_max, verbose=True, t0=t0, dt_=dt, saved_frames = 600, x0=to_SI(250 * um))
         l_split = lambda _: simulate_crank_nicolson_split(x_N=x_N, t_max = t_max, verbose=True, t0=t0, dt=dt, saved_frames = 600, x0=to_SI(250 * um))
 
 
@@ -1348,27 +1385,31 @@ XXXXXXXXXXXXXXXX mean ratio for 1000-500: 0.14142
         t0 = to_SI(0.1 * ms)
 
 
-        l  = lambda _: simulate_crank_nicolson_constant_input_unitless(x_N=x_N, t_max = t_max, verbose=True, t0=t0, dt=dt, saved_frames = 600, x0=to_SI(250 * um))
+        l  = lambda _: simulate_crank_nicolson_constant_input_unitless(x_N=x_N, t_max = t_max, verbose=True, t0=t0, dt_=dt, saved_frames = 600, x0=to_SI(250 * um))
 
         results = Parallel(n_jobs=1)(
             delayed(func)(None) for func in [l]
         )
 
-    def test_difussion_pde_crank_nicolson_unitless(self, verbose=False, x_N=2001, t_max=to_SI(30 * ms)):
+    def test_difussion_pde_crank_nicolson_unitless(self, verbose=False, t_max=to_SI(30 * ms)):
 
-        x0_values = []
-        dts = [to_SI(1E-7 * second),  to_SI(0.5E-6 * second), to_SI(1E-6 * second), to_SI(0.5 * 1E-7 * second)]
-        calls = list(itertools.product(x0_values, dts))
+        x0_values = [to_SI(100*um), to_SI(200 * um), to_SI(450*um), to_SI(650*um), to_SI(850*um)]
+        #dts = [to_SI(1E-7 * second)]
+        dts = [to_SI(0.5 * 1E-8 * second), to_SI(1E-9 * second), to_SI(0.5* 1E-10 * second)]
+        L_s = [1500 * um, 2000 * um]
+        x_Ns = [1501, 2001]
+        calls = list(itertools.product(x0_values, dts, L_s, x_Ns))
 
-        simulate_crank_nicolson_split(x_N = x_N, x0=to_SI(250 * um), dt=dts[-1], t_max=to_SI(t_max), verbose=verbose)
-        simulate_crank_nicolson_unitless_closed_cylinder(x_N = x_N, x0=to_SI(250 * um), dt=dts[-1], t_max=to_SI(t_max), verbose=verbose)
-
-        '''
+        is_debug = False
         results = Parallel(
-            n_jobs=-3 if len(calls) > 2 else 1,  # use all CPU cores
+            n_jobs=1 if is_debug else -3,  # use all CPU cores
             backend="loky",  # process-based (default)
-            verbose=10)(delayed(solve)(x2, dt=dt, t_max=t_max, plot=True) for x2, dt in calls)
-        '''
+            verbose=10)(delayed(simulate_crank_nicolson_unitless_closed_cylinder)(x0 = x0, dt_=dt, t_max=t_max, verbose=True, x_N=x_n, L=to_SI(L), plot=False) for x0, dt, L, x_n in calls)
+
+
+        #simulate_crank_nicolson_split(x_N = x_N, x0=to_SI(250 * um), dt=dts[-1], t_max=to_SI(t_max), verbose=verbose)
+        #simulate_crank_nicolson_unitless_closed_cylinder(x_N = x_N, x0=to_SI(250 * um), dt=dts[-1], t_max=to_SI(t_max), verbose=verbose)
+
 
 
 if __name__ == '__main__':

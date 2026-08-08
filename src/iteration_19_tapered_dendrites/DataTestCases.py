@@ -1,14 +1,15 @@
 import unittest
+
+import matplotlib.pyplot as plt
 import numpy as np
 from brian2 import have_same_dimensions, farad, meter, ohm, second, msecond, uF, cm, um, siemens, ms, mvolt, volt, \
     ufarad, us, mm, uvolt
 from brian2.units.allunits import pampere, ampere, nampere, mampere, uampere
-
 from numpy.testing import assert_array_equal
 
 from Plotting import show_plots_non_blocking
 from iteration_19_tapered_dendrites.data import CableParameters, to_SI
-import matplotlib.pyplot as plt
+
 
 def cable_params():
 
@@ -239,6 +240,22 @@ class DataClassesTestCase(unittest.TestCase):
         self.assertAlmostEqual(np.sqrt(2) * 1E-3, p.lambd() / meter)
         self.assertAlmostEqual(np.sqrt(2) * 1E-3, p.to_numerical().lambd())
 
+    def test_r_lambda(self):
+        Rm = 2 * 1E4 * ohm * cm ** 2
+
+        p = CableParameters(c_m=1 * uF / cm ** 2,
+                            rm=Rm,
+                            gL=1 / Rm,
+                            ra=100 * ohm * cm,
+                            L=500.0 * um,
+                            N=101,
+                            r0=2 * um,
+                            I_e=150 * pampere)
+
+        self.assertTrue(have_same_dimensions(p.R_lambda(), ohm))
+        self.assertEqual(p.R_lambda(), p.ra * p.lambd() / (np.pi * p.r0**2))
+        p.lambd()
+
     def test_numbers_used_in_simulation(self):
         Rm = 2 * 1E4 * ohm * cm ** 2
 
@@ -364,6 +381,8 @@ class DataClassesTestCase(unittest.TestCase):
 
         # Prefactor
         prefactor = Ie * R_lambda / np.sqrt(4 * np.pi * times / tau_m)
+
+        print("XXXX ", p.lambd() ** 2 / tau_m)
 
         # Plot
         plt.figure(figsize=(7, 4))
@@ -748,8 +767,6 @@ class TestToSI(unittest.TestCase):
         self.assertIsNone(
             to_SI(None)
         )
-
-
 
 
 if __name__ == '__main__':

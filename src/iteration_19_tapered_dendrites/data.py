@@ -167,6 +167,9 @@ class CableParameters:
         lambda_sq = self.r0 * self.rm / (2 * self.ra)
         return np.sqrt(lambda_sq)
 
+    def R_lambda(self): # Ohm
+        return self.rm / (2 * np.pi * self.r0 * self.lambd())
+
     def __post_init__(self):
 
         # Rm -> gL

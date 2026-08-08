@@ -1,18 +1,17 @@
 import unittest
 
 import numpy as np
-from numpy.testing import assert_almost_equal, assert_array_equal
-
 from brian2 import ms, um, uamp, cm, have_same_dimensions, ufarad, ohm, second, mV, volt, Hz, meter, uF, coulomb, uvolt
 from brian2.units.allunits import mampere, pampere, ampere
+from numpy.testing import assert_allclose
+from numpy.testing import assert_array_equal
 from scipy.sparse import diags, eye
 from scipy.sparse.linalg import factorized
 
-from iteration_19_tapered_dendrites.CylindricalDendritesPDE import dirac_delta_unitless
-from iteration_19_tapered_dendrites.TaperredDendritesPDE import dirac_delta
-from numpy.testing import assert_allclose
-
 from CylindricalDendritesPDE import dirac_delta as dirac_cylindrical
+from iteration_19_tapered_dendrites.CylindricalDendritesPDE import dirac_delta_unitless, \
+    plot_tuckwell_solution_closed_cable, plot_tuckwell_solution_closed_cable_difference
+from iteration_19_tapered_dendrites.TaperredDendritesPDE import dirac_delta
 from iteration_19_tapered_dendrites.data import to_SI, CableParameters, NumericalCableParameters
 
 
@@ -313,6 +312,31 @@ class TestPDECases(unittest.TestCase):
         self.assertTrue(have_same_dimensions(result[0], 1 * mampere / cm ** 2))
         self.assertEqual(result.shape, (11,))
         assert_allclose(result / (uamp / cm ** 2), 0)
+
+    def test_diract_components_with_units(self):
+
+        c_m = 1 * uF / cm ** 2
+        Rm = 2 * 1E4 * ohm * cm ** 2
+        gL = 1 / Rm
+        # 1. Parameters
+        L = 500.0 * um
+        N = 11
+        x = np.linspace(0, L, N)
+        dx = L / (N - 1)  # um
+        dt = 0.1 * ms
+
+        tau = c_m / gL  # ms
+
+        w = 100 * pampere
+        r0 = 2 * um
+
+        delta_xt = 1.0 / (dx * dt)
+
+        i_e = w * tau / (2 * np.pi * r0) * delta_xt
+
+        self.assertTrue(have_same_dimensions(i_e, ampere / meter ** 2))
+        self.assertAlmostEqual(31.83098861837907, i_e /  pampere * um**2)
+        self.assertAlmostEqual(31.83098861837907, to_SI(i_e))
 
     def test_dirac_unitless_returns_float_array(self):
 
@@ -710,7 +734,27 @@ class TestForwardEulerInCylinderOneStep(unittest.TestCase):
         self.assertAlmostEqual(I_e * p.tau / (2 * np.pi * p.r0 * dx), V_n_plus_1_euler[x0_index])
         self.assertAlmostEqual(I_e * p.tau / (2 * np.pi * p.r0), V_n_plus_1_euler[x0_index] * dx)
 
+def load_simulation(filename):
 
+    data = np.load(filename)
+
+    times = data["times"]
+    V_s = data["V_s"]
+
+    simulation_params = default_params.with_SI_properties(
+        t=times[-1],
+        N=int(data["N"]),
+        dt=data["dt"],
+        L=data["L"],
+        I_e=data["I_e"],
+    )
+
+    p = simulation_params.to_numerical()
+
+    x0 = data["x0"] * meter
+    t0 = 0.1 * ms
+
+    return times, V_s, p, x0, t0
 
 class TestCrankNicolsonOneStep(unittest.TestCase):
 
@@ -837,6 +881,16 @@ class TestCrankNicolsonOneStep(unittest.TestCase):
         print(numerical_prefactor / theory_prefactor)
 
         print(self.si_units.tau * self.si_units.lambd() / self.si_units.rm)
+
+    def test_tuckwell_theory_vs_simulation(self):
+
+        times, V_s, p, x0, t0 = load_simulation("saved_simulations/cable_sim_N301_L500_dt10ns_x0250um.npz")
+        desired_positions = [250]
+
+        plot_tuckwell_solution_closed_cable(times=times, V_s = V_s, p=p, desired_positions= desired_positions, t0 = t0, x0 = x0, sim_type="Crank-Nicolson")
+        for offset in np.arange(5, 100, step=50):
+            plot_tuckwell_solution_closed_cable_difference(V_s=V_s, desired_positions=desired_positions, p=p, t0=t0,
+                                                           times=times, x0=x0, t0_offset=offset)
 
 
 if __name__ == '__main__':
