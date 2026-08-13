@@ -1,7 +1,8 @@
 import unittest
 
 import numpy as np
-from brian2 import ms, um, uamp, cm, have_same_dimensions, ufarad, ohm, second, mV, volt, Hz, meter, uF, coulomb, uvolt
+from brian2 import ms, um, uamp, cm, have_same_dimensions, ufarad, ohm, second, mV, volt, Hz, meter, uF, coulomb, uvolt, \
+    is_dimensionless
 from brian2.units.allunits import mampere, pampere, ampere
 from numpy.testing import assert_allclose
 from numpy.testing import assert_array_equal
@@ -10,9 +11,13 @@ from scipy.sparse.linalg import factorized
 
 from CylindricalDendritesPDE import dirac_delta as dirac_cylindrical
 from iteration_19_tapered_dendrites.CylindricalDendritesPDE import dirac_delta_unitless, \
-    plot_tuckwell_solution_closed_cable, plot_tuckwell_solution_closed_cable_difference
+    plot_tuckwell_solution_closed_cable, plot_tuckwell_solution_closed_cable_unitless_separation_of_variables, \
+    plot_difussion_unitless, plot_tuckwell_solution_closed_cable_unitless_method_of_images, \
+    compute_v_theory_tuckwell_closed_rod_unitless_method_of_images
 from iteration_19_tapered_dendrites.TaperredDendritesPDE import dirac_delta
 from iteration_19_tapered_dendrites.data import to_SI, CableParameters, NumericalCableParameters
+
+from numpy.testing import assert_allclose, assert_array_equal
 
 
 class TestPDECases(unittest.TestCase):
@@ -335,8 +340,8 @@ class TestPDECases(unittest.TestCase):
         i_e = w * tau / (2 * np.pi * r0) * delta_xt
 
         self.assertTrue(have_same_dimensions(i_e, ampere / meter ** 2))
-        self.assertAlmostEqual(31.83098861837907, i_e /  pampere * um**2)
-        self.assertAlmostEqual(31.83098861837907, to_SI(i_e))
+        self.assertAlmostEqual(31.830988618379067, i_e / pampere * um ** 2)
+        self.assertAlmostEqual(31.830988618379067, to_SI(i_e))
 
     def test_dirac_unitless_returns_float_array(self):
 
@@ -369,7 +374,7 @@ class TestPDECases(unittest.TestCase):
         self.assertIsInstance(result, np.ndarray)
         self.assertEqual(result.dtype, np.float64)
 
-        self.assertEqual(result[0], 31.83098861837907)
+        self.assertEqual(result[0], 31.830988618379067)
         assert_allclose(result[1:] / (uamp / cm ** 2), 0)
 
 
@@ -495,7 +500,7 @@ class TestLinearTaperCableOneStep(unittest.TestCase):
 
         assert_allclose(
             dVdt[1:-1] / (mV / ms),
-            np.ones(self.N-2) *
+            np.ones(self.N - 2) *
             (expected / (mV / ms)),
             rtol=1e-10,
             atol=1e-10
@@ -533,6 +538,7 @@ class TestLinearTaperCableOneStep(unittest.TestCase):
             )
         )
 
+
 Rm = 2 * 1E4 * ohm * cm ** 2
 default_params = CableParameters(c_m=1 * uF / cm ** 2,
                                  rm=Rm,
@@ -545,7 +551,6 @@ default_params = CableParameters(c_m=1 * uF / cm ** 2,
 
 
 def create_difussion_matrix(p: NumericalCableParameters):
-
     x = p.x
     dx = p.dx
 
@@ -563,11 +568,12 @@ def create_difussion_matrix(p: NumericalCableParameters):
     )
 
     # ensure boundary conditions automatically in A matrix
-    #A[0, 0] = -1 / tau - 2 * b / dx ** 2
+    # A[0, 0] = -1 / tau - 2 * b / dx ** 2
     A[0, 1] = 2 * b / dx ** 2
     A[-1, -2] = 2 * b / dx ** 2
-    #A[-1, -1] = -1 / tau - 2 * b / dx ** 2
+    # A[-1, -1] = -1 / tau - 2 * b / dx ** 2
     return A
+
 
 class TestForwardEulerInCylinderOneStep(unittest.TestCase):
 
@@ -579,13 +585,13 @@ class TestForwardEulerInCylinderOneStep(unittest.TestCase):
         self.assertEqual(1E-4, p.b)
         self.assertEqual(1, simulation_params.b / cm ** 2 * second)
 
-        self.assertAlmostEqual(np.sqrt(2)*1E-3, p.lambd())
+        self.assertAlmostEqual(np.sqrt(2) * 1E-3, p.lambd())
         self.assertAlmostEqual(np.sqrt(2) * 1E-3, simulation_params.lambd() / meter)
-        self.assertAlmostEqual(np.sqrt(2)*1E3, simulation_params.lambd() / um)
+        self.assertAlmostEqual(np.sqrt(2) * 1E3, simulation_params.lambd() / um)
         self.assertAlmostEqual(np.sqrt(2) / 10, simulation_params.lambd() / cm)
 
-        diag = -1/p.tau - 2 /25 * 1E6
-        diag_cp = -1/0.02 - 2 /25 * 1E6
+        diag = -1 / p.tau - 2 / 25 * 1E6
+        diag_cp = -1 / 0.02 - 2 / 25 * 1E6
         assert_array_equal(np.ones(9) * diag, A.diagonal()[1:10])
 
         diff = 1 / 25 * 1E6
@@ -595,9 +601,6 @@ class TestForwardEulerInCylinderOneStep(unittest.TestCase):
 
         assert_allclose(np.ones(9) * diff, A.diagonal(1)[1:])
         self.assertAlmostEqual(2 / 25 * 1E6, A.diagonal(1)[0])
-
-
-
 
     def test_parameter_values_moderate_N(self):
         simulation_params = default_params.with_property(t=10 * ms, N=101)
@@ -653,7 +656,6 @@ class TestForwardEulerInCylinderOneStep(unittest.TestCase):
         assert_allclose(np.ones(999) * diff, A.diagonal(1)[1:])
         self.assertAlmostEqual(2 / 25 * 1E10, A.diagonal(1)[0])
 
-
     def test_one_dirac_step(self):
         simulation_params = default_params.with_property(t=10 * ms, N=6)
         p = simulation_params.to_numerical()
@@ -681,8 +683,7 @@ class TestForwardEulerInCylinderOneStep(unittest.TestCase):
         i_of_t = synaptic_input_profile(t, x0, dt)
         inputed_current = dx * dt * np.sum(i_of_t)
 
-        self.assertEqual(I_e * p.tau / (2 * np.pi * p.r0), inputed_current)
-
+        self.assertAlmostEqual(I_e * p.tau / (2 * np.pi * p.r0), inputed_current, places=20)
 
         V_n_euler = np.copy(V)
         V_n_plus_1_euler = V_n_euler + dt * (A @ V_n_euler + i_of_t)
@@ -690,9 +691,8 @@ class TestForwardEulerInCylinderOneStep(unittest.TestCase):
         print(f"{I_e * p.tau / (2 * np.pi * p.r0 * dx) : .6e}")
         print(f"{V_n_plus_1_euler[2] : .6e}")
 
-        self.assertAlmostEqual(I_e * p.tau / (2 * np.pi * p.r0 * dx), V_n_plus_1_euler[2])
-        self.assertAlmostEqual(I_e * p.tau / (2 * np.pi * p.r0), V_n_plus_1_euler[2] * dx)
-
+        self.assertAlmostEqual(I_e * p.tau / (2 * np.pi * p.r0 * dx), float(V_n_plus_1_euler[2]))
+        self.assertAlmostEqual(I_e * p.tau / (2 * np.pi * p.r0), float(V_n_plus_1_euler[2] * dx))
 
     def test_current_injection_increased_x_discretization(self):
         simulation_params = default_params.with_property(t=10 * ms, N=101)
@@ -723,7 +723,7 @@ class TestForwardEulerInCylinderOneStep(unittest.TestCase):
         i_of_t = synaptic_input_profile(t, x0, dt)
         inputed_current = dx * dt * np.sum(i_of_t)
 
-        self.assertEqual(I_e * p.tau / (2 * np.pi * p.r0), inputed_current)
+        self.assertAlmostEqual(I_e * p.tau / (2 * np.pi * p.r0), float(inputed_current), places=20)
 
         V_n_euler = np.copy(V)
         V_n_plus_1_euler = V_n_euler + dt * (A @ V_n_euler + i_of_t)
@@ -734,8 +734,8 @@ class TestForwardEulerInCylinderOneStep(unittest.TestCase):
         self.assertAlmostEqual(I_e * p.tau / (2 * np.pi * p.r0 * dx), V_n_plus_1_euler[x0_index])
         self.assertAlmostEqual(I_e * p.tau / (2 * np.pi * p.r0), V_n_plus_1_euler[x0_index] * dx)
 
-def load_simulation(filename):
 
+def load_simulation(filename):
     data = np.load(filename)
 
     times = data["times"]
@@ -756,10 +756,11 @@ def load_simulation(filename):
 
     return times, V_s, p, x0, t0
 
+
 class TestCrankNicolsonOneStep(unittest.TestCase):
 
     def setUp(self):
-        simulation_params = default_params.with_property(t=10*ms, N=1001)
+        simulation_params = default_params.with_property(t=10 * ms, N=1001)
         self.si_units = simulation_params.to_numerical()
         self.dt = to_SI(1E-8 * second)
 
@@ -773,7 +774,6 @@ class TestCrankNicolsonOneStep(unittest.TestCase):
         b = self.si_units.b
         difussion = np.ones(len(x) - 1) * b / dx ** 2
         difussion_decay = np.ones(len(x)) * (-1 / tau - 2 * b / dx ** 2)
-
 
         # Sparse tridiagonal matrix
         A = diags(
@@ -806,7 +806,7 @@ class TestCrankNicolsonOneStep(unittest.TestCase):
         dx = self.si_units.dx
 
         def synaptic_input_profile(t, x0, dt):
-            return dirac_delta_unitless(x0=x0, t0=to_SI(1 * ms), x=self.si_units.x, t=t, dx=dx, dt=dt, I_e=I_e,
+            return 1 / self.si_units.c_m *  dirac_delta_unitless(x0=x0, t0=to_SI(1 * ms), x=self.si_units.x, t=t, dx=dx, dt=dt, I_e=I_e,
                                         tau_m=self.si_units.tau, r_of_x=self.si_units.r0)
 
         t = to_SI(1 * ms) - 1E-10
@@ -814,65 +814,30 @@ class TestCrankNicolsonOneStep(unittest.TestCase):
 
         id_x0 = np.searchsorted(self.si_units.x, x0)
         # RHS
-        syn_input_t = synaptic_input_profile(t=t, x0=x0, dt=dt / 2)
-        syn_input_t_half = synaptic_input_profile(t=t + dt / 2, x0=x0, dt=dt / 2)
-        input_t_and_t_half = 1 / 2 * dt * (syn_input_t + syn_input_t_half)
+        # dt/2 is a bug It is incorrect!!. Why? We always multiply by dt. So normalizing by dt/2 actually doubles the area
+        syn_input_t = synaptic_input_profile(t=t, x0=x0, dt=dt)
+        syn_input_t_plus_one = synaptic_input_profile(t=t + dt, x0=x0, dt=dt)
+        input_t_and_t_half = 1 / 2 * (syn_input_t + syn_input_t_plus_one)
 
-        inputed_current = dx * dt/2 * np.sum(syn_input_t)
+        inputed_charge = I_e * self.si_units.tau
+        inputed_voltage = dx * dt * np.sum(syn_input_t)
 
-        self.assertEqual(I_e * self.si_units.tau / (2 * np.pi * self.si_units.r0), inputed_current)
+        self.assertAlmostEqual(I_e * self.si_units.tau / (2 * np.pi * self.si_units.r0) / self.si_units.c_m, float(inputed_voltage), places=20)
+        self.assertAlmostEqual(0.5 * I_e * self.si_units.tau / (2 * np.pi * self.si_units.r0) / self.si_units.c_m, float(dx * dt * np.sum(input_t_and_t_half)), places=20)
 
-        self.assertEqual(0 , np.sum(syn_input_t_half))
-
+        self.assertEqual(0, np.sum(syn_input_t_plus_one))
 
         V_n_euler = np.copy(V)
-        V_n_plus_1_euler = V_n_euler + dt * ( self.A @ V_n_euler + input_t_and_t_half)
+        V_n_plus_1_euler = V_n_euler + dt * (self.A @ V_n_euler + input_t_and_t_half)
 
         print(f"{I_e * self.si_units.tau / (2 * np.pi * self.si_units.r0) : .6e}")
-        print(f"{V_n_plus_1_euler[500] * dt : .6e}")
+        print(f"{V_n_plus_1_euler[500] : .6e}")
 
-        self.assertEqual(I_e * self.si_units.tau / (2 * np.pi * self.si_units.r0 * dx), V_n_plus_1_euler[500])
+        self.assertAlmostEqual(0.5 * I_e * self.si_units.tau/self.si_units.c_m / (2 * np.pi * self.si_units.r0), V_n_plus_1_euler[500] * dx, places=20)
 
-        rhs = self.R @ V + input_t_and_t_half
-        # Solve:
-        # (I - dt/2 A) V_new = rhs
-        V_t_plus_1 = self.solve(rhs)
-
-        print("Input ", input_t_and_t_half[id_x0-3:id_x0+3])
-        print("R@V ", (self.R @ V)[id_x0-3:id_x0+3])
-        print("R@V + input", (self.R @ V + input_t_and_t_half)[id_x0-3:id_x0+3])
-        print("V t+1",V_t_plus_1[id_x0-4:id_x0+4] * volt / uvolt)
-
-        V_t_plus_1_uvolt = V_t_plus_1[id_x0 - 4:id_x0 + 4] * volt / uvolt
-
-        mu = self.si_units.b * self.dt / self.si_units.dx ** 2
-        lambda_ = self.dt / self.si_units.tau
-
-        print(mu, lambda_)
-
-        injected_charge = (
-                np.sum(input_t_and_t_half)
-                *
-                (2 * np.pi * self.si_units.r0 * self.si_units.dx)
-        )
-
-        expected_voltage = I_e * self.si_units.tau / (2 * np.pi * self.si_units.r0 * self.si_units.dx * self.si_units.c_m)
-        print("Expected:", expected_voltage)
-        print("Actual:", V_t_plus_1[id_x0])
-
-        self.assertAlmostEqual(expected_voltage, V_t_plus_1[id_x0])
-
-        expected_charge = I_e * self.si_units.tau
-
-        self.assertAlmostEqual(
-            injected_charge,
-            expected_charge,
-            delta=expected_charge * 1e-12
-        )
+        # cmn iteration is tested somewhere else
 
     def test_prefactor(self):
-
-
         numerical_prefactor = self.si_units.I_e * self.si_units.tau / (2 * np.pi * self.si_units.r0)
 
         theory_prefactor = self.si_units.I_e * self.si_units.R_lambda()
@@ -883,15 +848,338 @@ class TestCrankNicolsonOneStep(unittest.TestCase):
         print(self.si_units.tau * self.si_units.lambd() / self.si_units.rm)
 
     def test_tuckwell_theory_vs_simulation(self):
+        times_unitless, V_s_unitless, p, x0, t0 = load_simulation(
+            "saved_simulations/cable_sim_N1501_L500_t_max30ms_dt50ps_x09.999999999999999e-05um.npz")
+        desired_positions = np.array([100, 250, 500]) * um
+        desired_positions_unitless = desired_positions / um
 
-        times, V_s, p, x0, t0 = load_simulation("saved_simulations/cable_sim_N301_L500_dt10ns_x0250um.npz")
-        desired_positions = [250]
+        self.assertTrue(is_dimensionless(times_unitless[-1]))
+        self.assertTrue(is_dimensionless(V_s_unitless[-1, -1]))
+        self.assertEqual(NumericalCableParameters, p.__class__)
+        self.assertTrue(have_same_dimensions(x0, meter))
+        self.assertTrue(have_same_dimensions(t0, second))
 
-        plot_tuckwell_solution_closed_cable(times=times, V_s = V_s, p=p, desired_positions= desired_positions, t0 = t0, x0 = x0, sim_type="Crank-Nicolson")
+        times = np.array(times_unitless) * second
+        V_s = np.array(V_s_unitless) * volt
+        p_units = CableParameters.from_numerical(p)
+
+        # TODO: maybe here, V_s should be, actually, unitless!
+        plot_tuckwell_solution_closed_cable_unitless_method_of_images(times=times_unitless, V_s=V_s_unitless,
+                                                                      p=p,
+                                                                      desired_positions=desired_positions_unitless,
+                                                                      t0=t0, x0=x0,
+                                                                      sim_type="Crank-Nicolson")
+        plot_tuckwell_solution_closed_cable(times=times, V_s=V_s, p=p_units, desired_positions=desired_positions, t0=t0,
+                                            x0=x0, sim_type="Crank-Nicolson")
+        plot_tuckwell_solution_closed_cable_unitless_separation_of_variables(times=times_unitless, V_s=V_s_unitless, p=p,
+                                                                             desired_positions=desired_positions_unitless, t0=t0, x0=x0,
+                                                                             sim_type="Crank-Nicolson")
+        '''
         for offset in np.arange(5, 100, step=50):
             plot_tuckwell_solution_closed_cable_difference(V_s=V_s, desired_positions=desired_positions, p=p, t0=t0,
                                                            times=times, x0=x0, t0_offset=offset)
+        '''
 
+    def test_tuckwell_theory_vs_simulation_method_of_images(self):
+        times_unitless, V_s_unitless, p, x0, t0 = load_simulation(
+            "saved_simulations/cable_sim_N1501_L500_t_max30ms_dt50ps_x09.999999999999999e-05um.npz")
+        times_unitless, V_s_unitless, p, x0, t0 = load_simulation(
+            "saved_simulations/cable_sim_N1501_L500_t_max30ms_dt5000ps_x09.999999999999999e-05um.npz")
+        desired_positions_unitless = np.array([100])
+
+        plot_tuckwell_solution_closed_cable_unitless_method_of_images(times=times_unitless, V_s=V_s_unitless,
+                                                                      p=p,
+                                                                      desired_positions=desired_positions_unitless,
+                                                                      t0=t0, x0=x0,
+                                                                      sim_type="Crank-Nicolson")
+
+
+    def test_plot_simulation(self):
+        times, V_s, p, x0, t0 = load_simulation(
+            "saved_simulations/cable_sim_N1501_L1500_t_max0_500ms_dt50ps_x00.00025um.npz")
+        plot_difussion_unitless(times=times, V_s=V_s, p=p, t0=t0, x0=x0, sim_type="Crank-Nicolson", save=False)
+
+    def test_CN_steps(self):
+        for N in [11, 101, 1001]:
+            simulation_params = default_params.with_SI_properties(t=to_SI(1 * ms), N=N, dt=1E-8, L=to_SI(500 * um),
+                                                                  I_e=to_SI(150 * pampere))
+            p = simulation_params.to_numerical()
+
+            # 1. Parameters
+            dx = p.dx
+            dt = p.dt
+            tau = p.tau
+            x = p.x
+            x0 = to_SI(250 * um)
+            I_e = p.I_e
+
+            x_inj_index = 5
+
+            b = p.b
+            difussion = np.ones(len(x) - 1) * b / dx ** 2
+            difussion_decay = np.ones(len(x)) * (-1 / tau - 2 * b / dx ** 2)
+
+            # Sparse tridiagonal matrix
+            A = diags(
+                diagonals=[difussion, difussion_decay, difussion],
+                offsets=[-1, 0, 1],
+                format="lil"
+            )
+
+            # ensure boundary conditions automatically in A matrix
+            A[0, 0] = -1 / tau - 2 * b / dx ** 2
+            A[0, 1] = 2 * b / dx ** 2
+            A[-1, -2] = 2 * b / dx ** 2
+            A[-1, -1] = -1 / tau - 2 * b / dx ** 2
+
+            # Identity matrix
+            I = eye(A.shape[0], format="csc")
+
+            # Crank-Nicolson matrices
+            L = (I - 0.5 * p.dt * A).tocsc()
+            R = (I + 0.5 * p.dt * A).tocsc()
+
+            # Factorize once
+            solve = factorized(L)
+
+            # I want to say Vi-1 => V_i => V_i+1. Delta pulse should be at time step i. I.e. close to t_i
+            V = np.zeros(len(x))
+
+            t0 = to_SI(0.1 * ms)
+            t_i = t0 - 0.1 * dt
+            t_i_minus_3 = t_i - 3 * dt
+            t_i_minus_2 = t_i - 2 * dt
+            t_i_minus_1 = t_i - dt
+            t_i_plus_1 = t_i + dt
+
+            def synaptic_input_profile(t, x0, dt, p):
+                return dirac_delta_unitless(x0=x0, t0=t0, x=x, t=t, dx=dx, dt=dt, I_e=I_e,
+                                            tau_m=p.tau, r_of_x=p.r0)
+
+            def one_CN_step(V, t, dt):
+                # V = V_i
+                delta_i = synaptic_input_profile(t=t, x0=x0, dt=dt, p=p)
+                delta_i_plus_1 = synaptic_input_profile(t=t + p.dt, x0=x0, dt=dt, p=p)
+                source = 1 / 2 * dt * 1 / p.c_m * (delta_i + delta_i_plus_1)
+
+                rhs = R @ V + source
+                return solve(rhs), delta_i, delta_i_plus_1, source
+
+            V0 = V.copy()
+            V_i_minus_2, S_i_minus_2, S_i_minus_1, source_0 = one_CN_step(V, t=t_i_minus_3, dt=p.dt)
+            V_i_minus_1, S_i_minus_1_again, S_i, source_1 = one_CN_step(V_i_minus_2, t=t_i_minus_2, dt=p.dt)
+            V_i, S_i_again, S_i_plus_1, source_2 = one_CN_step(V_i_minus_1, t=t_i_minus_1, dt=p.dt)
+            V_i_plus_1, S_i_plus_1_again, S_i_plus_2, source_3 = one_CN_step(V_i, t=t_i, dt=p.dt)
+            V_i_plus_2, S_i_plus_2_again, S_i_plus_3, source_4 = one_CN_step(V_i_plus_1, t=t_i_plus_1, dt=p.dt)
+
+            # verify delta pulses
+            self.assertEqual(0, np.sum(source_0), "nothing injected")
+            self.assertEqual(0, np.sum(V_i_minus_2), "no voltage update")
+            self.assertEqual(0, np.sum(source_1), "nothing injected")
+            self.assertEqual(0, np.sum(V_i_minus_1), "no voltage update")
+            self.assertAlmostEqual(p.I_e * p.tau / 2, np.sum(source_2) * p.dx * 2 * np.pi * p.r0 * p.c_m, msg=f"N={N}: Q/2 inserted at interation i", places=24)
+            self.assertAlmostEqual(p.I_e * p.tau / 2, np.sum(source_3) * p.dx * 2 * np.pi * p.r0 * p.c_m, msg=f"N={N}:Q/2 inserted at interation i+1", places=24)
+            self.assertEqual(0, np.sum(source_4), "nothing injected")
+
+
+
+            assert_array_equal(S_i_minus_1, S_i_minus_1_again)
+            assert_array_equal(S_i, S_i_again)
+            assert_array_equal(S_i_plus_1, S_i_plus_1_again)
+
+            # dQ = cm * V d Area, d Area = 2 pi r0 dx, Q = int 2 pi a cm int v dx
+            # also, around injection point, x0, V(x, t0) = Ie rm / 2 pi a * delta (x-x0). So we have to integrate
+            # thus, int v dx = Ie rm / 2 pi a => we haev integral Vdx expressed in 2 ways
+            # from dQ = cm V dA, by integrating we get Q = 2 pi a int dx v(x)  * c_m
+            # \int v(x, t) dx = \int I_e r_m / (2 pi a) \delta(x) dx
+            total_charge = p.I_e * p.tau
+
+            def total_charge_on_membrane(V, p):
+                return 2 * np.pi * p.r0 * p.c_m * np.sum(V) * p.dx
+
+            leak_q_decay_approx_in_one_half_step = 0.5 * total_charge * (dt / (2*p.tau)) / (1 + (dt/2*p.tau))
+
+            self.assertAlmostEqual(total_charge / 2 - total_charge_on_membrane(V_i, p), leak_q_decay_approx_in_one_half_step, places=24)
+            self.assertAlmostEqual(total_charge / (2 * (1 + dt/(2 * tau))), total_charge_on_membrane(V_i, p), places=24,
+                                   msg="1 step of solving CN explicitly")
+
+            # dQ = cm * V d Area, d Area = 2 pi r0 dx, Q = int 2 pi a cm int v dx
+            # also, around injection point, x0, V(x, t0) = Ie rm / 2 pi a * delta (x-x0). So we have to integrate
+            # thus, int v dx = Ie rm / 2 pi a => we haev integral Vdx expressed in 2 ways
+
+            expected_total_leak = total_charge * (
+                    1 - 1 / (1 + dt/(2 * p.tau)) ** 2
+            )
+
+            self.assertAlmostEqual(
+                total_charge - total_charge_on_membrane(V_i_plus_1, p),
+                expected_total_leak,
+                places=20,
+            )
+            '''
+            Q_{\text{leak}, t_{i} \rightarrow t_{i+1}} = \frac{\bar Q}{2} 
+            \frac{3 \frac{\Delta t}{2\tau} + \left(\frac{\Delta t}{2 \tau}\right)^2}{\left(1 + \frac{\Delta t}{2 \tau}\right)^2}
+            '''
+            leak_q_decay_approx_in_i_to_i_dt_half = 0.5 * total_charge * (3*dt/(2 * p.tau) + (dt/(2 * p.tau))**2) / (1 + dt/(2 * p.tau))**2
+            self.assertAlmostEqual(total_charge, total_charge_on_membrane(V_i_plus_1, p)
+                                   + leak_q_decay_approx_in_one_half_step
+                                   + leak_q_decay_approx_in_i_to_i_dt_half, places=20)
+            self.assertAlmostEqual(total_charge / 2 -  np.sum(V_i_plus_1 - V_i) * p.dx * 2 * np.pi * p.r0 * p.c_m,
+                                   leak_q_decay_approx_in_i_to_i_dt_half,
+                                   msg="total charge input increases voltage in the whole system", places=20)
+
+    def test_no_difussion_on_uniform_rod(self):
+        simulation_params = default_params.with_SI_properties(t=to_SI(1 * ms), N=1001, dt=1E-8, L=to_SI(500 * um),
+                                                              I_e=to_SI(150 * pampere))
+        p = simulation_params.to_numerical()
+
+        # 1. Parameters
+        dx = p.dx
+        dt = p.dt
+        tau = p.tau
+        x = p.x
+
+        b = p.b
+        difussion = np.ones(len(x) - 1) * b / dx ** 2
+        difussion_decay = np.ones(len(x)) * (-1 / tau - 2 * b / dx ** 2)
+
+        # Sparse tridiagonal matrix
+        A = diags(
+            diagonals=[difussion, difussion_decay, difussion],
+            offsets=[-1, 0, 1],
+            format="lil"
+        )
+
+        # ensure boundary conditions automatically in A matrix
+        A[0, 0] = -1 / tau - 2 * b / dx ** 2
+        A[0, 1] = 2 * b / dx ** 2
+        A[-1, -2] = 2 * b / dx ** 2
+        A[-1, -1] = -1 / tau - 2 * b / dx ** 2
+
+        # Identity matrix
+        I = eye(A.shape[0], format="csc")
+
+        # Crank-Nicolson matrices
+        L = (I - 0.5 * p.dt * A).tocsc()
+        R = (I + 0.5 * p.dt * A).tocsc()
+        solve = factorized(L)
+
+        V0 = np.ones(len(x)) * 1.0
+
+        V1 = solve(R @ V0)
+
+        cn_factor = (1 - dt / (2 * tau)) / (1 + dt / (2 * tau))
+
+        np.testing.assert_allclose(
+            V1,
+            cn_factor * V0,
+            rtol=1e-13,
+            atol=1e-15,
+            err_msg="Constant solution does not decay with the CN leak factor",
+        )
+
+        n_steps = 100
+        V = np.ones(len(x))
+        for _ in range(n_steps):
+            V = solve(R @ V)
+
+        expected_factor = ((1 - dt / (2 * tau)) / (1 + dt / (2 * tau))) ** n_steps
+
+        np.testing.assert_allclose(
+            V,
+            expected_factor * np.ones(len(x)),
+            rtol=1e-12,
+            atol=1e-14,
+        )
+
+    def test_error_convergence(self):
+        simulation_params = default_params.with_SI_properties(
+            t=to_SI(1 * ms),
+            N=1001,
+            dt=1e-5,
+            L=to_SI(500 * um),
+            I_e=to_SI(150 * pampere),
+        )
+        p = simulation_params.to_numerical()
+
+        tau = p.tau
+        V0 = 1.0
+
+        T = 0.1 * tau
+
+        def cn_decay(dt):
+            n = int(round(T / dt))
+            V = V0
+
+            cn_factor = (1 - dt / (2 * tau)) / (
+                                1 + dt / (2 * tau)
+                        )
+
+            for _ in range(n):
+                V *= cn_factor
+
+            return V
+
+        V_exact = np.exp(-T / tau)
+
+        E_dt = abs(cn_decay(1e-5) - V_exact)
+        E_dt2 = abs(cn_decay(5e-6) - V_exact)
+
+        observed_order = np.log2(E_dt / E_dt2)
+
+        self.assertAlmostEqual(
+            observed_order,
+            2.0,
+            places=1,
+        )
+
+    def test_try_to_understand_divergence_at_t_0(self):
+
+        one_file = ["saved_simulations/cable_sim_N101_L500_t_max0_300ms_dt10000ps_x00.00025um.npz"]
+        files = ["saved_simulations/cable_sim_N101_L500_t_max0_300ms_dt10000ps_x00.00025um.npz",
+                 "saved_simulations/cable_sim_N1001_L500_t_max0_300ms_dt10000ps_x00.00025um.npz",
+                 "saved_simulations/cable_sim_N2001_L500_t_max0_300ms_dt10000ps_x00.00025um.npz"]
+
+        for file in files:
+
+            times_unitless, V_s_unitless, p, x0, t0 = load_simulation(file)
+            #desired_positions = np.array([100, 250, 500]) * um
+            desired_positions = np.array([250]) * um
+            desired_positions_unitless = desired_positions / um
+
+
+
+            times = np.array(times_unitless) * second
+            V_s = np.array(V_s_unitless) * volt
+            p_units = CableParameters.from_numerical(p)
+
+            V_s_theory = compute_v_theory_tuckwell_closed_rod_unitless_method_of_images(times=times_unitless,
+                                                                                        desired_positions=desired_positions_unitless,
+                                                                                        t0=t0, x0=x0, p=p, n_max=101)
+
+            plot_tuckwell_solution_closed_cable_unitless_method_of_images(times=times_unitless, V_s=V_s_unitless,
+                                                                          p=p,
+                                                                          desired_positions=desired_positions_unitless,
+                                                                          t0=t0, x0=x0,
+                                                                          sim_type="Crank-Nicolson")
+            injection_time_id = np.searchsorted(times, 0.1 * ms)
+            injection_possition_id = np.searchsorted(p.x, 250 * um)
+            print(V_s[injection_time_id, injection_possition_id])
+
+            # how much charge do we have:
+            print(np.sum(V_s[injection_time_id+1, :]) * p.dx * 2 * np.pi * p.r0 * p.c_m / (p.I_e * p.tau))
+
+
+            # the issue: in t0, tuckwell's closed form formula is not "spread" while our spread is always
+            # dx. But, when comparing the integral over dx of the 2 functions, we should obtain the same quantity.
+            # hence this test.
+            int_cn = np.sum(V_s[injection_time_id, :] / volt) * p.dx
+            int_tuckwell = (
+                    p.I_e * p.rm / (2 * np.pi * p.r0)
+                    * np.exp(-(times[injection_time_id] - t0) / p_units.tau)
+            )
+
+            self.assertAlmostEqual(1, float(int_cn / int_tuckwell), places=12)
 
 if __name__ == '__main__':
     unittest.main()
