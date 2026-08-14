@@ -676,23 +676,23 @@ class TestForwardEulerInCylinderOneStep(unittest.TestCase):
 
         def synaptic_input_profile(t, x0, dt):
             return dirac_delta_unitless(x0=x0, t0=t0, x=p.x, t=t, dx=dx, dt=dt, I_e=I_e,
-                                        tau_m=p.tau, r_of_x=p.r0)
+                                        tau_m=p.tau, r_of_x=p.r_at_0)
 
         t = t0 - 0.1 * dt
 
         i_of_t = synaptic_input_profile(t, x0, dt)
         inputed_current = dx * dt * np.sum(i_of_t)
 
-        self.assertAlmostEqual(I_e * p.tau / (2 * np.pi * p.r0), inputed_current, places=20)
+        self.assertAlmostEqual(I_e * p.tau / (2 * np.pi * p.r_at_0), inputed_current, places=20)
 
         V_n_euler = np.copy(V)
         V_n_plus_1_euler = V_n_euler + dt * (A @ V_n_euler + i_of_t)
 
-        print(f"{I_e * p.tau / (2 * np.pi * p.r0 * dx) : .6e}")
+        print(f"{I_e * p.tau / (2 * np.pi * p.r_at_0 * dx) : .6e}")
         print(f"{V_n_plus_1_euler[2] : .6e}")
 
-        self.assertAlmostEqual(I_e * p.tau / (2 * np.pi * p.r0 * dx), float(V_n_plus_1_euler[2]))
-        self.assertAlmostEqual(I_e * p.tau / (2 * np.pi * p.r0), float(V_n_plus_1_euler[2] * dx))
+        self.assertAlmostEqual(I_e * p.tau / (2 * np.pi * p.r_at_0 * dx), float(V_n_plus_1_euler[2]))
+        self.assertAlmostEqual(I_e * p.tau / (2 * np.pi * p.r_at_0), float(V_n_plus_1_euler[2] * dx))
 
     def test_current_injection_increased_x_discretization(self):
         simulation_params = default_params.with_property(t=10 * ms, N=101)
@@ -714,7 +714,7 @@ class TestForwardEulerInCylinderOneStep(unittest.TestCase):
 
         def synaptic_input_profile(t, x0, dt):
             return dirac_delta_unitless(x0=x0, t0=t0, x=p.x, t=t, dx=dx, dt=dt, I_e=I_e,
-                                        tau_m=p.tau, r_of_x=p.r0)
+                                        tau_m=p.tau, r_of_x=p.r_at_0)
 
         t = t0 - 0.1 * dt
 
@@ -723,16 +723,16 @@ class TestForwardEulerInCylinderOneStep(unittest.TestCase):
         i_of_t = synaptic_input_profile(t, x0, dt)
         inputed_current = dx * dt * np.sum(i_of_t)
 
-        self.assertAlmostEqual(I_e * p.tau / (2 * np.pi * p.r0), float(inputed_current), places=20)
+        self.assertAlmostEqual(I_e * p.tau / (2 * np.pi * p.r_at_0), float(inputed_current), places=20)
 
         V_n_euler = np.copy(V)
         V_n_plus_1_euler = V_n_euler + dt * (A @ V_n_euler + i_of_t)
 
-        print(f"{I_e * p.tau / (2 * np.pi * p.r0 * dx) : .6e}")
+        print(f"{I_e * p.tau / (2 * np.pi * p.r_at_0 * dx) : .6e}")
         print(f"{V_n_plus_1_euler[2] : .6e}")
 
-        self.assertAlmostEqual(I_e * p.tau / (2 * np.pi * p.r0 * dx), V_n_plus_1_euler[x0_index])
-        self.assertAlmostEqual(I_e * p.tau / (2 * np.pi * p.r0), V_n_plus_1_euler[x0_index] * dx)
+        self.assertAlmostEqual(I_e * p.tau / (2 * np.pi * p.r_at_0 * dx), V_n_plus_1_euler[x0_index])
+        self.assertAlmostEqual(I_e * p.tau / (2 * np.pi * p.r_at_0), V_n_plus_1_euler[x0_index] * dx)
 
 
 def load_simulation(filename):
@@ -807,7 +807,7 @@ class TestCrankNicolsonOneStep(unittest.TestCase):
 
         def synaptic_input_profile(t, x0, dt):
             return 1 / self.si_units.c_m *  dirac_delta_unitless(x0=x0, t0=to_SI(1 * ms), x=self.si_units.x, t=t, dx=dx, dt=dt, I_e=I_e,
-                                        tau_m=self.si_units.tau, r_of_x=self.si_units.r0)
+                                                                 tau_m=self.si_units.tau, r_of_x=self.si_units.r_at_0)
 
         t = to_SI(1 * ms) - 1E-10
         x0 = to_SI(250 * um)
@@ -822,23 +822,23 @@ class TestCrankNicolsonOneStep(unittest.TestCase):
         inputed_charge = I_e * self.si_units.tau
         inputed_voltage = dx * dt * np.sum(syn_input_t)
 
-        self.assertAlmostEqual(I_e * self.si_units.tau / (2 * np.pi * self.si_units.r0) / self.si_units.c_m, float(inputed_voltage), places=20)
-        self.assertAlmostEqual(0.5 * I_e * self.si_units.tau / (2 * np.pi * self.si_units.r0) / self.si_units.c_m, float(dx * dt * np.sum(input_t_and_t_half)), places=20)
+        self.assertAlmostEqual(I_e * self.si_units.tau / (2 * np.pi * self.si_units.r_at_0) / self.si_units.c_m, float(inputed_voltage), places=20)
+        self.assertAlmostEqual(0.5 * I_e * self.si_units.tau / (2 * np.pi * self.si_units.r_at_0) / self.si_units.c_m, float(dx * dt * np.sum(input_t_and_t_half)), places=20)
 
         self.assertEqual(0, np.sum(syn_input_t_plus_one))
 
         V_n_euler = np.copy(V)
         V_n_plus_1_euler = V_n_euler + dt * (self.A @ V_n_euler + input_t_and_t_half)
 
-        print(f"{I_e * self.si_units.tau / (2 * np.pi * self.si_units.r0) : .6e}")
+        print(f"{I_e * self.si_units.tau / (2 * np.pi * self.si_units.r_at_0) : .6e}")
         print(f"{V_n_plus_1_euler[500] : .6e}")
 
-        self.assertAlmostEqual(0.5 * I_e * self.si_units.tau/self.si_units.c_m / (2 * np.pi * self.si_units.r0), V_n_plus_1_euler[500] * dx, places=20)
+        self.assertAlmostEqual(0.5 * I_e * self.si_units.tau / self.si_units.c_m / (2 * np.pi * self.si_units.r_at_0), V_n_plus_1_euler[500] * dx, places=20)
 
         # cmn iteration is tested somewhere else
 
     def test_prefactor(self):
-        numerical_prefactor = self.si_units.I_e * self.si_units.tau / (2 * np.pi * self.si_units.r0)
+        numerical_prefactor = self.si_units.I_e * self.si_units.tau / (2 * np.pi * self.si_units.r_at_0)
 
         theory_prefactor = self.si_units.I_e * self.si_units.R_lambda()
         # r_lambda =  self.rm / (2 * np.pi * self.r0 * self.lambd())
@@ -954,7 +954,7 @@ class TestCrankNicolsonOneStep(unittest.TestCase):
 
             def synaptic_input_profile(t, x0, dt, p):
                 return dirac_delta_unitless(x0=x0, t0=t0, x=x, t=t, dx=dx, dt=dt, I_e=I_e,
-                                            tau_m=p.tau, r_of_x=p.r0)
+                                            tau_m=p.tau, r_of_x=p.r_at_0)
 
             def one_CN_step(V, t, dt):
                 # V = V_i
@@ -977,8 +977,8 @@ class TestCrankNicolsonOneStep(unittest.TestCase):
             self.assertEqual(0, np.sum(V_i_minus_2), "no voltage update")
             self.assertEqual(0, np.sum(source_1), "nothing injected")
             self.assertEqual(0, np.sum(V_i_minus_1), "no voltage update")
-            self.assertAlmostEqual(p.I_e * p.tau / 2, np.sum(source_2) * p.dx * 2 * np.pi * p.r0 * p.c_m, msg=f"N={N}: Q/2 inserted at interation i", places=24)
-            self.assertAlmostEqual(p.I_e * p.tau / 2, np.sum(source_3) * p.dx * 2 * np.pi * p.r0 * p.c_m, msg=f"N={N}:Q/2 inserted at interation i+1", places=24)
+            self.assertAlmostEqual(p.I_e * p.tau / 2, np.sum(source_2) * p.dx * 2 * np.pi * p.r_at_0 * p.c_m, msg=f"N={N}: Q/2 inserted at interation i", places=24)
+            self.assertAlmostEqual(p.I_e * p.tau / 2, np.sum(source_3) * p.dx * 2 * np.pi * p.r_at_0 * p.c_m, msg=f"N={N}:Q/2 inserted at interation i+1", places=24)
             self.assertEqual(0, np.sum(source_4), "nothing injected")
 
 
@@ -995,7 +995,7 @@ class TestCrankNicolsonOneStep(unittest.TestCase):
             total_charge = p.I_e * p.tau
 
             def total_charge_on_membrane(V, p):
-                return 2 * np.pi * p.r0 * p.c_m * np.sum(V) * p.dx
+                return 2 * np.pi * p.r_at_0 * p.c_m * np.sum(V) * p.dx
 
             leak_q_decay_approx_in_one_half_step = 0.5 * total_charge * (dt / (2*p.tau)) / (1 + (dt/2*p.tau))
 
@@ -1024,7 +1024,7 @@ class TestCrankNicolsonOneStep(unittest.TestCase):
             self.assertAlmostEqual(total_charge, total_charge_on_membrane(V_i_plus_1, p)
                                    + leak_q_decay_approx_in_one_half_step
                                    + leak_q_decay_approx_in_i_to_i_dt_half, places=20)
-            self.assertAlmostEqual(total_charge / 2 -  np.sum(V_i_plus_1 - V_i) * p.dx * 2 * np.pi * p.r0 * p.c_m,
+            self.assertAlmostEqual(total_charge / 2 - np.sum(V_i_plus_1 - V_i) * p.dx * 2 * np.pi * p.r_at_0 * p.c_m,
                                    leak_q_decay_approx_in_i_to_i_dt_half,
                                    msg="total charge input increases voltage in the whole system", places=20)
 
@@ -1167,7 +1167,7 @@ class TestCrankNicolsonOneStep(unittest.TestCase):
             print(V_s[injection_time_id, injection_possition_id])
 
             # how much charge do we have:
-            print(np.sum(V_s[injection_time_id+1, :]) * p.dx * 2 * np.pi * p.r0 * p.c_m / (p.I_e * p.tau))
+            print(np.sum(V_s[injection_time_id+1, :]) * p.dx * 2 * np.pi * p.r_at_0 * p.c_m / (p.I_e * p.tau))
 
 
             # the issue: in t0, tuckwell's closed form formula is not "spread" while our spread is always
@@ -1175,7 +1175,7 @@ class TestCrankNicolsonOneStep(unittest.TestCase):
             # hence this test.
             int_cn = np.sum(V_s[injection_time_id, :] / volt) * p.dx
             int_tuckwell = (
-                    p.I_e * p.rm / (2 * np.pi * p.r0)
+                    p.I_e * p.rm / (2 * np.pi * p.r_at_0)
                     * np.exp(-(times[injection_time_id] - t0) / p_units.tau)
             )
 

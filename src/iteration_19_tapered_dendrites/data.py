@@ -297,7 +297,6 @@ class CableParameters:
             t=None,  # s
             dt=None  # s
     ):
-
         # Attach Brian2 units
         c_m = None if c_m is None else c_m * farad / meter ** 2
         rm = None if rm is None else rm * ohm * meter ** 2

@@ -52,7 +52,7 @@ def run_simulation_unitless(x_N, t_max,verbose=False, saved_frames = 1200):
 
     # Spatial domain and initial condition
     x = p.x
-    r_0 = p.r0
+    r_0 = p.r_at_0
 
     r_of_x = np.ones(N) * r_0
     b = p.b
@@ -217,7 +217,7 @@ def simulate_crank_nicolson_split(x_N=301, dt_=to_SI(0.001 * ms), x0=to_SI(250*u
 
     # Spatial domain and initial condition
     x = p.x
-    r_0 = p.r0
+    r_0 = p.r_at_0
 
     b = p.b
 
@@ -369,7 +369,7 @@ def simulate_crank_nicolson_constant_input_unitless(x_N=301, dt_=to_SI(0.001 * m
 
     # Spatial domain and initial condition
     x = p.x
-    r_0 = p.r0
+    r_0 = p.r_at_0
 
     r_of_x = np.ones(len(simulation_params.x)) * r_0
 
@@ -602,7 +602,7 @@ def simulate_crank_nicolson_unitless_closed_cylinder(x_N=301, dt_=to_SI(0.001 * 
 
     # Spatial domain and initial condition
     x = p.x
-    r_0 = p.r0
+    r_0 = p.r_at_0
 
     b = p.b
 

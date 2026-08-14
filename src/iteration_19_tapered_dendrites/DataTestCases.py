@@ -151,7 +151,7 @@ class DataClassesTestCase(unittest.TestCase):
         )
 
         expected = (
-                p.r0 /
+                p.r_at_0 /
                 (2 * p.c_m * p.ra)
         )
 
@@ -275,7 +275,7 @@ class DataClassesTestCase(unittest.TestCase):
         self.assertAlmostEqual(1.0, p_si.ra)  # Ω·m
         self.assertAlmostEqual(500e-6, p_si.L)  # m
         self.assertAlmostEqual( 5e-6, p_si.dx)  # m
-        self.assertAlmostEqual( 2e-6, p_si.r0)  # m
+        self.assertAlmostEqual(2e-6, p_si.r_at_0)  # m
         self.assertAlmostEqual( 1.5e-12, p_si.I_e) # Ampere
 
         p_from_numerical = CableParameters.from_numerical(p_si)
@@ -287,7 +287,7 @@ class DataClassesTestCase(unittest.TestCase):
         self.assertAlmostEqual(500.0, p_from_numerical.L / um)
         self.assertAlmostEqual(5.0, p_from_numerical.dx / um)
         self.assertAlmostEqual(20.0, p_from_numerical.tau / ms)
-        self.assertAlmostEqual(2.0, p_from_numerical.r0 / um)
+        self.assertAlmostEqual(2.0, p_from_numerical.r_at_0 / um)
         self.assertAlmostEqual(1.0, p_from_numerical.b / (cm ** 2 / second))
         self.assertAlmostEqual(1E5, p_from_numerical.b / (um ** 2 / ms))
         self.assertAlmostEqual(150.0, p_from_numerical.I_e / pampere)
@@ -315,7 +315,7 @@ class DataClassesTestCase(unittest.TestCase):
         self.assertAlmostEqual(1.0, p_si.ra)  # Ω·m
         self.assertAlmostEqual(500e-6, p_si.L)  # m
         self.assertAlmostEqual(5e-6, p_si.dx)  # m
-        self.assertAlmostEqual(2e-6, p_si.r0)  # m
+        self.assertAlmostEqual(2e-6, p_si.r_at_0)  # m
         self.assertAlmostEqual(1.5e-12, p_si.I_e)  # A
 
         # Derived cable quantities
@@ -326,13 +326,13 @@ class DataClassesTestCase(unittest.TestCase):
 
         # lambda = sqrt(r0*rm/(2*ra))
         lambda_ = np.sqrt(
-            p_si.r0 * p_si.rm / (2 * p_si.ra)
+            p_si.r_at_0 * p_si.rm / (2 * p_si.ra)
         )
         self.assertAlmostEqual(1.414213562e-3, lambda_)  # m
         # R_lambda = rm/(2*pi*r0*lambda)
         R_lambda = (
                 p_si.rm /
-                (2 * np.pi * p_si.r0 * lambda_)
+                (2 * np.pi * p_si.r_at_0 * lambda_)
         )
         self.assertAlmostEqual(1.125395, R_lambda * 1E-8, places=6)  # ohm
 
@@ -463,7 +463,7 @@ class DataClassesTestCase(unittest.TestCase):
         self.assertAlmostEqual(1, p101.tau / tau_11)
         self.assertAlmostEqual(1, p101.b / b_11)
         self.assertAlmostEqual(1, p101.L / L_11)
-        self.assertAlmostEqual(1, p101.r0 / r0_11)
+        self.assertAlmostEqual(1, p101.r_at_0 / r0_11)
 
         self.assertEqual(11, p11.N)
         self.assertEqual(101, p101.N)

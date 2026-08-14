@@ -37,7 +37,7 @@ def run_simulation_unitless(x_N, t_max,verbose=False):
 
     # Spatial domain and initial condition
     x = si_units.x
-    r_0 = si_units.r0
+    r_0 = si_units.r_at_0
 
     r_of_x = np.ones(N) * r_0
     b = si_units.b
@@ -238,7 +238,7 @@ def simulate_crank_nicolson_unitless(x_N=301, t_max=to_SI(30 * ms), verbose=True
 
         # Spatial domain and initial condition
         x = si_units.x
-        r_0 = si_units.r0
+        r_0 = si_units.r_at_0
 
         b = si_units.b
 
@@ -817,7 +817,7 @@ class CylindricalDendriticTreePDECase(unittest.TestCase):
 
         # Spatial domain and initial condition
         x = si_units.x
-        r_0 = si_units.r0
+        r_0 = si_units.r_at_0
 
         b = si_units.b
 
