@@ -7,7 +7,8 @@ from brian2.units.allunits import pampere
 from scipy.stats import uniform, expon
 
 from Plotting import show_plots_non_blocking
-from iteration_19_tapered_dendrites.conical_data import create_delta_pulses, ConicalCableParameters
+from iteration_19_tapered_dendrites.conical_data import create_delta_pulses, ConicalCableParameters, \
+    find_multiple_events_per_cell, generate_spike_times
 from iteration_19_tapered_dendrites.data import to_SI
 
 import matplotlib.pyplot as plt
@@ -24,8 +25,9 @@ default_params = ConicalCableParameters(c_m=1 * uF / cm ** 2,
                                  r_at_L=0.5 * um,
                                  I_e=150 * pampere)
 
-class MyTestCase(unittest.TestCase):
-    def test_something(self):
+class SpikeGenerationInTimeAndSpace(unittest.TestCase):
+
+    def test_spike_train_generation_in_time_and_space(self):
         x_N = 101
         dt_ = to_SI(1E-8 * second)
         t_max = to_SI(1 * second)
@@ -39,9 +41,7 @@ class MyTestCase(unittest.TestCase):
         x_distribution = uniform(loc=0, scale = L)
 
         res = create_delta_pulses(
-            x=simulation_params.x,
             t_max=t_max,
-            dt=dt_,
             x_distribution=x_distribution,
             t_distribution=t_distribution,
         )
@@ -110,6 +110,115 @@ class MyTestCase(unittest.TestCase):
         fig.tight_layout()
         show_plots_non_blocking()
 
+        # how to check the process is orderly?
+
+    def test_detects_double_occupied_space_time_cell(self):
+        dt = 1.0
+        dx = 1.0
+
+        # Two events deliberately placed in the same (dt, dx) cell.
+        events = np.array([[ 0.2, 0.8], [ 0.3, 0.7]])
+
+        collision = find_multiple_events_per_cell(
+            events,
+            dt=dt,
+            dx=dx,
+        )
+
+        self.assertIsNotNone(collision)
+
+        self.assertEqual(collision["event_index"], 1)
+        self.assertEqual(collision["time_index"], 0)
+        self.assertEqual(collision["space_index"], 0)
+
+        self.assertAlmostEqual(collision["time"], 0.8)
+        self.assertAlmostEqual(collision["position"], 0.7)
+
+    def test_does_not_detect_events_in_different_cells(self):
+        dt = 1.0
+        dx = 1.0
+
+        events = np.array([[ 0.2, 1.2, 0.2], [ 0.3, 0.3, 1.3]])
+
+        collision = find_multiple_events_per_cell(
+            events,
+            dt,
+            dx,
+        )
+
+        self.assertIsNone(collision)
+
+    def test_create_delta_pulses_reproducible(self):
+        t_distribution = expon(scale=1.0 / 100.0)
+        x_distribution = uniform(
+            loc=100e-6,
+            scale=300e-6,
+        )
+
+        pulses_1 = create_delta_pulses(
+            t_max=1.0,
+            x_distribution=x_distribution,
+            t_distribution=t_distribution,
+            seed=12345,
+        )
+
+        pulses_2 = create_delta_pulses(
+            t_max=1.0,
+            x_distribution=x_distribution,
+            t_distribution=t_distribution,
+            seed=12345,
+        )
+
+        np.testing.assert_array_equal(
+            pulses_1,
+            pulses_2,
+        )
+
+    def test_create_delta_pulses_known(self):
+        t_distribution = expon(scale=1.0 / 100.0)
+        x_distribution = uniform(
+            loc=100e-6,
+            scale=300e-6,
+        )
+
+        pulses = create_delta_pulses(
+            t_max=0.01,
+            x_distribution=x_distribution,
+            t_distribution=t_distribution,
+            seed=0,
+        )
+
+        self.assertEqual((2, 1), pulses.shape)
+
+        np.testing.assert_array_equal(
+            pulses,
+            [[0.006799319039689096], [0.00017697181077412833]],
+        )
+
+    def test_create_delta_pulses_different_seed(self):
+        t_distribution = expon(scale=1.0 / 100.0)
+        x_distribution = uniform(
+            loc=100e-6,
+            scale=300e-6,
+        )
+
+        pulses_1 = create_delta_pulses(
+            t_max=1.0,
+            x_distribution=x_distribution,
+            t_distribution=t_distribution,
+            seed=12345,
+        )
+
+        pulses_2 = create_delta_pulses(
+            t_max=1.0,
+            x_distribution=x_distribution,
+            t_distribution=t_distribution,
+            seed=54321,
+        )
+
+        self.assertFalse(
+            np.array_equal(pulses_1, pulses_2)
+        )
 
 if __name__ == '__main__':
     unittest.main()

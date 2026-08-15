@@ -619,8 +619,7 @@ class ConicalCableParameters:
         I_e=None,
 
         t=None,
-        dt=None,
-    ):
+        dt=None):
         """
         Construct from plain SI values.
         """
@@ -887,20 +886,17 @@ class ConicalCableParameters:
                 (values["N"] - 1)
             )
 
-            if (
-                values["x"] is None
-                or len(values["x"]) != values["N"]
-            ):
-                values["x"] = (
-                    np.linspace(
-                        0,
-                        float(
-                            values["L"] / meter
-                        ),
-                        values["N"]
-                    )
-                    * meter
+
+            values["x"] = (
+                np.linspace(
+                    0,
+                    float(
+                        values["L"] / meter
+                    ),
+                    values["N"]
                 )
+                * meter
+            )
 
         return replace(
             self,
@@ -911,11 +907,10 @@ import numpy as np
 
 
 def create_delta_pulses(
-        x,
         t_max,
-        dt,
         x_distribution,
-        t_distribution):
+        t_distribution,
+        seed=None):
     """
     Generate a set of spatial-temporal delta pulses.
 
@@ -925,14 +920,9 @@ def create_delta_pulses(
 
     Parameters
     ----------
-    x : ndarray
-        Spatial grid [m].
 
     t_max : float
         Maximum simulation time [s].
-
-    dt : float
-        Temporal discretization [s].
 
     x_distribution :
         Distribution object providing ``rvs()`` for spatial locations.
@@ -960,10 +950,24 @@ def create_delta_pulses(
         Actual event positions [m].
     """
 
-    event_times = generate_spike_times(t_distribution, t_max)
-    event_positions = generate_event_positions(event_times, x_distribution)
+    rng = np.random.default_rng(seed)
 
-    return np.vstack((event_times, event_positions))
+    # Generate spike times using the same RNG
+    event_times = generate_spike_times(
+        t_distribution=t_distribution,
+        t_max=t_max,
+        random_state=rng,
+    )
+
+    # Generate corresponding spatial positions
+    event_positions = x_distribution.rvs(
+        size=len(event_times),
+        random_state=rng,
+    )
+
+    return np.vstack(
+        (event_times, event_positions)
+    )
 
 
 def generate_event_positions(n_events, x_distribution, ):
@@ -976,7 +980,7 @@ def generate_event_positions(n_events, x_distribution, ):
 
     return x_distribution.rvs(size=len(n_events))
 
-def generate_spike_times(t_distribution, t_max):
+def generate_spike_times(t_distribution, t_max, random_state=None):
     event_times = []
     t = 0.0
     # Expected number of events over the simulation interval.
@@ -986,7 +990,7 @@ def generate_spike_times(t_distribution, t_max):
     while True:
 
         # Draw a batch of inter-arrival times
-        delta_t = t_distribution.rvs(size=batch_size)
+        delta_t = t_distribution.rvs(size=batch_size, random_state=random_state)
 
         # Convert inter-arrival times to absolute event times
         times = np.cumsum(delta_t)
@@ -1005,3 +1009,26 @@ def generate_spike_times(t_distribution, t_max):
         t_current = times[-1]
     event_times = np.concatenate(event_times) if event_times else np.empty(0)
     return event_times
+
+def find_multiple_events_per_cell(events, dt, dx):
+    occupied = set()
+
+    for i, (t, x) in enumerate(zip(events[0], events[1])):
+
+        time_index = int(np.floor(t / dt))
+        space_index = int(np.floor(x / dx))
+
+        cell = (time_index, space_index)
+
+        if cell in occupied:
+            return {
+                "event_index": i,
+                "time": t,
+                "position": x,
+                "time_index": time_index,
+                "space_index": space_index,
+            }
+
+        occupied.add(cell)
+
+    return None

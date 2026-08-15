@@ -2,22 +2,27 @@ import unittest
 from typing import Callable
 
 import matplotlib.pyplot as plt
+from pathlib import Path
 import numpy as np
 from brian2 import cm, uF, ohm, um, Quantity, is_dimensionless, get_dimensions, volt, have_same_dimensions, mV, uA, \
-    uamp, meter
+    uamp, meter, psecond, msecond, Hz
 from brian2.units import second, ms
 from brian2.units.allunits import ampere, mampere, pampere
 from joblib import Parallel, delayed
 from scipy.integrate import solve_ivp
 from scipy.sparse import diags, eye
 from scipy.sparse.linalg import factorized
+from scipy.stats import expon, uniform
 
 from Plotting import show_plots_non_blocking
-from iteration_19_tapered_dendrites.CylindricalDendritesPDE import dirac_delta_unitless, save_simulation, \
+from iteration_19_tapered_dendrites.CylindricalDendritesPDE import dirac_delta_unitless, \
     plot_tuckwell_solution_closed_cable_unitless_separation_of_variables, \
     plot_tuckwell_solution_closed_cable_unitless_method_of_images
-from iteration_19_tapered_dendrites.conical_data import ConicalCableParameters, ConicalNumericalCableParameters
+from iteration_19_tapered_dendrites.conical_data import ConicalCableParameters, ConicalNumericalCableParameters, \
+    create_delta_pulses
 from iteration_19_tapered_dendrites.data import to_SI
+
+import re
 
 
 # TODO: Normalize the way Dayan has it. ie = Ie τm δ(x)δ(t)/ 2πa. A is the radius! We have a slightly different formulation. But Still
@@ -175,9 +180,28 @@ def plot_difussion_unitless(times, V_s, p: ConicalNumericalCableParameters, x0 =
     show_difussion_simulation_as_image(times=times, V_s = V_s, p=p, x0=x0, t0=t0, verbose=verbose, sim_type=sim_type)
     #plot_tuckwell_solution_infinite_cable(V_s=V_s, desired_positions=desired_positions, p=p, t0=t0, times=times, x0=x0, sim_type=sim_type)
 
-
     plot_tuckwell_solution_closed_cable_unitless_separation_of_variables(V_s=V_s, desired_positions=desired_positions, p=p.to_numerical_cable_params_at(x0), t0=t0, times=times, x0=x0, sim_type=sim_type)
     plot_tuckwell_solution_closed_cable_unitless_method_of_images(V_s=V_s, desired_positions=desired_positions, p=p.to_numerical_cable_params_at(x0), t0=t0, times=times, x0=x0, sim_type=sim_type)
+
+def plot_difussion_unitless_spike_train(times, V_s, p: ConicalNumericalCableParameters, events, desired_positions = [100, 250, 500], verbose=True, sim_type="forward Euler", save=True):
+
+    _, n_events = events.shape
+
+    if n_events == 1:
+        t0, x0 = events[0][0], events[1][0]
+        plot_difussion_unitless(times=times, V_s=V_s, p=p, x0 = x0, t0=t0, desired_positions = desired_positions, verbose=verbose, sim_type=sim_type, save=save)
+        plot_tuckwell_solution_closed_cable_unitless_separation_of_variables(V_s=V_s,
+                                                                             desired_positions=desired_positions,
+                                                                             p=p.to_numerical_cable_params_at(x0),
+                                                                             t0=t0, times=times, x0=x0,
+                                                                             sim_type=sim_type)
+        plot_tuckwell_solution_closed_cable_unitless_method_of_images(V_s=V_s, desired_positions=desired_positions,
+                                                                      p=p.to_numerical_cable_params_at(x0), t0=t0,
+                                                                      times=times, x0=x0, sim_type=sim_type)
+
+    show_difussion_simulation_as_image_spike_train(times=times, V_s = V_s, p=p, events=events, desired_positions=desired_positions, verbose=verbose, sim_type=sim_type)
+        #plot_tuckwell_solution_infinite_cable(V_s=V_s, desired_positions=desired_positions, p=p, t0=t0, times=times, x0=x0, sim_type=sim_type)
+
 
 def show_difussion_simulation_as_image(times, V_s, p: ConicalNumericalCableParameters, x0 =250 * um, t0=0.1 * ms, verbose=True, sim_type="forward Euler"):
     if verbose:
@@ -333,6 +357,152 @@ def show_difussion_simulation_as_image(times, V_s, p: ConicalNumericalCableParam
     plt.tight_layout()
     show_plots_non_blocking()
 
+def show_difussion_simulation_as_image_spike_train(times, V_s, p: ConicalNumericalCableParameters, events: np.ndarray, desired_positions: list, verbose=True, sim_type="forward Euler"):
+    if verbose:
+        assert is_dimensionless(V_s[0][0])
+        assert is_dimensionless(times[0])
+
+    plt.rcParams.update({
+        "text.usetex": True,
+        "font.family": "serif",
+    })
+
+    fig = plt.figure(figsize=(13, 12))
+
+    gs = fig.add_gridspec(
+        5, 1,
+        height_ratios=[2, 2, 2, 2, 1]
+    )
+
+    voltage_diffussion_image = fig.add_subplot(gs[0, 0])
+    voltage_at_selected_spots = fig.add_subplot(gs[1, 0])
+
+    plot_voltage_means = fig.add_subplot(
+        gs[2, 0],
+        sharex=voltage_diffussion_image
+    )
+    raster_plot = fig.add_subplot(
+        gs[3, 0],
+        sharex=voltage_diffussion_image
+    )
+    dendrite_geometry = fig.add_subplot(
+        gs[4, 0],
+        sharex=voltage_diffussion_image
+    )
+
+    # ============================================
+    # Top: space-time voltage map
+    # ============================================
+    x = p.x * meter / um
+    r_of_x = p.radius(p.x) * meter / um
+    times = times * second / ms
+    V_s = V_s * volt / mV
+
+    im = voltage_diffussion_image.imshow(
+        V_s,
+        aspect='auto',
+        origin='lower',
+        extent=[x[0], x[-1], times[0], times[-1]],
+        cmap='cividis_r',
+        vmax=1000
+    )
+
+    fig.colorbar(im, ax=voltage_diffussion_image, label="Voltage (mV)")
+
+    voltage_diffussion_image.set_title(
+        f"{sim_type.capitalize()} simulation for cable equation in cylinder model \n"
+        f"x = [{x[0]} - {x[-1]:.2f}] "r"$\mu$"f"m, split in {len(x)} nodes. \n"
+        f"Max V = {np.max(V_s):.4f} mV. dx={p.dx * meter / um: .5f} "r"$\mu$"f"m, dt={p.dt: .3e} s \n"
+        f""
+    )
+    voltage_diffussion_image.set_xlabel(r"x [$\mu$m]")
+    voltage_diffussion_image.set_ylabel("t [ms]")
+
+    for desired_distance in desired_positions:
+        i =  np.searchsorted(x, desired_distance)
+        voltage_at_selected_spots.plot(
+            times,
+            V_s[:, i],
+            label=f"x = {x[i]:.0f} "r"$\mu$ m",
+            alpha=0.6,
+            lw=2
+        )
+
+    voltage_at_selected_spots.set_ylim(-1, 1000)
+    voltage_at_selected_spots.set_xlabel("t [ms]")
+    voltage_at_selected_spots.set_ylabel("V [mV]")
+    voltage_at_selected_spots.set_title("Voltage at selected positions")
+    voltage_at_selected_spots.legend()
+
+
+    number_of_voltages, x_discretizations = V_s.shape
+
+    half_time =  int(number_of_voltages // 2)
+    voltage_means = np.average(V_s[half_time:, :], axis=0)
+
+    plot_voltage_means.plot(x, voltage_means)
+    plot_voltage_means.set_title("Voltage means")
+
+    raster_plot.scatter(
+        events[1] / um,
+        events[0] / ms,
+        s=15,
+        marker="|",
+        linewidths=1.5,
+        color="black"
+    )
+
+    raster_plot.set_xlim(0, p.L / um)
+
+    raster_plot.set_xlabel(r"$x\;[\mu\mathrm{m}]$")
+    raster_plot.set_ylabel(r"$t\;[\mathrm{ms}]$")
+    raster_plot.set_title("Space-time raster of synaptic events")
+
+
+    # ============================================
+    # Bottom: cone geometry
+    # ============================================
+
+    r = r_of_x
+
+    # Cone walls
+    dendrite_geometry.plot(x, r, 'k', linewidth=2)
+    dendrite_geometry.plot(x, -r, 'k', linewidth=2)
+
+    # Fill cone
+    dendrite_geometry.fill_between(
+        x,
+        -r,
+        r,
+        color='gray',
+        alpha=0.3
+    )
+
+    # Center axis y=0
+    dendrite_geometry.axhline(
+        0,
+        color='gray',
+        linestyle=':',
+        linewidth=1.5
+    )
+
+    # Vertical line at x=0
+    dendrite_geometry.axvline(
+        0,
+        color='gray',
+        linestyle='--',
+        linewidth=1.5
+    )
+
+    dendrite_geometry.set_xlabel("x")
+    dendrite_geometry.set_ylabel("radius")
+    dendrite_geometry.set_title("Cable geometry")
+
+    # ax2.set_aspect('equal', adjustable='box')
+
+    plt.tight_layout()
+    show_plots_non_blocking()
+
 rm = 2 * 1E4 * ohm * cm ** 2
 
 default_params = ConicalCableParameters(c_m=1 * uF / cm ** 2,
@@ -348,7 +518,7 @@ default_params = ConicalCableParameters(c_m=1 * uF / cm ** 2,
 def synaptic_input_profile(t, x0, dt, p: ConicalNumericalCableParameters):
     return dirac_delta_unitless(x0=x0, t0=to_SI(0.1 * ms), I_e=p.I_e, x=p.x, t=t, dx=p.dx, dt=dt, tau_m=p.tau, r_of_x=p.radius(x0))
 
-def crank_nicolson(x0, t_span, V0, A, p: ConicalNumericalCableParameters, saved_frames=1, verbose=False):
+def crank_nicolson(t_span, V0, A, p: ConicalNumericalCableParameters, events, saved_frames=1, verbose=False):
     """
     Solve dV/dt = A V using Crank-Nicolson.
 
@@ -384,33 +554,21 @@ def crank_nicolson(x0, t_span, V0, A, p: ConicalNumericalCableParameters, saved_
     times[0] = t
     sol[0] = V
 
+    next_spike_index = 0
     for step in range(1, num_steps + 1):
 
         dt_step = min(p.dt, tf - t)
 
-        # RHS
-        this_step = synaptic_input_profile(t=t, x0=x0, dt=p.dt, p=p)
-        input_t = p.dt * 1 / p.c_m * this_step
+        synaptic_input_at_t, next_spike_index = synaptic_spike_train_input(t=t, dt=p.dt, p=p, next_spike_idx=next_spike_index, events=events)
+        input_t = p.dt * 1 / p.c_m * synaptic_input_at_t
+
         V_old = None
 
         # Before update
         if np.any(input_t != 0):
-            print("----------------------------")
-            injection_idx = np.argmax(np.abs(input_t))
-
-            print(f"\nInjection at t = {t:.9e}")
-            print(f"node = {injection_idx}")
-            print(f"V before = {V[injection_idx]:.12e}")
-            print(f"input    = {input_t[injection_idx]:.12e}")
-
             V_old = V.copy()
 
         rhs = R @ V + input_t
-
-        if V_old is not None:
-            print("rhs total = ", np.sum(rhs))
-
-            print("expected ΔV =", p.dt * input_t[injection_idx])
 
         # Solve:
         # (I - dt/2 A) V_new = rhs
@@ -435,25 +593,161 @@ def crank_nicolson(x0, t_span, V0, A, p: ConicalNumericalCableParameters, saved_
 
     return times, sol
 
-def simulate_crank_nicolson_unitless_closed_tapered_cylinder(x_N=301, dt_=to_SI(0.001 * ms), x0=to_SI(250 * um), t0=to_SI(0.1 * ms), t_max=to_SI(30 * ms), L=to_SI(500 * um), saved_frames = 1200, verbose=True, plot=False, save=False):
+def save_simulation(times, V_s, t_max, p, events, seed=None, simulation_label="conical_cable_with_spike_train"):
+    dt_ns = int(round(p.dt * second / psecond))  # dt in nanoseconds, avoids ugly floats
+    t_max =t_max * second / msecond
+
+    filename = (
+        f"conical_cable_with_spike_train_{uniform_label_to_filename(simulation_label)}"
+        f"_N{len(p.x)}"
+        f"_L{round(p.L * meter / um)}"
+        f"_t_max{t_max:.3f}".replace(".", "_") + "ms"
+        f"_dt{dt_ns}ps"
+        f"_n_events{len(events)}"
+        f"_seed{seed}"                                    
+        ".npz"
+    )
+
+    path = Path("saved_simulations") / filename
+    path.parent.mkdir(exist_ok=True)
+
+    np.savez_compressed(
+        path,
+        times=times,
+        V_s=V_s,
+        dt=p.dt,
+        x=p.x,
+        events=events,
+        tau=p.tau,
+        L=p.L,
+        N=len(p.x),
+        I_e=p.I_e,
+    )
+
+    print(f"Saved {path}")
+    return path
+
+
+def synaptic_spike_train_input(
+    t,
+    dt,
+    events,
+    next_spike_idx,
+    p: ConicalNumericalCableParameters):
+    """
+    Return the synaptic input generated by all spikes occurring in
+    the time interval [t, t + dt), together with the index of the
+    next unconsumed spike.
+
+    Parameters
+    ----------
+    t : float
+        Start of the current time step [s].
+
+    dt : float
+        Width of the current time step [s].
+
+    event_times : np.ndarray
+        Sorted spike times [s].
+
+    event_positions : np.ndarray
+        Position corresponding to each spike [m].
+
+    next_spike_idx : int
+        Index of the first spike not yet consumed.
+
+    p : ConicalNumericalCableParameters
+        Cable parameters.
+
+    Returns
+    -------
+    input_t : np.ndarray
+        Total synaptic input profile for this time step.
+
+    next_spike_idx : int
+        Index of the first spike not consumed.
+    """
+
+    input_t = np.zeros_like(p.x)
+
+    if next_spike_idx >= len(events[0]):
+        return input_t, len(events[0])
+
+    t_end = t + dt
+
+    event_times, event_positions = events
+    n_events = len(event_times)
+
+    while next_spike_idx < n_events:
+
+        spike_t = event_times[next_spike_idx]
+
+        # This spike belongs to a future time step.
+        if spike_t >= t_end:
+            break
+
+        # This should normally never happen if the index is maintained
+        # correctly, but protects against stale spikes.
+        if spike_t < t:
+            raise ValueError(
+                f"Spike at t={spike_t} is before current time "
+                f"t={t}. next_spike_idx={next_spike_idx}."
+            )
+
+        spike_x = event_positions[next_spike_idx]
+
+        input_t += dirac_delta_unitless(
+            x0=spike_x,
+            t0=spike_t,
+            I_e=p.I_e,
+            x=p.x,
+            t=t,
+            dx=p.dx,
+            dt=dt,
+            tau_m=p.tau,
+            r_of_x=p.radius(spike_x),
+        )
+
+        next_spike_idx += 1
+
+    return input_t, next_spike_idx
+
+def simulate_crank_nicolson_unitless_closed_tapered_cylinder(events, x_N=301, dt_=to_SI(0.001 * ms), t_max=to_SI(30 * ms), L=to_SI(500 * um),saved_frames = 1200, verbose=True, plot=False, save=False, simulation_label="uniform distribution"):
     simulation_params = default_params.with_SI_properties(t=t_max, N=x_N, dt=dt_, L=L, I_e = to_SI(150 * pampere))
     p = simulation_params.to_numerical()
 
     # 1. Parameters
-    dx = p.dx
-    dt = p.dt
-    tau = p.tau
+    return simulate_crank_nicolson_unitless_closed_tapered_cylinder_with_param(events=events, p=p, t_max=t_max, saved_frames=saved_frames, verbose=verbose, plot=plot, simulation_label=simulation_label, save=save)
 
-    print(f"Simulating Crank-Nicolson unitless cone with dt = {dt_: .5e}")
-    print(f"Simulating Crank-Nicolson unitless cone with dt = {simulation_params.dt: .5e}")
+def file_name_prefix_for_uniform(a: float, b: float):
+    label = experiment_label_for_uniform(a, b)
+    return uniform_label_to_filename(label)
+
+def uniform_label_to_filename(label: str):
+    return re.sub(r'[^a-zA-Z0-9_.-]+', '_', label.replace(" - ", "_").lower())
+
+def experiment_label_for_uniform(a: Quantity, b: Quantity):
+    if is_dimensionless(a):
+        a = a * meter
+
+    if is_dimensionless(b):
+        b = b * meter
+
+
+    return f"Uniform x ~ [{int(a / um)} um - {int(b / um)} um]"
+
+def simulate_crank_nicolson_unitless_closed_tapered_cylinder_with_param(events, p: ConicalNumericalCableParameters, t_max=to_SI(30 * ms),
+                                                                        saved_frames = 1200, verbose=True, plot=False, save=False,
+                                                                        simulation_label="uniform distribution"):
+    print(f"Simulating Crank-Nicolson unitless cone with dt = {p.dt: .5e}")
 
     # Spatial domain and initial condition
     x = p.x
-    r_0 = p.r_at_0
+    dx = p.dx
+    tau = p.tau
 
     a = p.a()
     b = p.b(x)
-
 
     lower = b[1:] / dx ** 2 + a / (2 * dx)
     main = -1 / tau - 2 * b / dx ** 2
@@ -463,11 +757,11 @@ def simulate_crank_nicolson_unitless_closed_tapered_cylinder(x_N=301, dt_=to_SI(
     A = diags(
         diagonals=[lower, main, upper],
         offsets=[-1, 0, 1],
-        format="lil"
-    )
+        format="lil")
+
     # empirically, this does not work! Stiffness computed when boundary conditions are applied: 306 030  = 3*1E6 vs 7E4 when conditions are not applied
 
-    def solve(x0, plot=True, t_max=to_SI(300 * ms)):
+    def solve(plot=True, t_max=to_SI(300 * ms)):
 
         print(f"tau = {tau}")
         print(f"dt = {p.dt}")
@@ -480,7 +774,7 @@ def simulate_crank_nicolson_unitless_closed_tapered_cylinder(x_N=301, dt_=to_SI(
             assert is_dimensionless(u0)
 
         # 3. Solve the ODE via crank nicolson (x0, t_span, V0, dt =0.01 * ms, saved_frames=1, plot=True, verbose=False):
-        times, V_s = crank_nicolson(t_span=(0, t_max), x0=x0, V0=u0, A=A, saved_frames=saved_frames, p=p)
+        times, V_s = crank_nicolson(t_span=(0, t_max), V0=u0, A=A, saved_frames=saved_frames, p=p, events=events)
 
         if verbose:
             assert is_dimensionless(times[0])
@@ -488,15 +782,43 @@ def simulate_crank_nicolson_unitless_closed_tapered_cylinder(x_N=301, dt_=to_SI(
             assert is_dimensionless(V_s[0])
 
         if save:
-            save_simulation(times=times, V_s=V_s, p=p, x0=x0, t_max=t_max, filename_prefix="conical")
+            save_simulation(times=times, V_s=V_s, p=p, events=events, t_max=t_max, simulation_label="uniform distribution")
 
         if plot:
-            # def plot_difussion_unitless(times, V_s, simulation_params: NumericalCableParameters, dt, verbose=True, sim_type="forward Euler")
-            plot_difussion_unitless(times=times, V_s=V_s, p= p, sim_type="Crank-Nicolson unitless", save=True)
+            plot_difussion_unitless_spike_train(times=times, V_s=V_s, p=p, events=events,
+                                                sim_type=f"Crank-Nicolson unitless {simulation_label}", save=True)
 
-        return np.max(V_s), np.argmax(V_s[1]), p.dt, x0
+        return np.max(V_s), np.argmax(V_s[1]), p.dt, events
 
-    return solve(x0=x0, t_max=t_max, plot=plot)
+    return solve(t_max=t_max, plot=plot)
+
+def simulate_with_uniform(p: ConicalNumericalCableParameters, t_max=to_SI(1 * second), a = 0, b = to_SI(500 * um)):
+
+    if have_same_dimensions(t_max, second):
+        t_max = to_SI(t_max)
+
+    r_i = 2000 * Hz
+
+    t_distribution = expon(scale=1.0 / r_i)
+    x_distribution = uniform(loc=a, scale=b)
+
+    spike_train = create_delta_pulses(
+        t_max=t_max,
+        x_distribution=x_distribution,
+        t_distribution=t_distribution,
+    )
+
+    print("Simulating spike train: ", spike_train.shape)
+    simulate_crank_nicolson_unitless_closed_tapered_cylinder_with_param(
+        p=p,
+        t_max=t_max,
+        events=spike_train,
+        verbose=True,
+        plot=True,
+        save=True,
+        saved_frames=3 * 10 ** 4,
+        simulation_label=experiment_label_for_uniform(a, b))
+
 
 class TaperedDendritesPDECase(unittest.TestCase):
     def test_heat_difussion(self):
@@ -1489,12 +1811,142 @@ class TaperedDendritesPDECase(unittest.TestCase):
             plt.tight_layout()
             plt.show()
 
-    def test_simulate_diffusion_on_closed_conical_dendrite(self):
+    def test_simulate_diffusion_on_closed_conical_dendrite_one_spike(self):
 
-        for x0 in [to_SI(100 * um), to_SI(150 * um), to_SI(250 * um), to_SI(300 * um), to_SI(400 * um), to_SI(450 * um)]:
-            simulate_crank_nicolson_unitless_closed_tapered_cylinder(x_N = 101, dt_=to_SI(1E-8 * second), x0 = x0, t_max=to_SI(0.3 * ms),
-                                                                     verbose=True, L=to_SI(500 * um), plot=True, save=True,
-                                                             saved_frames=3 * 1E4)
+        x0_values = [to_SI(100 * um), to_SI(150 * um), to_SI(250 * um), to_SI(300 * um), to_SI(400 * um), to_SI(450 * um)]
+
+        events = [np.array([[to_SI(0.1 * ms)], [x0]]) for x0 in x0_values]
+
+        is_debug = False
+        results = Parallel(n_jobs=1 if is_debug else  -3, verbose=10)(
+            delayed(simulate_crank_nicolson_unitless_closed_tapered_cylinder)(
+                events=event,
+                x_N=101,
+                dt_=to_SI(1E-8 * second),
+                #t_max=to_SI(0.3 * second),
+                t_max=to_SI(0.3 * ms),
+                verbose=True,
+                L=to_SI(500 * um),
+                plot=True,
+                save=True,
+                saved_frames=3 * 10 ** 4,
+            )
+            for event in events
+        )
+
+    def test_simulate_diffusion_on_closed_conical_dendrite_spike_train(self):
+        x_N = 101
+        t_max = to_SI(3 * second)
+
+        dt = to_SI(1E-7 * second)
+        L = to_SI(2000 * um)
+        r_i = 2000 * Hz
+
+        t_distribution = expon(scale=1.0 / r_i)
+        x_distribution = uniform(loc=0, scale=L)
+
+        spike_train = create_delta_pulses(
+            t_max=t_max,
+            x_distribution=x_distribution,
+            t_distribution=t_distribution,
+        )
+
+        print("Simulating spike train: ", spike_train.shape)
+
+        simulate_crank_nicolson_unitless_closed_tapered_cylinder(
+                x_N=x_N,
+                dt_=dt,
+                t_max=t_max,
+                events=spike_train,
+                verbose=True,
+                L=L,
+                plot=True,
+                save=True,
+                saved_frames=3 * 10 ** 4)
+
+    def test_simulate_diffusion_on_closed_conical_dendrite_spike_trainfirst_half(self):
+
+        limits = [(0, to_SI(2000 * um)), (to_SI(250 * um), to_SI(500 * um)), (to_SI(400 * um), to_SI(500 * um)),
+                  (to_SI(150 * um), to_SI(350 * um)), (to_SI(450 * um), to_SI(500 * um))]
+        t_max = to_SI(10 * second)
+        p = default_params.with_SI_properties(dt=to_SI(1E-8 * second), N = 101, L=to_SI(500 * um)).to_numerical()
+
+
+        simulate_with_uniform(p=p, t_max=t_max, a = 0, b = to_SI(500 * um))
+        is_debug=False
+        results = Parallel(n_jobs=1 if is_debug else -3, verbose=10)(
+            delayed(simulate_with_uniform)(p=p, t_max=t_max, a = a, b=b) for a, b in limits
+        )
+
+    def test_simulate_diffusion_on_closed_conical_dendrite_spike_small_L(self):
+
+        limits = [(0, to_SI(2000 * um)), (to_SI(250 * um), to_SI(2000 * um)), (to_SI(1000 * um), to_SI(2000 * um)),
+                  (to_SI(250 * um), to_SI(750 * um)), (to_SI(500 * um), to_SI(750 * um)) ,(to_SI(1500 * um), to_SI(2000 * um))]
+        t_max = to_SI(10 * second)
+        p = default_params.with_SI_properties(dt=to_SI(1E-8 * second), N = 101, L=to_SI(500 * um)).to_numerical()
+
+
+        simulate_with_uniform(p=p, t_max=t_max, a = 0, b = to_SI(500 * um))
+        is_debug=False
+        results = Parallel(n_jobs=1 if is_debug else -3, verbose=10)(
+            delayed(simulate_with_uniform)(p=p, t_max=t_max, a = a, b=b) for a, b in limits
+        )
+
+    def test_simulate_diffusion_on_closed_conical_dendrite_spike_trainfirst_half(self):
+
+        limits = [(0, to_SI(2000 * um)), (to_SI(250 * um), to_SI(2000 * um)), (to_SI(1000 * um), to_SI(2000 * um)),
+                  (to_SI(250 * um), to_SI(750 * um)), (to_SI(500 * um), to_SI(750 * um)) ,(to_SI(1500 * um), to_SI(2000 * um))]
+        t_max = to_SI(10 * second)
+        p = default_params.with_SI_properties(dt=to_SI(5E-8 * second), N = 101, L=to_SI(1500 * um)).to_numerical()
+
+
+        simulate_with_uniform(p=p, t_max=t_max, a = 0, b = to_SI(1500 * um))
+        is_debug=False
+        results = Parallel(n_jobs=1 if is_debug else -3, verbose=10)(
+            delayed(simulate_with_uniform)(p=p, t_max=t_max, a = a, b=b) for a, b in limits
+        )
+
+    def test_difussions(self):
+        self.simulate_500_um(t_max=to_SI(10 * ms))
+
+
+    def params_500_um(self):
+        L = to_SI(500 * um)
+        limits = [(0, L), (0.25 * L, L), (0.5 * L, L), (0.75 * L, L),
+                  (0.25 * L, 0.5 * L), (0.25 * L, 0.75 * L), (0.5 * L, 0.75 * L)]
+        p = default_params.with_SI_properties(dt=to_SI(1E-8 * second), N=101, L=L,
+                                              I_e=to_SI(15 * pampere)).to_numerical()
+
+        return [(a, b, p) for a, b in limits]
+
+    def params_1000_um(self):
+        L = to_SI(1000 * um)
+        limits = [(0, L), (0.25 * L, L), (0.5 * L, L), (0.75 * L, L),
+                  (0.25 * L, 0.5 * L), (0.25 * L, 0.75 * L), (0.5 * L, 0.75 * L)]
+        p = default_params.with_SI_properties(dt=to_SI(1E-8 * second), N=101, L=L,
+                                              I_e=to_SI(15 * pampere)).to_numerical()
+
+        return [(a, b, p) for a, b in limits]
+
+    def params_1500_um(self):
+        L = to_SI(1500 * um)
+        limits = [(0, L), (0.3 * L, L), (0.6 * L, L), (0.6666666666666666 * L, L) , (to_SI(1250 * um), L),
+                  (0, 0.3 * L), (0, 0.6 * L), (0, to_SI(1250 * um)) , (0, to_SI(1000 * um)), (0, to_SI(1250 * um)),
+                  (to_SI(500 * um), L), (to_SI(750 * um), L), (to_SI(1000 * um), L),
+                  (to_SI(500 * um), to_SI(1000)), (to_SI(1250 * um), L)]
+
+        p = default_params.with_SI_properties(dt=to_SI(1E-8 * second), N=101, L=L,
+                                              I_e=to_SI(15 * pampere)).to_numerical()
+
+        return [(a, b, p) for a, b in limits]
+
+    def test_sim_all(self, t_max=to_SI(10 * second)):
+        is_debug=False
+        almost_all_sim = self.params_500_um() + self.params_1000_um() + self.params_1500_um()
+        print(almost_all_sim)
+        results = Parallel(n_jobs=1 if is_debug else -2, verbose=10)(
+            delayed(simulate_with_uniform)(p=p, t_max=t_max, a=a, b=b) for a, b, p in almost_all_sim)
+
 
 
 if __name__ == '__main__':

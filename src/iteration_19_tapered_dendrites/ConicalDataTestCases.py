@@ -2,23 +2,18 @@ import math
 import unittest
 
 import numpy as np
-
 from brian2 import (
     have_same_dimensions,
     farad,
     meter,
     ohm,
     second,
-    msecond,
     uF,
     cm,
     um,
-    siemens,
     ms,
     ufarad,
-    us, cmeter,
-)
-
+    us, cmeter, )
 from brian2.units.allunits import (
     pampere,
 )
@@ -28,6 +23,7 @@ from conical_data import (
     ConicalNumericalCableParameters,
     to_SI,
 )
+from iteration_19_tapered_dendrites.TaperredDendritesPDE import file_name_prefix_for_uniform, experiment_label_for_uniform
 
 
 def assert_close(a, b, rtol=1e-10, atol=1e-15):
@@ -1164,6 +1160,41 @@ class TestConicalToSI(unittest.TestCase):
             ]),
         )
 
+    def test_k_must_be_always_positive(self):
+        rm = 2 * 1E4 * ohm * cm ** 2
+        x_N = 101
+        t_max = to_SI(0.1 * second)
+
+        dt = to_SI(1E-7 * second)
+        L = to_SI(2000 * um)
+        default_params = ConicalCableParameters(c_m=1 * uF / cm ** 2,
+                                                rm=rm,
+                                                gL=1 / rm,
+                                                ra=100 * ohm * cm,
+                                                L=500.0 * um,
+                                                N=101,
+                                                r_at_0=2 * um,
+                                                r_at_L=0.5 * um,
+                                                I_e=150 * pampere)
+        simulation_params = default_params.with_SI_properties(t=t_max, N=x_N, dt=dt, L=L,
+                                                              I_e=to_SI(150 * pampere))
+
+        self.assertEqual(2, simulation_params.radius(0 * um) / um)
+        self.assertEqual(0.5, simulation_params.radius(2000 * um) / um)
+        self.assertEqual(0.000375, simulation_params.k * um)
+
+        self.assertAlmostEqual(500, default_params.L / um)
+        self.assertAlmostEqual(2000, simulation_params.L / um)
+
+        self.assertEqual(0, default_params.x[0] / um)
+        self.assertAlmostEqual(500, default_params.x[-1] / um)
+
+        self.assertEqual(0, simulation_params.x[0] / um)
+        self.assertAlmostEqual(2000, simulation_params.x[-1] / um)
+
+    def test_filename_generation(self):
+        self.assertEqual("Uniform x ~ [0 um - 500 um]", experiment_label_for_uniform(to_SI(0 * um), to_SI(500 * um)))
+        self.assertEqual("uniform_x_0_um_500_um_", file_name_prefix_for_uniform(to_SI(0 * um), to_SI(500 * um)))
 
 if __name__ == "__main__":
     unittest.main()

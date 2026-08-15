@@ -739,7 +739,6 @@ def dirac_delta_unitless(
             result[i_e_index] = i_e * (1.0 - alpha)
             result[i_e_index + 1] = i_e * alpha
 
-    verbose=True
     if verbose:
         print(f"Inserted delta at t={t}. t0={t0}, I_e={I_e}. dt = {dt: .3e} s. Total = {np.sum(result * 2 * np.pi * r_of_x / tau_m) * dx * dt:.6e}")
     return result
@@ -854,8 +853,8 @@ def show_difussion_simulation_as_image(times, V_s, p: NumericalCableParameters, 
         aspect='auto',
         origin='lower',
         extent=[x[0], x[-1], times[0], times[-1]],
-        cmap='cividis_r'
-        # vmax=0.05
+        cmap='cividis_r',
+        vmax=1000
     )
 
     fig.colorbar(im, ax=ax1, label="Voltage (mV)")
